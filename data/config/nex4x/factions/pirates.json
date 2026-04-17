@@ -1,0 +1,18 @@
+{
+    "factionId": "pirates",
+    "startingArchetype": "OPPORTUNIST",
+    "tendencyOverrides": {
+        "mil": 2.5,
+        "cor": 3.5,
+        "eco": 0.5,
+        "ind": 1.0,
+        "fed": 0.5,
+        "zea": 2.0
+    },
+    "goalPriorityOverrides": {
+        "EXPLOIT_WEAKNESS": 1.5,
+        "ECONOMIC_DOMINANCE": 1.2,
+        "BUILD_ALLIANCE": 0.7
+    },
+    "negotiationStyle": "TREACHEROUS"
+}

@@ -1,0 +1,11 @@
+{
+    "beliefs": [
+        {"id": "defend_faithful", "strength": 3, "visibility": "public"},
+        {"id": "ai_heresy", "strength": 3, "visibility": "public"},
+        {"id": "protect_church", "strength": 2, "visibility": "public"},
+        {"id": "values_military_allies", "strength": 2, "visibility": "public"},
+        {"id": "values_ideological_alignment", "strength": 3, "visibility": "public"},
+        {"id": "distrusts_ai_users", "strength": 3, "visibility": "public"},
+        {"id": "distrusts_hostile_luddic", "strength": 2, "visibility": "public"}
+    ]
+}

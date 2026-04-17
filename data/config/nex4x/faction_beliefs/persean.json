@@ -1,0 +1,16 @@
+{
+    "beliefs": [
+        {"id": "mutual_defense_heg", "strength": 3, "visibility": "public"},
+        {"id": "league_autonomy", "strength": 2, "visibility": "public"},
+        {"id": "contain_hegemony", "strength": 2, "visibility": "public"},
+        {"id": "claims_league_territory", "strength": 2, "visibility": "public"},
+        {"id": "fears_internal_fracture", "strength": 2, "visibility": "secret"},
+        {"id": "absorb_fringe_colonies", "strength": 1, "visibility": "secret"},
+        {"id": "values_diplomatic_reliability", "strength": 3, "visibility": "public"},
+        {"id": "values_alliance_honor", "strength": 2, "visibility": "public"},
+        {"id": "values_trade_cooperation", "strength": 1, "visibility": "public"},
+        {"id": "distrusts_military_rivals", "strength": 2, "visibility": "secret"},
+        {"id": "distrusts_rapid_expansion", "strength": 1, "visibility": "secret"},
+        {"id": "distrusts_treaty_breakers", "strength": 2, "visibility": "public"}
+    ]
+}

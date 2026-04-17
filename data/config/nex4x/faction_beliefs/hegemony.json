@@ -1,0 +1,14 @@
+{
+    "beliefs": [
+        {"id": "ai_heresy", "strength": 3, "visibility": "public"},
+        {"id": "seeks_sector_hegemony", "strength": 3, "visibility": "secret"},
+        {"id": "claims_domain_territory", "strength": 2, "visibility": "secret"},
+        {"id": "values_military_strength", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_ai_users", "strength": 3, "visibility": "public"},
+        {"id": "values_industrial_output", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_rapid_expansion", "strength": 2, "visibility": "secret"},
+        {"id": "distrusts_economic_competitors", "strength": 1, "visibility": "secret"},
+        {"id": "distrusts_unreliable", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_secretive", "strength": 1, "visibility": "secret"}
+    ]
+}

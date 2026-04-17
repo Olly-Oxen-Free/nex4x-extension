@@ -1,0 +1,18 @@
+{
+    "factionId": "persean",
+    "startingArchetype": "COALITION_BUILDER",
+    "tendencyOverrides": {
+        "fed": 4.0,
+        "ind": 2.5,
+        "cor": 2.0,
+        "mil": 1.5,
+        "eco": 1.5,
+        "zea": 0.5
+    },
+    "goalPriorityOverrides": {
+        "BUILD_ALLIANCE": 1.4,
+        "IMPROVE_RELATIONS": 1.3,
+        "RENEW_AGREEMENT": 1.2
+    },
+    "negotiationStyle": "COOPERATIVE"
+}

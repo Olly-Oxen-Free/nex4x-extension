@@ -1,0 +1,15 @@
+{
+    "beliefs": [
+        {"id": "technology_is_progress", "strength": 2, "visibility": "public"},
+        {"id": "free_markets_benefit_all", "strength": 2, "visibility": "public"},
+        {"id": "ai_research_unrestricted", "strength": 2, "visibility": "secret"},
+        {"id": "seeks_economic_dominance", "strength": 3, "visibility": "secret"},
+        {"id": "undermine_heg_regulatory", "strength": 2, "visibility": "secret"},
+        {"id": "luddic_threat", "strength": 1, "visibility": "public"},
+        {"id": "values_tech_advancement", "strength": 2, "visibility": "public"},
+        {"id": "values_trade_revenue", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_econ_competitors_own", "strength": 3, "visibility": "secret"},
+        {"id": "distrusts_hostile_tech", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_rapid_military", "strength": 1, "visibility": "secret"}
+    ]
+}

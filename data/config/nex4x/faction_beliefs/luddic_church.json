@@ -1,0 +1,15 @@
+{
+    "beliefs": [
+        {"id": "ai_heresy", "strength": 3, "visibility": "public"},
+        {"id": "spiritual_salvation", "strength": 2, "visibility": "public"},
+        {"id": "agrarian_over_industrial", "strength": 2, "visibility": "public"},
+        {"id": "moderate_path_extremism", "strength": 2, "visibility": "secret"},
+        {"id": "expand_peaceful_conversion", "strength": 1, "visibility": "secret"},
+        {"id": "values_ideological_alignment", "strength": 3, "visibility": "public"},
+        {"id": "values_ecological_stewardship", "strength": 2, "visibility": "public"},
+        {"id": "values_diplomatic_reliability", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_ai_users", "strength": 3, "visibility": "public"},
+        {"id": "distrusts_heavy_industrial", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_hostile_luddic", "strength": 2, "visibility": "public"}
+    ]
+}

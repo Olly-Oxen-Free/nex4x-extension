@@ -1,0 +1,17 @@
+{
+    "transitionThreshold": 0.20,
+    "minTrendDays": 30,
+    "transitionBoost": 1.15,
+    "dailyDecay": 0.997,
+    "dominantDecay": 0.999,
+    "goalFeedRate": 0.01,
+    "beliefFloorRate": 0.005,
+    "opportunistThreshold": 10,
+    "archetypeBoost": 1.4,
+    "archetypeMinorBoost": 1.15,
+    "archetypePenalty": 0.6,
+    "crisisMarketLossRatio": 0.5,
+    "crisisMultiFrontWars": 3,
+    "crisisStabilityThreshold": 3,
+    "crisisLockDays": { "marketLoss": 60, "multiFront": 45, "economy": 30 }
+}

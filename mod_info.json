@@ -1,0 +1,17 @@
+{
+    "id": "nex4x_expansion",
+    "name": "Nexerelin 4X Expansion",
+    "version": "0.1.0",
+    "author": "jayden-eppcohen",
+    "description": "4X diplomacy overhaul for Nexerelin. Adds beliefs, memories, reputation badges, internal politics, and faction doctrine.",
+    "gameVersion": "0.98a-RC8",
+    "jars": ["jars/Nex4xExpansion.jar"],
+    "modPlugin": "nex4x.Nex4xModPlugin",
+    "dependencies": [
+        {"id": "nexerelin", "name": "Nexerelin"},
+        {"id": "ashlib", "name": "Ashlib"}
+    ],
+    "softDependencies": [
+        {"id": "lunalib", "name": "LunaLib"}
+    ]
+}

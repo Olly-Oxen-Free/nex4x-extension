@@ -1,0 +1,79 @@
+id,name,category,description,fs
+distrusts_ai_users,"Distrusts factions that use AI openly",ideological,"Negative disposition toward factions known to employ AI cores or conduct AI research.",#
+values_military_strength,"Values military strength in partners",military,"Positively disposed toward factions with strong fleets and military infrastructure.",#
+seeks_sector_hegemony,"Seeks sector-wide hegemony",political,"Desires to be the dominant governing authority over the entire sector.",#
+claims_domain_territory,"Claims former Domain-administered territory",territorial,"Considers former Domain territories to be their rightful domain.",#
+values_industrial_output,"Values strong industrial output in partners",economic,"Positively disposed toward factions with heavy industry and production.",#
+distrusts_rapid_expansion,"Distrusts rapid expansion by others",political,"Suspicious of factions that are growing quickly.",#
+distrusts_economic_competitors,"Distrusts economic competitors",economic,"Hostile toward factions that compete in same commodity markets.",#
+distrusts_unreliable,"Distrusts unreliable or oathbreaking factions",political,"Heavy penalties for factions with Oathbreaker or Betrayer badges.",#
+distrusts_secretive,"Distrusts secretive factions",political,"Suspicious of factions with Low Profile or Devious traits.",#
+technology_is_progress,"Technology is progress",ideological,"Believes technological advancement benefits everyone.",#
+free_markets_benefit_all,"Free markets benefit everyone",economic,"Supports open trade and deregulation.",#
+ai_research_unrestricted,"AI research should be unrestricted",ideological,"Believes AI research should have no limits.",#
+seeks_economic_dominance,"Seeks sector economic dominance",political,"Wants to control the sector's economy.",#
+undermine_heg_regulatory,"Wants to undermine Hegemony regulatory power",political,"Actively works against Hegemony's sector authority.",#
+luddic_threat,"Luddic factions are an ideological threat",political,"Views Luddic movements as dangerous.",#
+values_tech_advancement,"Values technological advancement in partners",ideological,"Positively disposed toward high-tech factions.",#
+values_trade_revenue,"Values trade revenue in partners",economic,"Positively disposed toward factions that generate trade income.",#
+distrusts_econ_competitors_own,"Distrusts economic competitors in own markets",economic,"Hostile toward factions competing in their home markets.",#
+distrusts_hostile_tech,"Distrusts factions hostile to technology",ideological,"Suspicious of anti-tech factions.",#
+distrusts_rapid_military,"Distrusts rapid military expansion by others",political,"Wary of factions building up fleets quickly.",#
+ai_heresy,"AI is heresy — must be destroyed",ideological,"AI cores and research are abominations to be eliminated.",#
+spiritual_salvation,"Spiritual salvation through simple living",ideological,"Believes in returning to a simpler way of life.",#
+agrarian_over_industrial,"Agrarian development over industrialization",economic,"Prefers farming and light industry over heavy production.",#
+moderate_path_extremism,"Wants to moderate the Path's extremism",political,"Seeks to temper the Luddic Path's violent tendencies.",#
+expand_peaceful_conversion,"Seeks to expand through peaceful conversion",political,"Wants to grow influence through missionary work.",#
+values_ideological_alignment,"Values ideological alignment in partners",ideological,"Strongly prefers factions that share their worldview.",#
+values_ecological_stewardship,"Values ecological stewardship in partners",economic,"Positively disposed toward environmentally conscious factions.",#
+values_diplomatic_reliability,"Values diplomatic reliability in partners",political,"Strongly prefers factions that keep their word.",#
+distrusts_heavy_industrial,"Distrusts heavy industrialization",economic,"Suspicious of factions that prioritize production over ecology.",#
+distrusts_hostile_luddic,"Distrusts factions hostile to Luddic faith",ideological,"Defensive toward factions that oppose Luddism.",#
+annihilate_all_ai_tech,"All AI and advanced tech must be annihilated",ideological,"Seeks the total destruction of all AI and high technology.",#
+sector_irredeemably_corrupt,"The sector is irredeemably corrupt",ideological,"Believes the current order cannot be reformed.",#
+violence_is_purification,"Violence is the only path to purification",military,"War and destruction are necessary for renewal.",#
+centralized_authority_tyranny,"All centralized authority is tyranny",political,"Opposes any form of central governance.",#
+distrusts_advanced_tech,"Distrusts any faction using advanced technology",ideological,"Hostile toward factions with high-tech infrastructure.",#
+distrusts_ai_core_users,"Distrusts any faction with AI cores",ideological,"Specifically hostile to factions deploying AI cores.",#
+distrusts_diplomatic_factions,"Distrusts diplomatic factions",political,"Views compromise and negotiation as weakness.",#
+mutual_defense_heg,"Mutual defense against Hegemony aggression",political,"Core alliance goal: collective defense against Hegemony.",#
+league_autonomy,"League members deserve autonomy",political,"Each member state should govern itself.",#
+contain_hegemony,"Hegemony expansion must be contained",political,"Actively works to limit Hegemony growth.",#
+claims_league_territory,"Claims former League territories lost to Hegemony",territorial,"Considers Hegemony-held former League worlds as rightfully theirs.",#
+fears_internal_fracture,"Fears internal fracturing of the League",political,"Worried about League unity breaking down.",#
+absorb_fringe_colonies,"Wants to absorb independent fringe colonies",territorial,"Seeks to bring independent border systems into the League.",#
+values_alliance_honor,"Values factions that honor alliances",political,"Strong positive disposition toward reliable allies.",#
+values_trade_cooperation,"Values trade partners — economic cooperation",economic,"Prefers factions willing to engage in mutual trade.",#
+distrusts_military_rivals,"Distrusts military rivals",military,"Envious of factions with stronger militaries.",#
+distrusts_treaty_breakers,"Distrusts factions that break treaties",political,"Heavy penalties for factions that violate agreements.",#
+fuel_monopoly_nonnegotiable,"Fuel monopoly is non-negotiable",economic,"Will not tolerate competition in fuel markets.",#
+diktat_authority_absolute,"Diktat authority is absolute within its territory",political,"No outside interference tolerated in Diktat space.",#
+military_economic_enforcement,"Military enforcement of economic interests",military,"Uses force to protect trade and resources.",#
+expand_fuel_territory,"Wants to expand fuel extraction territory",territorial,"Seeks new systems with fuel resources.",#
+resents_heg_interference,"Resents Hegemony oversight and interference",political,"Chafes under Hegemony regulations.",#
+fuel_competitors_threats,"Views competitors in fuel market as threats",economic,"Hostile toward factions that produce or trade fuel.",#
+distrusts_expansion_near_diktat,"Distrusts rapid expansion near Diktat territory",territorial,"Wary of factions growing near their borders.",#
+distrusts_challenge_authority,"Distrusts factions that challenge Diktat authority",political,"Hostile toward factions that question their rule.",#
+profit_any_means,"Profit through any means necessary",economic,"Will use any method to make money.",#
+reject_authority,"Reject all centralized authority",political,"Opposes any government or organized power.",#
+respects_strength,"Respects military strength — prey on weakness",military,"Strong factions are respected; weak ones are targets.",#
+targets_poorly_defended,"Targets wealthy poorly defended systems",territorial,"Focuses raids on rich but vulnerable markets.",#
+values_no_questions_trade,"Values trade partners who don't ask questions",economic,"Prefers trading partners without moral qualms.",#
+distrusts_law_order,"Distrusts law-and-order factions",political,"Hostile toward factions that enforce strict laws.",#
+distrusts_restricted_markets,"Distrusts factions that restrict free markets",economic,"Opposed to trade restrictions and tariffs.",#
+self_governance,"Self-governance and autonomy",political,"Believes each colony should govern itself.",#
+trade_cooperation,"Trade and cooperation benefit all",economic,"Supports mutual trade for shared prosperity.",#
+prefers_neutrality,"Prefers neutrality in major faction conflicts",political,"Avoids picking sides in wars between major powers.",#
+values_respects_autonomy,"Values factions that respect autonomy",political,"Positively disposed toward factions that don't interfere.",#
+distrusts_expansionist_near,"Distrusts expansionist factions near independent space",territorial,"Wary of large factions growing near their territory.",#
+distrusts_pressures_independents,"Distrusts factions that pressure independents",political,"Hostile toward factions that bully smaller states.",#
+defend_faithful,"Defend the faithful through force",military,"Will fight to protect Luddic believers.",#
+protect_church,"Church must be protected from external threats",political,"Prioritizes defense of Church territory and people.",#
+values_military_allies,"Values military strength in allies",military,"Prefers alliances with strong military factions.",#
+protect_diktat,"Protect the Diktat at all costs",political,"Will sacrifice anything for Diktat survival.",#
+elite_military,"Elite military supremacy",military,"Believes in maintaining an elite fighting force.",#
+loyalty_above_morality,"Loyalty to the Diktat above personal morality",political,"Will commit any act for the Diktat.",#
+distrusts_hostile_diktat,"Distrusts factions hostile to the Diktat",political,"Hostile toward anyone threatening the Diktat.",#
+defend_domain_installations,"Defend Domain-era installations",territorial,"Protects ancient Domain facilities.",#
+hostile_organic,"Hostile to all organic factions",ideological,"Fundamentally opposed to biological life.",#
+unknown_purpose,"Unknown deeper purpose",political,"Has goals that cannot be understood from outside.",#
