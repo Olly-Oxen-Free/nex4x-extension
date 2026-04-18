@@ -147,6 +147,35 @@ public class InfluenceManager implements Serializable {
         public final Map<String, Float> aiCoreBonuses = new HashMap<String, Float>();
     }
 
+    /**
+     * Returns a discount factor [0, 0.75] derived from active Friendship or Denouncement
+     * declarations between the player and the given faction.
+     *
+     * @param otherFactionId  the other faction in the declaration
+     * @param isFriendlyAction true for actions benefiting the other faction (Friendship applies),
+     *                         false for actions against them (Denounce applies)
+     * @return discount fraction to subtract from 1.0 when computing cost
+     */
+    public float getDeclarationDiscountFactor(String otherFactionId, boolean isFriendlyAction) {
+        float discount = 0f;
+        nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getManager();
+        if (mgr == null) return 0f;
+        for (nex4x.declarations.Declaration d : mgr.getDeclarationManager()
+                .getDeclarationsBetween(
+                        com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId(),
+                        otherFactionId)) {
+            if (!d.isActive()) continue;
+            nex4x.declarations.DeclarationConfig cfg =
+                    nex4x.declarations.DeclarationConfig.get(d.getType());
+            if (cfg.influenceDiscountPct <= 0) continue;
+            boolean applicable = isFriendlyAction
+                    ? (d.getType() == nex4x.declarations.DeclarationType.FRIENDSHIP)
+                    : (d.getType() == nex4x.declarations.DeclarationType.DENOUNCE);
+            if (applicable) discount += cfg.influenceDiscountPct / 100f;
+        }
+        return Math.min(discount, 0.75f); // cap at 75% discount
+    }
+
     public static InfluenceManager get() {
         Object raw = Global.getSector().getPersistentData().get(Nex4xConstants.PERSIST_KEY_INFLUENCE_MANAGER);
         if (raw instanceof InfluenceManager) return (InfluenceManager) raw;
