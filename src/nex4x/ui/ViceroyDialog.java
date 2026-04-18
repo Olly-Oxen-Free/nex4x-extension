@@ -79,11 +79,11 @@ public class ViceroyDialog implements InteractionDialogPlugin {
     public void optionSelected(String optionText, Object optionData) {
         if (optionData == null) return;
         String id = optionData.toString();
-        if (OPT_ACCEPT_QUESTS.equals(id)) { text.addPara("[Quests stub — Task 3.6]"); showMenu(); return; }
-        if (OPT_BUY_INTEL.equals(id))     { text.addPara("[Intel stub — Task 3.6]"); showMenu(); return; }
-        if (OPT_AI_CORES.equals(id))      { text.addPara("[AI cores stub — Task 3.6]"); showMenu(); return; }
-        if (OPT_COMMISSION.equals(id))    { text.addPara("[Commission stub — Task 3.6]"); showMenu(); return; }
-        if (OPT_WETWORK.equals(id))       { text.addPara("[Wetwork stub — Task 3.6]"); showMenu(); return; }
+        if (OPT_ACCEPT_QUESTS.equals(id)) { nex4x.ui.viceroy.QuestsHandler.open(dialog, market); showMenu(); return; }
+        if (OPT_BUY_INTEL.equals(id))     { nex4x.ui.viceroy.IntelPurchaseHandler.open(dialog, market); showMenu(); return; }
+        if (OPT_AI_CORES.equals(id))      { nex4x.ui.viceroy.AiCoreHandler.open(dialog, market); showMenu(); return; }
+        if (OPT_COMMISSION.equals(id))    { nex4x.ui.viceroy.CommissionHandler.open(dialog, market); showMenu(); return; }
+        if (OPT_WETWORK.equals(id))       { nex4x.ui.viceroy.WetworkHandler.open(dialog, market); showMenu(); return; }
         if (OPT_DONE.equals(id)) {
             dialog.dismiss();
             return;
