@@ -11,6 +11,7 @@ import nex4x.ai.archetype.GrandStrategyManager;
 import exerelin.campaign.DiplomacyManager;
 import exerelin.utilities.NexConfig;
 import nex4x.data.*;
+import nex4x.leaders.DialogueSystem;
 import nex4x.integration.FactionCompatibility;
 import nex4x.listeners.Nex4xEventListener;
 import nex4x.managers.Nex4xManager;
@@ -31,6 +32,7 @@ public class Nex4xModPlugin extends BaseModPlugin {
         FactionBeliefsLoader.load();
         MemoryTypeRegistry.load();
         TendencyProfileLoader.loadProfiles();
+        DialogueSystem.load();
 
         // Load v1 AI engine configs
         try {
