@@ -1,6 +1,7 @@
 package nex4x.declarations;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionAPI;
 import org.apache.log4j.Logger;
 
 import java.io.Serializable;
@@ -141,13 +142,116 @@ public class DeclarationManager implements Serializable {
         return getDeclaration(factionA, factionB, type) != null;
     }
 
-    /** Advance: prune expired/withdrawn declarations. */
+    /** Friendship declaration with optional receiver counter-demand already resolved. */
+    public Declaration declareFriendship(String declarer, String target) {
+        DeclarationConfig cfg = DeclarationConfig.get(DeclarationType.FRIENDSHIP);
+        Declaration d = new Declaration(declarer, target, DeclarationType.FRIENDSHIP);
+        d.setExpiryDay(d.getCreationDay() + cfg.durationDays);
+        d.setFlatRepApplied(cfg.flatRepBonus);
+        declarations.add(d);
+
+        FactionAPI dfa = Global.getSector().getFaction(declarer);
+        FactionAPI tfa = Global.getSector().getFaction(target);
+        if (dfa != null && tfa != null) {
+            dfa.adjustRelationship(target, cfg.flatRepBonus / 100f);
+            tfa.adjustRelationship(declarer, cfg.flatRepBonus / 100f);
+        }
+        log.info("[Nex4x] Friendship declared: " + declarer + " → " + target);
+        return d;
+    }
+
+    /** Denouncement — unilateral, immediate application. */
+    public Declaration declareDenouncement(String declarer, String target) {
+        DeclarationConfig cfg = DeclarationConfig.get(DeclarationType.DENOUNCE);
+        Declaration d = new Declaration(declarer, target, DeclarationType.DENOUNCE);
+        d.setExpiryDay(d.getCreationDay() + cfg.durationDays);
+        d.setFlatRepApplied(-cfg.flatRepPenalty);
+        declarations.add(d);
+
+        FactionAPI dfa = Global.getSector().getFaction(declarer);
+        FactionAPI tfa = Global.getSector().getFaction(target);
+        if (dfa != null && tfa != null) {
+            dfa.adjustRelationship(target, -cfg.flatRepPenalty / 100f);
+            tfa.adjustRelationship(declarer, -cfg.flatRepPenalty / 100f);
+        }
+        // Ripple: denounced's allies see denouncer worse
+        applyDenouncementRipple(declarer, target, cfg);
+        log.info("[Nex4x] Denouncement declared: " + declarer + " → " + target);
+        return d;
+    }
+
+    private void applyDenouncementRipple(String declarer, String target, DeclarationConfig cfg) {
+        if (cfg.rippleRatio <= 0f) return;
+        FactionAPI tf = Global.getSector().getFaction(target);
+        if (tf == null) return;
+        float rippleAmt = -cfg.flatRepPenalty * cfg.rippleRatio / 100f;
+        for (FactionAPI other : Global.getSector().getAllFactions()) {
+            if (other == tf) continue;
+            if (other.isNeutralFaction() || other.isPlayerFaction()) continue;
+            float rel = other.getRelationship(target);
+            if (rel >= 0.50f) { // friends/allies of target
+                FactionAPI df = Global.getSector().getFaction(declarer);
+                if (df != null) {
+                    df.adjustRelationship(other.getId(), rippleAmt);
+                    other.adjustRelationship(declarer, rippleAmt);
+                }
+            }
+        }
+    }
+
+    /** Advance: daily rep gain, CB unlock, post-expiry decay, prune withdrawn/expired. */
     public void advanceDay() {
+        float now = Declaration.currentAbsoluteDay();
         Iterator<Declaration> it = declarations.iterator();
         while (it.hasNext()) {
             Declaration d = it.next();
-            if (!d.isActive()) {
+            DeclarationConfig cfg = DeclarationConfig.get(d.getType());
+
+            // Prune withdrawn declarations that haven't started expiry decay
+            if (!d.isActive() && (d.getExpiryDay() < 0 || now < d.getExpiryDay())) {
                 it.remove();
+                continue;
+            }
+
+            boolean active = d.isActive() && (d.getExpiryDay() < 0 || now < d.getExpiryDay());
+
+            if (active) {
+                // Friendship daily rep gain (bilateral)
+                if (d.getType() == DeclarationType.FRIENDSHIP && cfg.dailyRepGain > 0f) {
+                    FactionAPI df = Global.getSector().getFaction(d.getDeclarerFactionId());
+                    FactionAPI tf = Global.getSector().getFaction(d.getTargetFactionId());
+                    if (df != null && tf != null) {
+                        df.adjustRelationship(d.getTargetFactionId(), cfg.dailyRepGain / 100f);
+                        tf.adjustRelationship(d.getDeclarerFactionId(), cfg.dailyRepGain / 100f);
+                    }
+                }
+                // Denouncement CB unlock at 3 active months
+                if (d.getType() == DeclarationType.DENOUNCE && !d.isCbUnlocked()
+                        && (now - d.getCreationDay()) >= cfg.cbUnlockDays) {
+                    d.setCbUnlocked(true);
+                    log.info("[Nex4x] Denouncement CB unlocked: " + d.getDeclarerFactionId()
+                            + " vs " + d.getTargetFactionId());
+                }
+            } else if (d.getExpiryDay() >= 0 && now >= d.getExpiryDay()) {
+                // Declaration has expired; apply linear decay for cfg.decayDaysAfterExpiry
+                if (cfg.decayDaysAfterExpiry > 0 && d.getFlatRepApplied() != 0f) {
+                    float daysElapsed = now - d.getExpiryDay();
+                    float decayStep = d.getFlatRepApplied() / (float) cfg.decayDaysAfterExpiry;
+                    // Reverse one day's worth of flat rep (sign-flipped of what was applied)
+                    FactionAPI df = Global.getSector().getFaction(d.getDeclarerFactionId());
+                    FactionAPI tf = Global.getSector().getFaction(d.getTargetFactionId());
+                    if (df != null && tf != null) {
+                        df.adjustRelationship(d.getTargetFactionId(), -decayStep / 100f);
+                        tf.adjustRelationship(d.getDeclarerFactionId(), -decayStep / 100f);
+                    }
+                    if (daysElapsed >= cfg.decayDaysAfterExpiry) {
+                        d.setActive(false);
+                        it.remove();
+                    }
+                } else {
+                    d.setActive(false);
+                    it.remove();
+                }
             }
         }
     }
