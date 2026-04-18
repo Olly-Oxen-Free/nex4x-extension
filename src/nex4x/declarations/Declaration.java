@@ -18,6 +18,11 @@ public class Declaration implements Serializable {
     private float expiryDay;  // -1 = permanent
     private boolean active;
 
+    // Phase 4 side-effect tracking
+    private float daysSinceExpiry = 0f;
+    private float flatRepApplied = 0f;  // signed: + for friendship, − for denouncement
+    private boolean cbUnlocked = false;
+
     public Declaration(String declarerFactionId, String targetFactionId,
                        DeclarationType type) {
         this.declarerFactionId = declarerFactionId;
@@ -69,7 +74,28 @@ public class Declaration implements Serializable {
     public String getTargetFactionId() { return targetFactionId; }
     public DeclarationType getType() { return type; }
     public float getCreationDay() { return creationDay; }
+    public float getExpiryDay() { return expiryDay; }
+    public void setExpiryDay(float d) { this.expiryDay = d; }
     public boolean isActive() { return active && !isExpired(); }
+    public void setActive(boolean b) { this.active = b; }
+
+    // Phase 4 side-effect tracking getters/setters
+    public float getDaysSinceExpiry() { return daysSinceExpiry; }
+    public void advanceExpiredDays(float d) { daysSinceExpiry += d; }
+    public float getFlatRepApplied() { return flatRepApplied; }
+    public void setFlatRepApplied(float v) { this.flatRepApplied = v; }
+    public boolean isCbUnlocked() { return cbUnlocked; }
+    public void setCbUnlocked(boolean b) { this.cbUnlocked = b; }
+
+    /**
+     * Absolute day count from cycle 206 epoch.
+     * Public for use by DeclarationManager and other Phase 4 components.
+     */
+    public static float currentAbsoluteDay() {
+        return Global.getSector().getClock().getDay()
+                + (Global.getSector().getClock().getMonth() - 1) * 30f
+                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+    }
 
     private static float getCurrentDay() {
         return Global.getSector().getClock().getDay()
