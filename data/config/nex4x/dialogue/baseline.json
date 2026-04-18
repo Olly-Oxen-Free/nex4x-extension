@@ -1,0 +1,86 @@
+{
+  "greeting": {
+    "HOSTILE":     ["State your business and leave.", "You dare approach us?"],
+    "SUSPICIOUS":  ["Your presence here is tolerated.", "Speak quickly."],
+    "NEUTRAL":     ["You have our attention.", "What brings you?"],
+    "FAVORABLE":   ["Welcome. How can we assist?", "A pleasure. Speak freely."],
+    "COOPERATIVE": ["Always a pleasure. Name your terms.", "My friend. What do you need?"]
+  },
+  "negotiation_accept": {
+    "HOSTILE":     ["We accept. For now."],
+    "SUSPICIOUS":  ["Terms acceptable. Do not test us."],
+    "NEUTRAL":     ["Agreed."],
+    "FAVORABLE":   ["We agree. This will serve us both."],
+    "COOPERATIVE": ["Of course. Consider it done."]
+  },
+  "negotiation_reject": {
+    "HOSTILE":     ["You waste our time.", "Unacceptable. Leave."],
+    "SUSPICIOUS":  ["No. Not at this price.", "We decline."],
+    "NEUTRAL":     ["We cannot accept these terms.", "Not as it stands."],
+    "FAVORABLE":   ["I'm afraid we must decline.", "Not quite — perhaps revisit?"],
+    "COOPERATIVE": ["Regrettably, no.", "Not this one. Come back with more."]
+  },
+  "demand_heard": {
+    "HOSTILE":     ["Your demands amuse us."],
+    "SUSPICIOUS":  ["We hear you."],
+    "NEUTRAL":     ["Noted."],
+    "FAVORABLE":   ["An ambitious ask."],
+    "COOPERATIVE": ["Let us consider that."]
+  },
+  "concession_made": {
+    "HOSTILE":     ["A token gesture."],
+    "SUSPICIOUS":  ["Acknowledged."],
+    "NEUTRAL":     ["Fair."],
+    "FAVORABLE":   ["Generous of you."],
+    "COOPERATIVE": ["Much appreciated."]
+  },
+  "war_declared_by_ai": {
+    "HOSTILE":     ["This is long overdue, {player}."],
+    "SUSPICIOUS":  ["You leave us no choice, {player}."],
+    "NEUTRAL":     ["The state of war exists between us, {player}."],
+    "FAVORABLE":   ["It grieves us, {player}, but circumstances compel us."],
+    "COOPERATIVE": ["A necessary betrayal, {player}. Forgive us if you can."]
+  },
+  "war_declared_by_player": {
+    "HOSTILE":     ["So it is. We welcome the reckoning."],
+    "SUSPICIOUS":  ["As expected."],
+    "NEUTRAL":     ["A declaration duly received."],
+    "FAVORABLE":   ["This pains us more than you know."],
+    "COOPERATIVE": ["You would do this? After everything?"]
+  },
+  "peace_proposed_by_ai": {
+    "HOSTILE":     ["Enough. Let us stop this."],
+    "SUSPICIOUS":  ["We propose a cessation."],
+    "NEUTRAL":     ["Let us discuss terms of peace."],
+    "FAVORABLE":   ["Too much has been lost. Let us end it."],
+    "COOPERATIVE": ["End this with us. Please."]
+  },
+  "alliance_proposed": {
+    "HOSTILE":     ["An alliance? You jest."],
+    "SUSPICIOUS":  ["An alliance is a heavy thing."],
+    "NEUTRAL":     ["An alliance. We are listening."],
+    "FAVORABLE":   ["An alliance would suit us both."],
+    "COOPERATIVE": ["We would be honored to stand with you."]
+  },
+  "friendship_declared": {
+    "HOSTILE":     ["An empty gesture."],
+    "SUSPICIOUS":  ["A curious overture."],
+    "NEUTRAL":     ["Publicly acknowledged."],
+    "FAVORABLE":   ["Gladly received."],
+    "COOPERATIVE": ["We are proud to call you friend."]
+  },
+  "denouncement_heard": {
+    "HOSTILE":     ["Your words mean nothing to us."],
+    "SUSPICIOUS":  ["Duly noted, {player}."],
+    "NEUTRAL":     ["So be it."],
+    "FAVORABLE":   ["A harsh turn, {player}."],
+    "COOPERATIVE": ["You publicly denounce us? After all this?"]
+  },
+  "farewell": {
+    "HOSTILE":     ["Go."],
+    "SUSPICIOUS":  ["Leave us."],
+    "NEUTRAL":     ["Until next time."],
+    "FAVORABLE":   ["Safe travels."],
+    "COOPERATIVE": ["Safe travels, my friend."]
+  }
+}
