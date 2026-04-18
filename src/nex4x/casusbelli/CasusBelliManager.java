@@ -7,6 +7,7 @@ import nex4x.agreements.Agreement;
 import nex4x.agreements.AgreementManager;
 import nex4x.agreements.AgreementType;
 import nex4x.data.*;
+import nex4x.declarations.Declaration;
 import nex4x.declarations.DeclarationManager;
 import nex4x.declarations.DeclarationType;
 import nex4x.managers.Nex4xManager;
@@ -247,16 +248,17 @@ public class CasusBelliManager implements Serializable {
     }
 
     /**
-     * Denouncement CB: holder has an active Denounce against target.
+     * Denouncement CB: holder has an active Denounce against target AND the 90-day
+     * CB-unlock period has elapsed. Only the declarer holds the CB.
      */
     private boolean hasDenouncementCB(String holderId, String targetId) {
         Nex4xManager mgr = Nex4xManager.getManager();
         if (mgr == null) return false;
         DeclarationManager declMgr = mgr.getDeclarationManager();
-        // Only the declarer gets the CB — check directionality
-        return declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE) != null
-                && declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE)
-                        .getDeclarerFactionId().equals(holderId);
+        Declaration d = declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE);
+        if (d == null) return false;
+        if (!d.getDeclarerFactionId().equals(holderId)) return false;  // only declarer gets CB
+        return d.isCbUnlocked();  // only after 90-day unlock
     }
 
     /**
