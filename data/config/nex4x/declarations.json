@@ -1,0 +1,37 @@
+{
+  "friendship": {
+    "durationDays": 360,
+    "flatRepBonus": 15,
+    "dailyRepGain": 0.5,
+    "influenceDiscountPct": 25,
+    "decayDaysAfterExpiry": 180,
+    "bilateral": true,
+    "requiresReceiverConsent": true
+  },
+  "denounce": {
+    "durationDays": 180,
+    "flatRepPenalty": 15,
+    "influenceDiscountPct": 25,
+    "cbUnlockDays": 90,
+    "rippleRatio": 0.5,
+    "decayDaysAfterExpiry": 180,
+    "bilateral": false,
+    "requiresReceiverConsent": false
+  },
+  "rivalry": {
+    "durationDays": 360,
+    "flatRepPenalty": 10,
+    "influenceDiscountPct": 10,
+    "decayDaysAfterExpiry": 90,
+    "bilateral": false,
+    "requiresReceiverConsent": false
+  },
+  "guarantee_independence": {
+    "durationDays": 720,
+    "flatRepBonus": 5,
+    "dailyRepGain": 0.0,
+    "decayDaysAfterExpiry": 90,
+    "bilateral": false,
+    "requiresReceiverConsent": false
+  }
+}

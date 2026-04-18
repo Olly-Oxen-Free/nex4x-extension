@@ -34,6 +34,7 @@ public class Nex4xModPlugin extends BaseModPlugin {
         TendencyProfileLoader.loadProfiles();
         DialogueSystem.load();
         nex4x.leaders.LeaderConfigRegistry.load();
+        nex4x.declarations.DeclarationConfig.load();
 
         // Load v1 AI engine configs
         try {
