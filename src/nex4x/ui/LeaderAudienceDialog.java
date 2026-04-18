@@ -1,5 +1,6 @@
 package nex4x.ui;
 
+import ashlib.data.plugins.ui.models.BasePopUpDialog;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.InteractionDialogPlugin;
@@ -62,7 +63,10 @@ public class LeaderAudienceDialog implements InteractionDialogPlugin {
         if (optionData == null) return;
         String id = optionData.toString();
         if (OPT_DEPART.equals(id)) { dialog.dismiss(); return; }
-        if (OPT_NEGOTIATE.equals(id)) { text.addPara("[Negotiation panel — Phase 8]"); return; }
+        if (OPT_NEGOTIATE.equals(id)) {
+            BasePopUpDialog.popUpDialog(new NegotiationPanel(market.getFactionId()), 620, 560);
+            return;
+        }
         if (OPT_DECLARE_FRIENDSHIP.equals(id)) { text.addPara("[Friendship declaration — Phase 4]"); return; }
         if (OPT_DENOUNCE.equals(id)) { text.addPara("[Denouncement — Phase 4]"); return; }
         if (OPT_DECLARE_WAR.equals(id)) { text.addPara("[War declaration — Phase 10]"); return; }
