@@ -1,0 +1,7 @@
+{
+  "diplomaticVoiceRank": "commander",
+  "viceroyTitle": "Agent",
+  "leaderTitle": "Delegate",
+  "canSellAiCores": false,
+  "canSellWetwork": true
+}

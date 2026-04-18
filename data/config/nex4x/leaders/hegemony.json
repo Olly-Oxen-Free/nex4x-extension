@@ -1,0 +1,7 @@
+{
+  "diplomaticVoiceRank": "commander",
+  "viceroyTitle": "Adjutant",
+  "leaderTitle": "Provisional Executor",
+  "canSellAiCores": false,
+  "canSellWetwork": true
+}
