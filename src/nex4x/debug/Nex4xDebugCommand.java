@@ -25,4 +25,23 @@ public class Nex4xDebugCommand {
         Global.getSector().getCampaignUI().addMessage(sb.toString());
         return sb.toString();
     }
+
+    /** runcode nex4x.debug.Nex4xDebugCommand.speakGreeting("hegemony"); */
+    public static String speakGreeting(String factionId) {
+        nex4x.leaders.LeaderProfile p = nex4x.managers.Nex4xManager
+                .getOrCreateManager().getLeaderRegistry().getProfile(factionId);
+        com.fs.starfarer.api.campaign.FactionAPI player =
+                com.fs.starfarer.api.Global.getSector().getPlayerFaction();
+        float rel = player.getRelationship(factionId);
+        nex4x.leaders.ReputationTier tier = nex4x.leaders.ReputationTier.fromRelation(rel);
+        java.util.Map<String,String> ctx = new java.util.HashMap<String,String>();
+        ctx.put("player", player.getDisplayName());
+        ctx.put("leader", p.displayName());
+        ctx.put("faction", com.fs.starfarer.api.Global.getSector().getFaction(factionId).getDisplayName());
+        String line = nex4x.leaders.DialogueSystem.get().resolve(
+                p, nex4x.leaders.Situation.GREETING, tier, ctx);
+        String msg = "[" + factionId + "] " + p.displayName() + " [" + p.getPersonality() + ", " + tier + "]: " + line;
+        com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(msg);
+        return msg;
+    }
 }
