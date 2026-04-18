@@ -1,0 +1,10 @@
+{
+    "sameTypeBonusPerAlly": 0.10,
+    "crossTypeBonusPerAlly": 0.05,
+    "synergyCap": 0.50,
+    "actionSuccessMatrix": {
+        "COVERT":    { "GUERRILLA": 0.10, "DIPLOMAT": 0.05 },
+        "GUERRILLA": { "COVERT":    0.10, "DIPLOMAT": 0.05 },
+        "DIPLOMAT":  { "COVERT":    0.05, "GUERRILLA": 0.05 }
+    }
+}

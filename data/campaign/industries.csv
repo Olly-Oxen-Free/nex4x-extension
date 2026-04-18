@@ -1,0 +1,4 @@
+id,name,cost mult,build time,income,upkeep,downgrade,upgrade,tags,data,image,plugin,desc,order,disruptDanger
+nex4x_diplomatic_embassy,Diplomatic Embassy,40,60,,4,,,"structure, unraidable",,graphics/icons/industry/population.png,nex4x.industries.DiplomaticEmbassy,"Diplomatic mission and cultural exchange center. Boosts faction influence accumulation and market relations.",3000,
+nex4x_intelligence_bureau,Intelligence Bureau,50,90,,6,,,"structure",,graphics/icons/industry/patrol_hq.png,nex4x.industries.IntelligenceBureau,"Foreign intelligence operations center. Boosts influence income and — when intelligence networks are active — detects foreign agents.",3010,
+nex4x_cyber_security_suite,Cyber Security Suite,45,90,,5,,,"structure",,graphics/icons/industry/patrol_hq.png,nex4x.industries.CyberSecuritySuite,"Digital counter-intelligence apparatus. Greatly raises this market's ability to detect foreign agents and sabotage operations.",3020,

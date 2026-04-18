@@ -8,5 +8,6 @@
     "beliefStrength3ImpactMult": 2.5,
     "beliefStrength1DecayMod": 0.8,
     "beliefStrength2DecayMod": 0.5,
-    "beliefStrength3DecayMod": 0.1
+    "beliefStrength3DecayMod": 0.1,
+    "showLegacyNexIntels": false
 }

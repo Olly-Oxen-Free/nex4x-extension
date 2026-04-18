@@ -1,0 +1,18 @@
+{
+    "_comment": "Per-cycle (30-day) influence income rates. Cycle = 30 days.",
+    "marketSizeRate": 0.5,
+    "stabilityRate": 0.1,
+    "buildingIncome": {
+        "nex4x_diplomatic_embassy": 4,
+        "nex4x_intelligence_bureau": 3,
+        "highcommand": 2,
+        "commerce": 1,
+        "militarybase": 1,
+        "patrolhq": 1
+    },
+    "aiCoreBonuses": {
+        "alpha_core": 2,
+        "beta_core": 1,
+        "gamma_core": 0.5
+    }
+}

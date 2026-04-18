@@ -8,10 +8,13 @@ import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
 import nex4x.ai.DiplomaticExecutor;
 import nex4x.ai.StrategicGoalManager;
 import nex4x.ai.archetype.GrandStrategyManager;
+import exerelin.campaign.DiplomacyManager;
+import exerelin.utilities.NexConfig;
 import nex4x.data.*;
 import nex4x.integration.FactionCompatibility;
 import nex4x.listeners.Nex4xEventListener;
 import nex4x.managers.Nex4xManager;
+import nex4x.ui.ProfileExtender;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 
@@ -98,8 +101,66 @@ public class Nex4xModPlugin extends BaseModPlugin {
             }
         }
 
-        // Create faction dossier intel items
-        createDossierIntelItems();
+        // Strip v0-era ProfileExtender dossiers left in saves (superseded by FactionBrowserIntel)
+        removeLegacyDossierIntels();
+
+        // Create unified Faction Browser intel (one per game)
+        createFactionBrowserIntel();
+
+        // Suppress replaced Nex intels — FactionBrowserIntel covers their function
+        suppressLegacyNexIntels();
+    }
+
+    private void removeLegacyDossierIntels() {
+        try {
+            java.util.List<IntelInfoPlugin> stale =
+                    Global.getSector().getIntelManager().getIntel(ProfileExtender.class);
+            for (IntelInfoPlugin intel : stale) {
+                Global.getSector().getIntelManager().removeIntel(intel);
+            }
+            if (!stale.isEmpty()) {
+                log.info("[Nex4x] Removed " + stale.size() + " legacy ProfileExtender dossier(s)");
+            }
+        } catch (Exception e) {
+            log.warn("[Nex4x] Failed to sweep legacy dossiers: " + e.getMessage());
+        }
+    }
+
+    public static void suppressLegacyNexIntels() {
+        if (Nex4xSettings.showLegacyNexIntels) return;
+
+        // Global toggle — hides Nex StrategicAI intel for all non-player factions
+        NexConfig.showStrategicAI = false;
+
+        // Remove existing DiplomacyProfileIntels for all non-neutral factions
+        DiplomacyManager dm = DiplomacyManager.getManager();
+        if (dm != null) {
+            for (FactionAPI f : Global.getSector().getAllFactions()) {
+                if (f.isNeutralFaction()) continue;
+                try {
+                    dm.removeDiplomacyProfile(f.getId());
+                } catch (Exception e) {
+                    // profile not present — ignore
+                }
+            }
+        }
+    }
+
+    private void createFactionBrowserIntel() {
+        try {
+            Class<?> browserClass = Class.forName("nex4x.ui.FactionBrowserIntel");
+            if (!Global.getSector().getIntelManager().getIntel(browserClass).isEmpty()) {
+                return;
+            }
+            IntelInfoPlugin browser = (IntelInfoPlugin) browserClass
+                    .getConstructor().newInstance();
+            Global.getSector().getIntelManager().addIntel(browser, true);
+            log.info("[Nex4x] Created Faction Browser intel");
+        } catch (ClassNotFoundException e) {
+            log.info("[Nex4x] FactionBrowserIntel not available — skipping");
+        } catch (Exception e) {
+            log.warn("[Nex4x] Could not create FactionBrowserIntel: " + e.getMessage());
+        }
     }
 
     @Override
@@ -118,40 +179,4 @@ public class Nex4xModPlugin extends BaseModPlugin {
         mgr.setPlayerDoctrine(TendencyProfileLoader.getProfile(playerFactionId));
     }
 
-    @SuppressWarnings("unchecked")
-    private void createDossierIntelItems() {
-        // Don't duplicate on re-load (reflection — ProfileExtender may not be compiled yet)
-        try {
-            Class<?> profileExtenderClass = Class.forName("nex4x.ui.ProfileExtender");
-            if (!Global.getSector().getIntelManager().getIntel(profileExtenderClass).isEmpty()) {
-                return;  // already created
-            }
-
-            for (FactionAPI faction : Global.getSector().getAllFactions()) {
-                String fid = faction.getId();
-                if (fid.equals("derelict") || fid.equals("nex_derelict") || fid.equals("neutral")) continue;
-                if (faction.isNeutralFaction()) continue;
-
-                try {
-                    exerelin.utilities.NexFactionConfig conf = exerelin.utilities.NexConfig.getFactionConfig(fid);
-                    if (conf == null) continue;
-                    boolean playable = conf.getClass().getField("playableFaction").getBoolean(conf);
-                    if (!playable) continue;
-                } catch (Exception e) {
-                    continue;
-                }
-
-                try {
-                    IntelInfoPlugin dossier = (IntelInfoPlugin) profileExtenderClass
-                            .getConstructor(String.class).newInstance(fid);
-                    Global.getSector().getIntelManager().addIntel(dossier, true);
-                } catch (Exception e) {
-                    // skip this faction
-                }
-            }
-            log.info("[Nex4x] Created faction dossier intel items");
-        } catch (ClassNotFoundException e) {
-            log.info("[Nex4x] ProfileExtender not available — skipping dossier creation");
-        }
-    }
 }

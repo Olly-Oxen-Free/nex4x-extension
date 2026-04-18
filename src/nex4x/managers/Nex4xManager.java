@@ -11,9 +11,20 @@ import nex4x.ai.ReactiveHandler;
 import nex4x.ai.StrategicGoalManager;
 import nex4x.ai.archetype.GrandStrategyManager;
 import nex4x.casusbelli.CasusBelliManager;
+import nex4x.agents.Nex4xAgentManager;
+import nex4x.agents.diplomat.DiplomatPassiveManager;
+import nex4x.coalitions.CoalitionGovernance;
+import nex4x.contracts.ContractAuctionManager;
 import nex4x.data.TendencyProfile;
 import nex4x.declarations.DeclarationManager;
+import nex4x.demands.DemandManager;
+import nex4x.influence.InfluenceManager;
 import nex4x.integration.FactionCompatibility;
+import nex4x.mediation.MediationManager;
+import nex4x.policies.PolicyManager;
+import nex4x.politics.DynamicModifierManager;
+import nex4x.pressure.PressureManager;
+import nex4x.vassals.VassalManager;
 import nex4x.wargoals.WarScoreTracker;
 import org.apache.log4j.Logger;
 
@@ -104,6 +115,40 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
             declarationManager.advanceDay();
             warScoreTracker.advanceDay();
             proposalManager.advanceDay();
+
+            // v2 — influence, pressure, policies, demands, mediation, contracts, vassals, coalitions, modifiers
+            try {
+                InfluenceManager.getOrCreate().advanceDay();
+                PressureManager.getOrCreate().advanceDay();
+                DynamicModifierManager.getOrCreate().advanceDay();
+                PolicyManager.getOrCreate().advanceDay();
+                DemandManager.getOrCreate().advanceDay();
+                MediationManager.getOrCreate().advanceDay();
+                ContractAuctionManager.getOrCreate().advanceDay();
+                VassalManager.getOrCreate().advanceDay();
+                CoalitionGovernance.getOrCreate().advanceDay();
+            } catch (Exception e) {
+                log.error("[Nex4x] v2 daily tick failed: " + e.getMessage());
+            }
+
+            // v3 — agent companion data + passive diplomat drip
+            try {
+                Nex4xAgentManager.getOrCreate().advanceAll(elapsed, 1);
+                for (FactionAPI f : Global.getSector().getAllFactions()) {
+                    if (f.isNeutralFaction()) continue;
+                    DiplomatPassiveManager.advanceDay(elapsed, f.getId());
+                }
+            } catch (Exception e) {
+                log.error("[Nex4x] v3 daily tick failed: " + e.getMessage());
+            }
+
+            // Re-suppress legacy Nex intels — SectorManager may recreate profiles when
+            // new factions go live mid-campaign
+            try {
+                nex4x.Nex4xModPlugin.suppressLegacyNexIntels();
+            } catch (Exception e) {
+                log.error("[Nex4x] legacy intel suppression failed: " + e.getMessage());
+            }
 
             // AI Decision Engine — daily advance for all active factions
             for (FactionAPI faction : Global.getSector().getAllFactions()) {

@@ -1,0 +1,13 @@
+{
+    "MILITARY_BUILDUP":        { "tendency": "MILITARISTS",    "requiredWeight": 2.0, "influenceUpkeep": 3.0, "effects": { "fleet_maintenance": -0.15, "patrol_frequency": 0.25 } },
+    "AGGRESSIVE_POSTURE":      { "tendency": "MILITARISTS",    "requiredWeight": 3.0, "influenceUpkeep": 5.0, "effects": { "war_desire": 20, "pressure_accumulation": 0.25 } },
+    "OPEN_DIPLOMACY":          { "tendency": "FEDERALISTS",    "requiredWeight": 2.0, "influenceUpkeep": 3.0, "effects": { "proposal_cost": -0.30, "negotiation_fatigue": -0.50 } },
+    "COLLECTIVE_SECURITY":     { "tendency": "FEDERALISTS",    "requiredWeight": 3.0, "influenceUpkeep": 5.0, "effects": { "pact_honor": 40, "coalition_vote_weight": 0.20 } },
+    "FREE_TRADE":              { "tendency": "CORPORATISTS",   "requiredWeight": 2.0, "influenceUpkeep": 3.0, "effects": { "trade_income": 0.20, "embargo_effectiveness": -0.25 } },
+    "ECONOMIC_SANCTIONS":      { "tendency": "CORPORATISTS",   "requiredWeight": 3.0, "influenceUpkeep": 4.0, "effects": { "embargo_effectiveness": 0.50, "trade_pressure": 0.30 } },
+    "IDEOLOGICAL_PURITY":      { "tendency": "ZEALOTS",        "requiredWeight": 2.0, "influenceUpkeep": 4.0, "effects": { "belief_cb_threshold": -0.25, "ideological_enemy_relations": -10 } },
+    "MISSIONARY_CAMPAIGN":     { "tendency": "ZEALOTS",        "requiredWeight": 3.5, "influenceUpkeep": 6.0, "effects": { "ideology_spread": 2.0, "diplomatic_reputation": -5 } },
+    "INFRASTRUCTURE_INVESTMENT":{"tendency": "INDUSTRIALISTS", "requiredWeight": 2.0, "influenceUpkeep": 3.0, "effects": { "market_stability": 1, "build_time": -0.20 } },
+    "AUTARKY":                 { "tendency": "INDUSTRIALISTS", "requiredWeight": 3.0, "influenceUpkeep": 5.0, "effects": { "import_pressure": -0.50, "trade_income": -0.30 } },
+    "CONSERVATION_MANDATE":    { "tendency": "ECOLOGISTS",     "requiredWeight": 2.0, "influenceUpkeep": 3.0, "effects": { "anti_bombardment_cb": -0.50, "market_stability_clean": 1 } }
+}

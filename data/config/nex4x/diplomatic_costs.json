@@ -1,0 +1,23 @@
+{
+    "demands": {
+        "TRIBUTE_CREDITS":  { "pressure": 20, "influence": 10 },
+        "CEDE_MARKET":      { "pressure": 80, "influence": 40 },
+        "BREAK_ALLIANCE":   { "pressure": 50, "influence": 25 },
+        "END_WAR":          { "pressure": 40, "influence": 20 },
+        "OPEN_MARKETS":     { "pressure": 25, "influence": 15 },
+        "RELEASE_VASSAL":   { "pressure": 60, "influence": 30 }
+    },
+    "proposals": {
+        "NAP":              { "influence": 10 },
+        "ALLIANCE":         { "influence": 30 },
+        "TRADE_AGREEMENT":  { "influence": 15 },
+        "PEACE":            { "influence": 20 }
+    },
+    "declarations": {
+        "WAR":              { "influence": 40 },
+        "EMBARGO":          { "influence": 20 }
+    },
+    "voteInfluenceSpend": 10,
+    "pressureDiscountPer10": 0.05,
+    "windowDays": 14
+}

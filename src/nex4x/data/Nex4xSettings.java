@@ -26,6 +26,10 @@ public class Nex4xSettings {
     // NegotiationPopUpDialog assessment visibility: "always_visible" or "requires_intel"
     public static String negotiationAssessmentMode = "always_visible";
 
+    // When true, leaves Nex StrategicAI + DiplomacyProfileIntel visible.
+    // When false (default), FactionBrowserIntel fully replaces them.
+    public static boolean showLegacyNexIntels = false;
+
     public static void load() throws Exception {
         JSONObject json = Global.getSettings().getMergedJSONForMod(
                 Nex4xConstants.PATH_SETTINGS, Nex4xConstants.MOD_ID);
@@ -42,6 +46,7 @@ public class Nex4xSettings {
         aiProposalCooldownDays = (float) json.optDouble("aiProposalCooldownDays", 60.0);
         aiProposalUrgentCooldownDays = (float) json.optDouble("aiProposalUrgentCooldownDays", 30.0);
         negotiationAssessmentMode = json.optString("negotiationAssessmentMode", "always_visible");
+        showLegacyNexIntels = json.optBoolean("showLegacyNexIntels", false);
 
         log.info("[Nex4x] Settings loaded (maxMemories=" + maxMemoriesPerPair + ")");
     }

@@ -1,0 +1,10 @@
+{
+    "_comment": "Per-force-action threshold and influence cost. Values baked into ForceActionType enum; this JSON reserved for future overrides.",
+    "FORCE_NAP":          { "pressureThreshold": 30, "influenceCost": 20 },
+    "FORCE_TRADE":        { "pressureThreshold": 40, "influenceCost": 25 },
+    "FORCE_TRIBUTE":      { "pressureThreshold": 50, "influenceCost": 35 },
+    "FORCE_PEACE":        { "pressureThreshold": 60, "influenceCost": 50 },
+    "FORCE_RENEWAL":      { "pressureThreshold": 45, "influenceCost": 30 },
+    "FORCE_CONCESSION":   { "pressureThreshold": 70, "influenceCost": 60 },
+    "FORCE_VASSALIZATION":{ "pressureThreshold":100, "influenceCost":100 }
+}
