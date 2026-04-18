@@ -150,7 +150,12 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
                 java.util.List<LeaderRegistry.LeaderChangeEvent> changes =
                         leaderRegistry.advanceDay(elapsed);
                 for (LeaderRegistry.LeaderChangeEvent evt : changes) {
-                    // Leader-change intel emission wired up in Phase 10 (Task 10.5).
+                    try {
+                        com.fs.starfarer.api.Global.getSector().getIntelManager().addIntel(
+                                new nex4x.ui.LeaderChangeIntel(evt.factionId, evt.newProfile));
+                    } catch (Exception e) {
+                        log.error("[Nex4x] Failed to emit LeaderChangeIntel: " + e.getMessage());
+                    }
                     log.info("[Nex4x] (v5) Leader change event: " + evt.factionId
                             + " old=" + evt.oldPersonId + " new=" + evt.newPersonId);
                 }
