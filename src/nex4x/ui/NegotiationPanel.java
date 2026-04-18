@@ -246,7 +246,75 @@ public class NegotiationPanel extends BasePopUpDialog {
     }
 
     void renderTwoColumns(TooltipMakerAPI info, float width) {
-        // Task 8.8
+        float pad    = 6f;
+        float colW   = (width - pad * 3f) / 2f;
+        float colH   = 260f;
+
+        // Create a CustomPanel to hold the two side-by-side scrollable columns.
+        CustomPanelAPI cols = Global.getSettings().createCustom(width, colH, null);
+
+        // ── Left column: proposer's offers + catalog ──────────
+        TooltipMakerAPI leftCol = cols.createUIElement(colW, colH, true);
+        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
+        leftCol.addSectionHeading("YOUR OFFER",
+                playerFac.getBaseUIColor(), playerFac.getDarkUIColor(),
+                Alignment.MID, 0f);
+        renderOnTable(leftCol, true);
+        leftCol.addSectionHeading("ADD TO OFFER",
+                playerFac.getBaseUIColor(), playerFac.getDarkUIColor(),
+                Alignment.MID, 8f);
+        renderCatalog(leftCol, true);
+        cols.addUIElement(leftCol).inTL(0f, 0f);
+
+        // ── Right column: receiver's requests + catalog ───────
+        TooltipMakerAPI rightCol = cols.createUIElement(colW, colH, true);
+        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
+        rightCol.addSectionHeading("THEIR OFFER",
+                targetFac.getBaseUIColor(), targetFac.getDarkUIColor(),
+                Alignment.MID, 0f);
+        renderOnTable(rightCol, false);
+        rightCol.addSectionHeading("ADD TO REQUEST",
+                targetFac.getBaseUIColor(), targetFac.getDarkUIColor(),
+                Alignment.MID, 8f);
+        renderCatalog(rightCol, false);
+        cols.addUIElement(rightCol).rightOfTop(leftCol, pad);
+
+        info.addCustom(cols, 8f);
+    }
+
+    private void renderOnTable(TooltipMakerAPI col, boolean proposerSide) {
+        List<nex4x.negotiation.NegotiableItem> items = proposerSide
+                ? deal.getProposerOffers()
+                : deal.getReceiverOffers();
+        String prefix = proposerSide ? REMOVE_OFFER_PREFIX : REMOVE_REQUEST_PREFIX;
+
+        if (items.isEmpty()) {
+            col.addPara("(nothing yet)", Misc.getGrayColor(), 2f);
+        } else {
+            for (nex4x.negotiation.NegotiableItem item : items) {
+                String label = item.getDisplayLabel() + "  x" + item.getAmount();
+                col.addPara("• " + label, 2f);
+                col.addButton("Remove", prefix + item.getId(),
+                        Misc.getNegativeHighlightColor(), Misc.getDarkPlayerColor(),
+                        80f, 20f, 2f);
+            }
+        }
+    }
+
+    private void renderCatalog(TooltipMakerAPI col, boolean proposerSide) {
+        String addPrefix = proposerSide ? ADD_OFFER_PREFIX : ADD_REQUEST_PREFIX;
+        List<String> ids = catalog.getAvailableIds(atWar);
+        if (ids.isEmpty()) {
+            col.addPara("(no items available)", Misc.getGrayColor(), 2f);
+            return;
+        }
+        for (String id : ids) {
+            boolean locked = deal.getLockedChips().contains(id);
+            String label = catalog.getDisplayName(id) + (locked ? " [locked]" : "");
+            Color btnBase = locked ? Misc.getGrayColor() : Misc.getButtonTextColor();
+            Color btnDark = Misc.getDarkPlayerColor();
+            col.addButton(label, addPrefix + id, btnBase, btnDark, 200f, 22f, 2f);
+        }
     }
 
     // ── Button dispatch (Task 8.9) ────────────────────────────
