@@ -1,0 +1,14 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Speak quickly. My patience is a short leash."],
+    "NEUTRAL":     ["What do you want? And what will you pay?"],
+    "COOPERATIVE": ["Kind of you to visit. Now: tribute or terms?"]
+  },
+  "tribute_demanded": {
+    "NEUTRAL":     ["As it should be."],
+    "FAVORABLE":   ["You know how this works."]
+  },
+  "negotiation_reject": {
+    "HOSTILE":     ["Unacceptable. Leave, or I'll find use for your ships."]
+  }
+}

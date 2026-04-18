@@ -1,0 +1,17 @@
+{
+  "greeting": {
+    "HOSTILE":     ["We have business to settle. State it."],
+    "SUSPICIOUS":  ["Let us be brief."],
+    "NEUTRAL":     ["You have our attention. What's on offer?"],
+    "FAVORABLE":   ["Good. Let's make this mutually worthwhile."],
+    "COOPERATIVE": ["Always good to work together. Terms?"]
+  },
+  "negotiation_accept": {
+    "NEUTRAL":     ["Acceptable. We move forward."],
+    "FAVORABLE":   ["Deal. A good outcome for both."]
+  },
+  "negotiation_reject": {
+    "NEUTRAL":     ["Numbers don't line up. Rework it."],
+    "FAVORABLE":   ["Almost -- but not quite enough on our side."]
+  }
+}

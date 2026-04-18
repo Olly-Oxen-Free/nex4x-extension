@@ -1,0 +1,22 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Your kind should not approach this throne."],
+    "SUSPICIOUS":  ["What presumption brings you here?"],
+    "NEUTRAL":     ["You stand before us. Make it worthwhile."],
+    "FAVORABLE":   ["A respectable audience. Proceed."],
+    "COOPERATIVE": ["Few earn the privilege of speaking to us. You are among them."]
+  },
+  "negotiation_reject": {
+    "HOSTILE":     ["Your terms offend our station."],
+    "NEUTRAL":     ["Beneath consideration."],
+    "FAVORABLE":   ["A respectable offer -- yet still beneath us. Try again."]
+  },
+  "demand_heard": {
+    "NEUTRAL":     ["You presume much."],
+    "FAVORABLE":   ["A bold ask -- we shall weigh it."]
+  },
+  "tribute_demanded": {
+    "NEUTRAL":     ["As is our right. Pay."],
+    "HOSTILE":     ["Now you learn the cost of your arrogance."]
+  }
+}
