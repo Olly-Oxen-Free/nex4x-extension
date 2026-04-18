@@ -1,0 +1,7 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["Signal received. Parse: proceed.",
+                    "Attention allocated. Speak."],
+    "COOPERATIVE": ["Continuing productive exchange. Terms."]
+  }
+}

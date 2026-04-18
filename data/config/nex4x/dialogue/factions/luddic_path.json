@@ -1,0 +1,10 @@
+{
+  "greeting": {
+    "HOSTILE":     ["The Path does not bargain with heretics. But it will watch you burn."],
+    "NEUTRAL":     ["The Path listens, briefly. Say what you came to say."],
+    "FAVORABLE":   ["You have found the Path. Go on."]
+  },
+  "tribute_demanded": {
+    "NEUTRAL":     ["Pay, or we will take it. Ludd has little use for hoarders."]
+  }
+}

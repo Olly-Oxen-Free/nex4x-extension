@@ -1,0 +1,10 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["The Church hears all petitioners. Speak with care.",
+                    "In Ludd's light, we receive you."],
+    "HOSTILE":     ["Heresy has a face today. And it is yours, {player}."]
+  },
+  "denouncement_heard": {
+    "NEUTRAL":     ["Ludd's judgement finds your words wanting. We move on."]
+  }
+}
