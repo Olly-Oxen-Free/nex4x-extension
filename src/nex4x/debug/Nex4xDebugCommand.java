@@ -67,6 +67,22 @@ public class Nex4xDebugCommand {
         return "Opened leader audience at " + m.getName() + " via gate " + g;
     }
 
+    /** runcode nex4x.debug.Nex4xDebugCommand.declareFriendship("hegemony"); */
+    public static String declareFriendship(String target) {
+        nex4x.declarations.Declaration d = nex4x.managers.Nex4xManager.getOrCreateManager()
+                .getDeclarationManager()
+                .declareFriendship(com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId(), target);
+        return "Friendship declared with " + target + " (expires day " + d.getExpiryDay() + ")";
+    }
+
+    /** runcode nex4x.debug.Nex4xDebugCommand.denounce("pirates"); */
+    public static String denounce(String target) {
+        nex4x.declarations.Declaration d = nex4x.managers.Nex4xManager.getOrCreateManager()
+                .getDeclarationManager()
+                .declareDenouncement(com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId(), target);
+        return "Denounced " + target + " (expires day " + d.getExpiryDay() + ", CB unlocks at 3 mo)";
+    }
+
     static com.fs.starfarer.api.campaign.econ.MarketAPI firstMarketOfFaction(String factionId) {
         for (com.fs.starfarer.api.campaign.econ.MarketAPI m :
                 com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
