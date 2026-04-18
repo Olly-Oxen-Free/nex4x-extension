@@ -6,6 +6,7 @@ import com.fs.starfarer.api.campaign.FactionAPI;
 import com.fs.starfarer.api.util.IntervalUtil;
 import nex4x.Nex4xConstants;
 import nex4x.agreements.AgreementManager;
+import nex4x.leaders.LeaderRegistry;
 import nex4x.ai.DiplomaticExecutor;
 import nex4x.ai.ReactiveHandler;
 import nex4x.ai.StrategicGoalManager;
@@ -50,6 +51,7 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
     private final DeclarationManager declarationManager = new DeclarationManager();
     private final WarScoreTracker warScoreTracker = new WarScoreTracker();
     private final ReactiveHandler reactiveHandler = new ReactiveHandler();
+    private final LeaderRegistry leaderRegistry = new LeaderRegistry();
 
     // v1 AI engine components
     private final GrandStrategyManager grandStrategy = new GrandStrategyManager();
@@ -72,6 +74,7 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
     public DeclarationManager getDeclarationManager() { return declarationManager; }
     public WarScoreTracker getWarScoreTracker() { return warScoreTracker; }
     public ReactiveHandler getReactiveHandler() { return reactiveHandler; }
+    public LeaderRegistry getLeaderRegistry() { return leaderRegistry; }
     public GrandStrategyManager getGrandStrategy() { return grandStrategy; }
 
     public StrategicGoalManager getGoalManager(String factionId) {
@@ -140,6 +143,19 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
                 }
             } catch (Exception e) {
                 log.error("[Nex4x] v3 daily tick failed: " + e.getMessage());
+            }
+
+            // v5 — leader registry daily tick
+            try {
+                java.util.List<LeaderRegistry.LeaderChangeEvent> changes =
+                        leaderRegistry.advanceDay(elapsed);
+                for (LeaderRegistry.LeaderChangeEvent evt : changes) {
+                    // Leader-change intel emission wired up in Phase 10 (Task 10.5).
+                    log.info("[Nex4x] (v5) Leader change event: " + evt.factionId
+                            + " old=" + evt.oldPersonId + " new=" + evt.newPersonId);
+                }
+            } catch (Exception e) {
+                log.error("[Nex4x] v5 leader registry tick failed: " + e.getMessage());
             }
 
             // Re-suppress legacy Nex intels — SectorManager may recreate profiles when
