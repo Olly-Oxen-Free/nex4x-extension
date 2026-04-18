@@ -144,11 +144,77 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
 
     // ── Intel description (shown in intel tab) ────────────────
 
+    /** Derive the appropriate Situation for the leader dialogue line from the deal's items. */
+    private nex4x.leaders.Situation deriveProposalSituation() {
+        // Check offers (what AI gives) for peace items
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getOffers()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.PEACE_TERMS) {
+                return nex4x.leaders.Situation.PEACE_PROPOSED_BY_AI;
+            }
+        }
+        // Check requests (what AI wants) for peace items
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getRequests()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.PEACE_TERMS) {
+                return nex4x.leaders.Situation.PEACE_PROPOSED_BY_AI;
+            }
+        }
+        // Check offers and requests for agreement types
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getOffers()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.AGREEMENTS
+                    && item.getAgreementType() != null) {
+                return agreementTypeToSituation(item.getAgreementType());
+            }
+        }
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getRequests()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.AGREEMENTS
+                    && item.getAgreementType() != null) {
+                return agreementTypeToSituation(item.getAgreementType());
+            }
+        }
+        // Default: generic alliance proposal
+        return nex4x.leaders.Situation.ALLIANCE_PROPOSED;
+    }
+
+    private nex4x.leaders.Situation agreementTypeToSituation(
+            nex4x.agreements.AgreementType agType) {
+        if (agType == nex4x.agreements.AgreementType.NAP) {
+            return nex4x.leaders.Situation.NAP_PROPOSED;
+        }
+        if (agType == nex4x.agreements.AgreementType.TRADE_AGREEMENT) {
+            return nex4x.leaders.Situation.TRADE_PACT_PROPOSED;
+        }
+        // DEFENSIVE_PACT, MILITARY_PARTNERSHIP, ECONOMIC_PARTNERSHIP, COALITION
+        return nex4x.leaders.Situation.ALLIANCE_PROPOSED;
+    }
+
     @Override
     public void createGeneralDescription(TooltipMakerAPI info, float width, float opad) {
         FactionAPI faction = Global.getSector().getFaction(factionId);
         FactionAPI playerFaction = Global.getSector().getFaction(
                 PlayerFactionStore.getPlayerFactionId());
+
+        // v5 — leader portrait header
+        nex4x.leaders.LeaderProfile leader = nex4x.managers.Nex4xManager
+                .getOrCreateManager().getLeaderRegistry().getProfile(factionId);
+        String sprite = leader.portraitSprite();
+        if (sprite != null) {
+            info.beginImageWithText(sprite, 72f);
+            info.addPara(leader.displayName(), 4f);
+            info.addPara(faction.getDisplayName(), 2f);
+            info.addImageWithText(4f);
+        } else {
+            info.addPara(leader.displayName() + " — " + faction.getDisplayName(), opad);
+        }
+        // Derive situation from deal content
+        nex4x.leaders.Situation sit = deriveProposalSituation();
+        float rel = faction.getRelationship(playerFaction.getId());
+        nex4x.leaders.ReputationTier tier = nex4x.leaders.ReputationTier.fromRelation(rel);
+        java.util.Map<String,String> ctx = new java.util.HashMap<String,String>();
+        ctx.put("player", playerFaction.getDisplayName());
+        ctx.put("leader", leader.displayName());
+        ctx.put("faction", faction.getDisplayName());
+        String proposalLine = nex4x.leaders.DialogueSystem.get().resolve(leader, sit, tier, ctx);
+        info.addPara("\"" + proposalLine + "\"", opad);
 
         info.addImages(width, 96, opad, opad, faction.getLogo(), playerFaction.getLogo());
 
