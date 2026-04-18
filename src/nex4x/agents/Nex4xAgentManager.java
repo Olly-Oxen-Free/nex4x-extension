@@ -72,4 +72,8 @@ public class Nex4xAgentManager implements Serializable {
         }
         return mgr;
     }
+
+    public float getDiplomatIntelScore(String factionId) {
+        return 0f;
+    }
 }
