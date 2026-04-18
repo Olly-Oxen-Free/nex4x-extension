@@ -16,9 +16,12 @@ import nex4x.badges.BadgeType;
 import nex4x.badges.FactionBadges;
 import nex4x.data.*;
 import nex4x.managers.Nex4xManager;
+import nex4x.leaders.LeaderAccessGate;
+import nex4x.leaders.LeaderProfile;
 import nex4x.memory.FactionMemory;
 import nex4x.memory.FactionMemoryStore;
 import nex4x.memory.MemoryVisibility;
+import nex4x.util.FactionMarketUtil;
 
 import java.awt.Color;
 import java.util.*;
@@ -47,6 +50,7 @@ public class FactionBrowserIntel extends BaseIntelPlugin {
     private static final String BUTTON_FACTION_PREFIX = "nex4x_fb_faction:";
     private static final String BUTTON_TAB_PREFIX = "nex4x_fb_tab:";
     private static final Object BUTTON_NEGOTIATE = "nex4x_fb_negotiate";
+    private static final String BUTTON_CONTACT_LEADER_PREFIX = "contact_leader_";
 
     private String selectedFactionId;
     private Tab selectedTab = Tab.OVERVIEW;
@@ -218,7 +222,37 @@ public class FactionBrowserIntel extends BaseIntelPlugin {
         info.addSpacer(6f);
     }
 
+    private void renderLeaderHeader(TooltipMakerAPI info, FactionAPI f) {
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null) return;
+        LeaderProfile leader = mgr.getLeaderRegistry().getProfile(f.getId());
+        if (leader == null) return;
+        String sprite = leader.portraitSprite();
+        if (sprite != null) {
+            info.beginImageWithText(sprite, 96f);
+            info.addPara(leader.displayName(), 4f);
+            info.addPara("Personality: " + leader.getPersonality(), 2f);
+            info.addImageWithText(4f);
+        } else {
+            info.addPara(leader.displayName(), 4f);
+            info.addPara("Personality: " + leader.getPersonality(), 2f);
+        }
+        LeaderAccessGate.Gate gate = LeaderAccessGate.resolve(f.getId());
+        if (gate != LeaderAccessGate.Gate.NONE) {
+            info.addButton("Contact Leader",
+                    BUTTON_CONTACT_LEADER_PREFIX + f.getId(),
+                    f.getBaseUIColor(), f.getDarkUIColor(),
+                    Alignment.MID, CutStyle.ALL, 150f, 26f, 6f);
+        } else {
+            info.addPara("(Leader audience locked -- rapport +50, commission rank >= commander, " +
+                    "own colony, or other means.)", Misc.getGrayColor(), 4f);
+        }
+        info.addSpacer(6f);
+    }
+
     private void addOverviewTab(TooltipMakerAPI info, FactionAPI f) {
+        renderLeaderHeader(info, f);
+
         String playerId = Global.getSector().getPlayerFaction().getId();
         float rel = f.getRelationship(playerId);
         String relStr = String.format("%+.0f", rel * 100f);
@@ -408,6 +442,15 @@ public class FactionBrowserIntel extends BaseIntelPlugin {
                     selectedTab = Tab.valueOf(id.substring(BUTTON_TAB_PREFIX.length()));
                 } catch (IllegalArgumentException ignore) {}
                 ui.updateUIForItem(this);
+                return;
+            }
+            if (id.startsWith(BUTTON_CONTACT_LEADER_PREFIX)) {
+                String fid = id.substring(BUTTON_CONTACT_LEADER_PREFIX.length());
+                MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
+                if (m != null) {
+                    Global.getSector().getCampaignUI().showInteractionDialog(
+                            new LeaderAudienceDialog(m), m.getPrimaryEntity());
+                }
                 return;
             }
         }

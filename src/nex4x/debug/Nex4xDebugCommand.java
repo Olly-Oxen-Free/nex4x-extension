@@ -84,10 +84,6 @@ public class Nex4xDebugCommand {
     }
 
     static com.fs.starfarer.api.campaign.econ.MarketAPI firstMarketOfFaction(String factionId) {
-        for (com.fs.starfarer.api.campaign.econ.MarketAPI m :
-                com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
-            if (factionId.equals(m.getFactionId())) return m;
-        }
-        return null;
+        return nex4x.util.FactionMarketUtil.firstMarketOfFaction(factionId);
     }
 }
