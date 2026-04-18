@@ -33,7 +33,8 @@ public class LeaderRegistry implements Serializable {
         // Try to find existing faction leader in ImportantPeople
         PersonAPI factionLeader = null;
         for (PersonAPI person : Global.getSector().getImportantPeople().getPeopleWithPost("factionLeader")) {
-            if (factionId.equals(person.getFaction())) {
+            FactionAPI pf = person.getFaction();
+            if (pf != null && factionId.equals(pf.getId())) {
                 factionLeader = person;
                 break;
             }
@@ -75,7 +76,8 @@ public class LeaderRegistry implements Serializable {
             // Find current faction leader
             PersonAPI currentLeader = null;
             for (PersonAPI person : Global.getSector().getImportantPeople().getPeopleWithPost("factionLeader")) {
-                if (fid.equals(person.getFaction())) {
+                FactionAPI pf = person.getFaction();
+                if (pf != null && fid.equals(pf.getId())) {
                     currentLeader = person;
                     break;
                 }
