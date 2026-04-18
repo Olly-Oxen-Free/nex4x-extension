@@ -317,18 +317,119 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
     }
 
-    // ── Button dispatch (Task 8.9) ────────────────────────────
+    // ── Button dispatch ───────────────────────────────────────
 
     @Override
     public void buttonPressed(Object buttonId) {
-        // Task 8.9
+        if (buttonId == null) return;
+        String id = buttonId.toString();
+
+        if (BTN_AUTO_BALANCE.equals(id)) {
+            nex4x.negotiation.AutoBalanceSolver.solve(
+                    deal, leader, catalog, intelTier, acceptanceThreshold);
+            mood.apply(SessionMood.Event.AUTO_BALANCE, leader.getPersonality());
+            needsRefresh = true;
+            return;
+        }
+
+        if (BTN_SPEAK_LEADER.equals(id)) {
+            // Reserved for Starlogue x Nex4x joint spec — disabled in v5
+            return;
+        }
+
+        if (id.startsWith(REMOVE_OFFER_PREFIX)) {
+            String itemId = id.substring(REMOVE_OFFER_PREFIX.length());
+            deal.applyMutation(nex4x.negotiation.DealMutation.removeOffer(itemId), catalog);
+            log.info("[Nex4x] Removed offer: " + itemId);
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(REMOVE_REQUEST_PREFIX)) {
+            String itemId = id.substring(REMOVE_REQUEST_PREFIX.length());
+            deal.applyMutation(nex4x.negotiation.DealMutation.removeRequest(itemId), catalog);
+            log.info("[Nex4x] Removed request: " + itemId);
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(ADD_OFFER_PREFIX)) {
+            String itemId = id.substring(ADD_OFFER_PREFIX.length());
+            int qty = catalog.suggestedQty(itemId, 1);
+            boolean applied = deal.applyMutation(
+                    nex4x.negotiation.DealMutation.addOffer(itemId, qty), catalog);
+            if (applied) {
+                log.info("[Nex4x] Added offer: " + itemId + " x" + qty);
+                if (isAggressiveDemand(itemId)) {
+                    mood.apply(SessionMood.Event.AGGRESSIVE_DEMAND, leader.getPersonality());
+                }
+            }
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(ADD_REQUEST_PREFIX)) {
+            String itemId = id.substring(ADD_REQUEST_PREFIX.length());
+            int qty = catalog.suggestedQty(itemId, 1);
+            boolean applied = deal.applyMutation(
+                    nex4x.negotiation.DealMutation.addRequest(itemId, qty), catalog);
+            if (applied) {
+                log.info("[Nex4x] Added request: " + itemId + " x" + qty);
+                if (isConcession(itemId)) {
+                    mood.apply(SessionMood.Event.CONCESSION, leader.getPersonality());
+                }
+            }
+            needsRefresh = true;
+            return;
+        }
     }
 
-    // ── Confirm hook ──────────────────────────────────────────
+    private boolean isAggressiveDemand(String itemId) {
+        return itemId.contains("tribute") || itemId.contains("reparations");
+    }
+
+    private boolean isConcession(String itemId) {
+        return itemId.contains("gift") || itemId.contains("waive");
+    }
+
+    // ── Confirm: Send Proposal ────────────────────────────────
 
     @Override
     public void applyConfirmScript() {
-        // Task 8.9
+        nex4x.negotiation.BalanceCalculator.Result r =
+                nex4x.negotiation.BalanceCalculator.evaluate(deal, leader, acceptanceThreshold);
+        float moodDelta = acceptanceThreshold * mood.thresholdDeltaPct();
+        boolean accepted = (r.balance + Math.round(moodDelta)) >= acceptanceThreshold;
+
+        Situation responseType = accepted
+                ? Situation.NEGOTIATION_ACCEPT
+                : Situation.NEGOTIATION_REJECT;
+        ReputationTier effectiveTier = mood.effectiveTier(baseTier());
+        String line = resolveDialogue(leader, responseType, effectiveTier);
+
+        Global.getSector().getCampaignUI().addMessage(
+                leader.displayName() + ": \"" + line + "\"",
+                accepted ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor());
+
+        if (accepted) {
+            executeAcceptedDeal();
+            log.info("[Nex4x] Deal accepted by " + targetFactionId);
+        } else {
+            log.info("[Nex4x] Deal rejected by " + targetFactionId);
+        }
+    }
+
+    private ReputationTier baseTier() {
+        float rel = Global.getSector().getFaction(targetFactionId)
+                .getRelationship(playerFactionId);
+        return ReputationTier.fromRelation(rel);
+    }
+
+    private void executeAcceptedDeal() {
+        // v5 placeholder — Phase 12 wires commodity/agreement execution.
+        log.info("[Nex4x] Deal accepted: " + deal.getProposer() + " -> " + deal.getReceiver()
+                + " proposerItems=" + deal.getProposerOffers().size()
+                + " receiverItems=" + deal.getReceiverOffers().size());
     }
 
     // ── Refresh ───────────────────────────────────────────────
