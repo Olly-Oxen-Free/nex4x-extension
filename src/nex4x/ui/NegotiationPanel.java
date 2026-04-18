@@ -186,7 +186,63 @@ public class NegotiationPanel extends BasePopUpDialog {
     }
 
     void renderBalanceBar(TooltipMakerAPI info, float width) {
-        // Task 8.7
+        nex4x.negotiation.BalanceCalculator.Result r =
+                nex4x.negotiation.BalanceCalculator.evaluate(deal, leader, acceptanceThreshold);
+        nex4x.negotiation.BalanceSurface.Surface s =
+                nex4x.negotiation.BalanceSurface.surface(r, intelTier, acceptanceThreshold);
+
+        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
+        Color factionColor = targetFac.getBaseUIColor();
+        Color darkColor    = targetFac.getDarkUIColor();
+
+        info.addSectionHeading("BALANCE", factionColor, darkColor, Alignment.MID, 4f);
+
+        // Qualitative verdict label — always shown
+        Color verdictColor = verdictColor(r.verdict);
+        info.addPara(s.qualitative, verdictColor, 2f);
+
+        // Numeric readout — only when intel is GOOD or FULL
+        if (!s.numeric.isEmpty()) {
+            info.addPara(s.numeric, Misc.getHighlightColor(), 2f);
+        }
+
+        // ASCII balance meter: [.....<.....|.....*.....]  -500 ... 0 ... +500
+        String meter = renderMeter(r.balance, acceptanceThreshold);
+        info.addPara(meter, Misc.getGrayColor(), 4f);
+    }
+
+    private static Color verdictColor(nex4x.negotiation.BalanceCalculator.Verdict v) {
+        switch (v) {
+            case EXTRAORDINARY: return Misc.getPositiveHighlightColor();
+            case GENEROUS:      return Misc.getPositiveHighlightColor();
+            case FAIR:          return Misc.getHighlightColor();
+            case COLD:          return Misc.getNegativeHighlightColor();
+            case INSULTING:     return Misc.getNegativeHighlightColor();
+            default:            return Misc.getTextColor();
+        }
+    }
+
+    static String renderMeter(int balance, int threshold) {
+        // 21-slot ASCII track: [.....<.....|.....*.....] -T ... 0 ... +T
+        int slots = 21;
+        int mid = slots / 2;   // 10 = centre
+        int pos;
+        if (threshold == 0) {
+            pos = mid;
+        } else {
+            pos = mid + Math.round((float) balance / threshold * mid);
+            if (pos < 0)       pos = 0;
+            if (pos >= slots)  pos = slots - 1;
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < slots; i++) {
+            if (i == mid && i == pos) sb.append('X');   // balanced AND at centre
+            else if (i == mid)        sb.append('|');   // centre tick
+            else if (i == pos)        sb.append('*');   // current balance marker
+            else                      sb.append('.');
+        }
+        sb.append("]  ").append(-threshold).append("...0...+").append(threshold);
+        return sb.toString();
     }
 
     void renderTwoColumns(TooltipMakerAPI info, float width) {
