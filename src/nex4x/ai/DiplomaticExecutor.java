@@ -180,6 +180,12 @@ public class DiplomaticExecutor implements Serializable {
         } catch (Exception e) {
             log.error("[Nex4x] Failed to declare war: " + e.getMessage());
         }
+        try {
+            Global.getSector().getIntelManager()
+                    .addIntel(new nex4x.ui.WarDeclarationIntel(factionId, targetFactionId, /*byAi=*/ true));
+        } catch (Exception e) {
+            log.error("[Nex4x] Failed to emit WarDeclarationIntel: " + e.getMessage());
+        }
     }
 
     // Peace Decision (AI spec §4.3)
