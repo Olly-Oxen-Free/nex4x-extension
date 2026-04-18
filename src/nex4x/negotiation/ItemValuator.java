@@ -260,6 +260,42 @@ public class ItemValuator {
         return 4000f;
     }
 
+    // ── v5 Leader valuation wrapper ────────────────────────────
+
+    /**
+     * v5 wrapper — composes the legacy tendency/belief value with the new
+     * personality/goal/relation/scarcity stack. Call sites driving the new
+     * NegotiationPanel should prefer this method.
+     */
+    public static int valueForLeader(NegotiableItem item,
+                                     nex4x.leaders.LeaderProfile leader,
+                                     String proposerFactionId) {
+        float base = new ItemValuator().evaluate(item, leader.getFactionId());
+        nex4x.negotiation.ItemCategory cat = mapCategory(item);
+        return nex4x.negotiation.Valuator.valueTo(leader, proposerFactionId, cat,
+                Math.round(base), item.getTargetId());
+    }
+
+    static nex4x.negotiation.ItemCategory mapCategory(NegotiableItem item) {
+        if (item == null || item.getType() == null) return nex4x.negotiation.ItemCategory.OTHER;
+        switch (item.getType()) {
+            case CREDITS:         return nex4x.negotiation.ItemCategory.CREDITS;
+            case COMMODITIES:     return nex4x.negotiation.ItemCategory.COMMODITY;
+            case TRIBUTE:         return nex4x.negotiation.ItemCategory.TRIBUTE;
+            case KNOWLEDGE:       return nex4x.negotiation.ItemCategory.BLUEPRINT;
+            case INTEL:           return nex4x.negotiation.ItemCategory.INTEL;
+            case TERRITORY:       return nex4x.negotiation.ItemCategory.MARKET;
+            case AGREEMENTS:      return nex4x.negotiation.ItemCategory.ALLIANCE; // refined per item-id in v5.1
+            case PEACE_TERMS:     return nex4x.negotiation.ItemCategory.PEACE_TERMS;
+            case WAR_DECLARATION: return nex4x.negotiation.ItemCategory.WAR_DECLARATION;
+            case CONCESSIONS:     return nex4x.negotiation.ItemCategory.SPARE_CONCESSION;
+            case DECLARATIONS:    return nex4x.negotiation.ItemCategory.FRIENDSHIP_DECLARATION;
+            case CONTRACTS:
+            case PRISONERS:
+            default:              return nex4x.negotiation.ItemCategory.OTHER;
+        }
+    }
+
     // ── Belief multiplier ──────────────────────────────────────
 
     /**
