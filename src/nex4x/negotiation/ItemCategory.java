@@ -1,0 +1,20 @@
+package nex4x.negotiation;
+
+public enum ItemCategory {
+    CREDITS,
+    COMMODITY,
+    TRIBUTE,
+    BLUEPRINT,
+    INTEL,
+    STAR_CHART,
+    MARKET,
+    ALLIANCE,
+    NAP,
+    TRADE_PACT,
+    FRIENDSHIP_DECLARATION,
+    DENOUNCEMENT_DECLARATION,
+    SPARE_CONCESSION,
+    PEACE_TERMS,
+    WAR_DECLARATION,
+    OTHER;
+}
