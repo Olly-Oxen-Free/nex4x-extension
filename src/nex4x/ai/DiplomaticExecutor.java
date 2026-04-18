@@ -188,6 +188,26 @@ public class DiplomaticExecutor implements Serializable {
         }
     }
 
+    /** Player-driven war declaration path (no StrategicGoal context). */
+    public void declareWarPlayer(String targetFactionId) {
+        log.info("[Nex4x] " + factionId + " DECLARES WAR on " + targetFactionId + " (player-initiated)");
+
+        try {
+            exerelin.campaign.DiplomacyManager.createDiplomacyEvent(
+                    Global.getSector().getFaction(factionId),
+                    Global.getSector().getFaction(targetFactionId),
+                    "declare_war", null);
+        } catch (Exception e) {
+            log.error("[Nex4x] Failed to declare war: " + e.getMessage());
+        }
+        try {
+            Global.getSector().getIntelManager()
+                    .addIntel(new nex4x.ui.WarDeclarationIntel(factionId, targetFactionId, /*byAi=*/ false));
+        } catch (Exception e) {
+            log.error("[Nex4x] Failed to emit WarDeclarationIntel: " + e.getMessage());
+        }
+    }
+
     // Peace Decision (AI spec §4.3)
 
     private void evaluatePeaceDecisions(List<StrategicGoal> goals, Archetype archetype) {

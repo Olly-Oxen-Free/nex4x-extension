@@ -426,10 +426,31 @@ public class NegotiationPanel extends BasePopUpDialog {
     }
 
     private void executeAcceptedDeal() {
-        // v5 placeholder — Phase 12 wires commodity/agreement execution.
-        log.info("[Nex4x] Deal accepted: " + deal.getProposer() + " -> " + deal.getReceiver()
-                + " proposerItems=" + deal.getProposerOffers().size()
-                + " receiverItems=" + deal.getReceiverOffers().size());
+        nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getOrCreateManager();
+        for (nex4x.negotiation.NegotiableItem item : deal.getProposerOffers()) {
+            applyItemEffect(item, deal.getProposer(), deal.getReceiver(), mgr);
+        }
+        for (nex4x.negotiation.NegotiableItem item : deal.getReceiverOffers()) {
+            applyItemEffect(item, deal.getReceiver(), deal.getProposer(), mgr);
+        }
+        log.info("[Nex4x] Deal executed: " + deal.getProposer() + " -> " + deal.getReceiver());
+    }
+
+    private void applyItemEffect(nex4x.negotiation.NegotiableItem item, String fromFaction, String toFaction,
+                                 nex4x.managers.Nex4xManager mgr) {
+        switch (item.getType()) {
+            case AGREEMENTS:
+                mgr.getAgreementManager().createAgreement(fromFaction, toFaction, item.getAgreementType());
+                break;
+            case WAR_DECLARATION:
+                mgr.getExecutor(fromFaction).declareWarPlayer(toFaction);
+                break;
+            case CREDITS:
+            case PEACE_TERMS:
+            default:
+                log.info("[Nex4x] Deal item placeholder: " + item.getType() + " (" + fromFaction + " -> " + toFaction + ")");
+                break;
+        }
     }
 
     // ── Refresh ───────────────────────────────────────────────
