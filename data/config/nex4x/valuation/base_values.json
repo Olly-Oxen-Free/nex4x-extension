@@ -1,0 +1,19 @@
+{
+  "agreements": {
+    "non_aggression_pact": 3000,
+    "alliance": 8000,
+    "trade_pact": 4000,
+    "seek_peace": 5000
+  },
+  "declarations": {
+    "friendship": 2500,
+    "denouncement": 1500
+  },
+  "one_time": {
+    "intel": 500,
+    "star_chart": 750,
+    "blueprint_multiplier": 10
+  },
+  "agreements_ceasefire": 5000,
+  "agreements_peace_treaty": 8000
+}
