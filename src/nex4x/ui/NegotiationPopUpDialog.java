@@ -50,6 +50,9 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
     private final AgreementType currentTier;
     private final boolean atWar;
 
+    private final DealProposal dealProposal;
+    private final NegotiableItemCatalog catalog = new NegotiableItemCatalog();
+
     private boolean needsRefresh;
 
     public NegotiationPopUpDialog(String targetFactionId) {
@@ -58,6 +61,7 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
         this.playerFactionId = Global.getSector().getPlayerFaction().getId();
 
         this.deal = new DealPackage(playerFactionId, targetFactionId);
+        this.dealProposal = new DealProposal(playerFactionId, targetFactionId);
         this.evaluator = new DealEvaluator();
         this.valuator = evaluator.getValuator();
 
@@ -175,8 +179,12 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
 
         if (id.startsWith(REMOVE_OFFER_PREFIX)) {
             int idx = parseIndex(id, REMOVE_OFFER_PREFIX);
-            if (idx >= 0) {
+            if (idx >= 0 && idx < deal.getOffers().size()) {
+                String removedId = deal.getOffers().get(idx).getId();
                 deal.removeOffer(idx);
+                if (removedId != null) {
+                    dealProposal.applyMutation(DealMutation.removeOffer(removedId), catalog);
+                }
                 log.info("[Nex4x] Removed offer at index " + idx);
             }
             needsRefresh = true;
@@ -185,8 +193,12 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
 
         if (id.startsWith(REMOVE_REQUEST_PREFIX)) {
             int idx = parseIndex(id, REMOVE_REQUEST_PREFIX);
-            if (idx >= 0) {
+            if (idx >= 0 && idx < deal.getRequests().size()) {
+                String removedId = deal.getRequests().get(idx).getId();
                 deal.removeRequest(idx);
+                if (removedId != null) {
+                    dealProposal.applyMutation(DealMutation.removeRequest(removedId), catalog);
+                }
                 log.info("[Nex4x] Removed request at index " + idx);
             }
             needsRefresh = true;
@@ -203,7 +215,10 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
             String key = id.substring(ADD_OFFER_PREFIX.length());
             NegotiableItem item = createItemFromKey(key);
             if (item != null) {
+                if (item.getId() == null) item.setId(key);
                 deal.addOffer(item);
+                dealProposal.applyMutation(
+                        DealMutation.addOffer(item.getId(), (int) item.getAmount()), catalog);
                 log.info("[Nex4x] Added offer: " + item.getDisplayLabel());
             }
             needsRefresh = true;
@@ -214,7 +229,10 @@ public class NegotiationPopUpDialog extends BasePopUpDialog {
             String key = id.substring(ADD_REQUEST_PREFIX.length());
             NegotiableItem item = createItemFromKey(key);
             if (item != null) {
+                if (item.getId() == null) item.setId(key);
                 deal.addRequest(item);
+                dealProposal.applyMutation(
+                        DealMutation.addRequest(item.getId(), (int) item.getAmount()), catalog);
                 log.info("[Nex4x] Added request: " + item.getDisplayLabel());
             }
             needsRefresh = true;

@@ -40,4 +40,15 @@ public class NegotiableItemCatalog {
         if ("credits".equals(itemId)) return 1;
         return 0;
     }
+
+    /** Catalog ids currently addable given diplomatic state. Stub returns credits-only. */
+    public List<String> getAvailableIds(boolean atWar) {
+        return Collections.singletonList("credits");
+    }
+
+    /** Human-readable label for a catalog id; falls back to id when unknown. */
+    public String getDisplayName(String itemId) {
+        if ("credits".equals(itemId)) return "Credits";
+        return itemId == null ? "" : itemId;
+    }
 }
