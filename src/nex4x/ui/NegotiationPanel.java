@@ -680,9 +680,9 @@ public class NegotiationPanel extends BasePopUpDialog {
         rightTip.addPara(leader.displayName(), targetFaction.getBaseUIColor(), pad);
         rightTip.addPara(factionName(targetFactionId), Misc.getTextColor(), 2f);
         rightTip.addPara(relationBadge(targetFaction, playerFac), Misc.getTextColor(), 2f);
+        rightTip.addPara("Mood: " + mood.getDelta(), Misc.getGrayColor(), 2f);
         java.util.List<String> traits = leader.getTraits();
         if (!traits.isEmpty()) {
-            rightTip.addPara("Mood: " + mood.getDelta(), Misc.getGrayColor(), 2f);
             rightTip.addPara("Traits: " + joinTraits(traits), Misc.getGrayColor(), 2f);
         }
         rightPanel.addUIElement(rightTip).inTL(pad, pad);
