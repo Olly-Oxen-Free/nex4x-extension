@@ -56,15 +56,12 @@ public class Nex4xDebugCommand {
 
     /** runcode nex4x.debug.Nex4xDebugCommand.openLeader("hegemony"); */
     public static String openLeader(String factionId) {
-        com.fs.starfarer.api.campaign.econ.MarketAPI m = firstMarketOfFaction(factionId);
-        if (m == null) return "No market found for " + factionId;
         nex4x.leaders.LeaderAccessGate.Gate g = nex4x.leaders.LeaderAccessGate.resolve(factionId);
         if (g == nex4x.leaders.LeaderAccessGate.Gate.NONE) {
             return "Leader audience is gated. No path open. (rapport/commission/own-colony/other-means)";
         }
-        com.fs.starfarer.api.Global.getSector().getCampaignUI().showInteractionDialog(
-                new nex4x.ui.LeaderAudienceDialog(m), m.getPrimaryEntity());
-        return "Opened leader audience at " + m.getName() + " via gate " + g;
+        nex4x.ui.NegotiationPanel.openScaled(factionId, false);
+        return "Opened negotiation panel for " + factionId + " via gate " + g;
     }
 
     /** runcode nex4x.debug.Nex4xDebugCommand.declareFriendship("hegemony"); */

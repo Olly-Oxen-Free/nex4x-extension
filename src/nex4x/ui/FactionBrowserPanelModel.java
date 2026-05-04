@@ -576,22 +576,24 @@ public class FactionBrowserPanelModel implements Serializable {
             }
             if (id.startsWith(BUTTON_CONTACT_LEADER_PREFIX)) {
                 final String fid = id.substring(BUTTON_CONTACT_LEADER_PREFIX.length());
-                final MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
-                if (m != null) {
-                    final InteractionDialogPlugin plugin = LeaderAccessGate.isOpen(fid)
-                            ? new LeaderAudienceDialog(m)
-                            : new ViceroyDialog(m);
-                    final com.fs.starfarer.api.campaign.SectorEntityToken token =
-                            m.getPrimaryEntity();
-                    if (intelUi != null) {
-                        intelUi.showDialog(token, plugin);
-                    } else {
-                        Nex4xDeferredUi.runNextFrame(new Runnable() {
-                            public void run() {
-                                Global.getSector().getCampaignUI().showInteractionDialog(
-                                        plugin, token);
-                            }
-                        });
+                if (LeaderAccessGate.isOpen(fid)) {
+                    NegotiationPanel.openScaled(fid, false);
+                } else {
+                    final MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
+                    if (m != null) {
+                        final InteractionDialogPlugin plugin = new ViceroyDialog(m);
+                        final com.fs.starfarer.api.campaign.SectorEntityToken token =
+                                m.getPrimaryEntity();
+                        if (intelUi != null) {
+                            intelUi.showDialog(token, plugin);
+                        } else {
+                            Nex4xDeferredUi.runNextFrame(new Runnable() {
+                                public void run() {
+                                    Global.getSector().getCampaignUI().showInteractionDialog(
+                                            plugin, token);
+                                }
+                            });
+                        }
                     }
                 }
                 return;
