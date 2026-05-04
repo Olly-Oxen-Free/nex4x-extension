@@ -16,6 +16,7 @@ public class Nex4xConstants {
 
     // v1 data file paths
     public static final String PATH_GRAND_STRATEGY = "data/config/nex4x/grand_strategy.json";
+    public static final String PATH_ARCHETYPE_OVERRIDES = "data/config/nex4x/archetype_overrides.json";
     public static final String PATH_GOAL_WEIGHTS = "data/config/nex4x/goal_weights.json";
     public static final String PATH_DIPLOMATIC_EXECUTOR = "data/config/nex4x/diplomatic_executor.json";
     public static final String PATH_NEGOTIATION = "data/config/nex4x/negotiation.json";

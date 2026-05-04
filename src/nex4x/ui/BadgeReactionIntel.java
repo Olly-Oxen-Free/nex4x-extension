@@ -22,15 +22,23 @@ public class BadgeReactionIntel extends BaseIntelPlugin {
 
     private static final long serialVersionUID = 1L;
 
+    /** Safety net — hard ceiling on intel lifetime. */
+    private static final float MAX_LIFETIME_DAYS = 90f;
+    private static final int VISIBILITY_PROGRESS_THRESHOLD = 1;
+
     private final String factionId;
+    private final BadgeType badgeType;
     private final String badgeDisplayName;
     private final boolean positive;
     private final String line;
+    private final long createdTimestamp;
 
     public BadgeReactionIntel(String factionId, BadgeType badge) {
         this.factionId = factionId;
+        this.badgeType = badge;
         this.badgeDisplayName = badge.displayName;
         this.positive = isPositiveBadge(badge);
+        this.createdTimestamp = Global.getSector().getClock().getTimestamp();
         LeaderProfile leader = Nex4xManager.getOrCreateManager()
                 .getLeaderRegistry().getProfile(factionId);
         float rel = Global.getSector().getFaction(factionId)
@@ -108,6 +116,22 @@ public class BadgeReactionIntel extends BaseIntelPlugin {
         return f != null ? f : Global.getSector().getPlayerFaction();
     }
 
-    @Override public boolean isEnding() { return false; }
-    @Override public boolean isEnded() { return false; }
+    private float elapsedDays() {
+        return Global.getSector().getClock().getElapsedDaysSince(createdTimestamp);
+    }
+
+    private boolean badgeBelowVisibility() {
+        Nex4xManager m = Nex4xManager.getManager();
+        if (m == null) return false;
+        nex4x.badges.FactionBadges fb = m.getBadgeManager().getBadges(factionId);
+        return fb.getProgress(badgeType) < VISIBILITY_PROGRESS_THRESHOLD
+                && !fb.hasBadge(badgeType);
+    }
+
+    @Override public boolean isEnding() {
+        return badgeBelowVisibility() || elapsedDays() >= MAX_LIFETIME_DAYS - 5f;
+    }
+    @Override public boolean isEnded() {
+        return badgeBelowVisibility() || elapsedDays() >= MAX_LIFETIME_DAYS;
+    }
 }

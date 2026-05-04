@@ -3,129 +3,700 @@ package nex4x.ui;
 import ashlib.data.plugins.ui.models.BasePopUpDialog;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FactionAPI;
-import com.fs.starfarer.api.ui.Alignment;
-import com.fs.starfarer.api.ui.CutStyle;
-import com.fs.starfarer.api.ui.CustomPanelAPI;
-import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import com.fs.starfarer.api.ui.*;
 import com.fs.starfarer.api.util.Misc;
+import nex4x.agreements.AgreementType;
+import nex4x.data.Nex4xSettings;
+import nex4x.evaluation.DealEvaluator;
 import nex4x.leaders.DialogueSystem;
-import nex4x.leaders.IntelTier;
-import nex4x.leaders.IntelTierResolver;
 import nex4x.leaders.LeaderProfile;
 import nex4x.leaders.Personality;
 import nex4x.leaders.ReputationTier;
 import nex4x.leaders.Situation;
 import nex4x.managers.Nex4xManager;
-import nex4x.negotiation.DealProposal;
-import nex4x.negotiation.NegotiableItemCatalog;
-import nex4x.negotiation.SessionMood;
+import nex4x.negotiation.*;
+import nex4x.pressure.PressureManager;
+import nex4x.pressure.PressureSource;
 import org.apache.log4j.Logger;
 
 import java.awt.Color;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 2-column Civ-style negotiation UI for v5 leader audience flow.
- * Uses DealProposal + DealMutation exclusively (not the legacy DealPackage).
- * All mutations route through deal.applyMutation(DealMutation, catalog).
- *
- * Opened via: BasePopUpDialog.popUpDialog(new NegotiationPanel(factionId), 620, 560)
+ * Merged negotiation UI: Civ-style leader header + mood, bilateral pressure readout,
+ * and the full DealPackage / DealEvaluator deal table (formerly NegotiationPopUpDialog).
  */
 public class NegotiationPanel extends BasePopUpDialog {
 
     private static final Logger log = Global.getLogger(NegotiationPanel.class);
 
+    /** Opens the negotiation popup with size derived from the current screen (reduces clipping). */
+    public static void openScaled(String targetFactionId, boolean viceroyMode) {
+        float sw = Global.getSettings().getScreenWidth();
+        float sh = Global.getSettings().getScreenHeight();
+        int w = (int) Math.min(1100f, Math.max(640f, sw * 0.7f));
+        int h = (int) Math.min(780f, Math.max(560f, sh * 0.72f));
+        BasePopUpDialog.popUpDialog(new NegotiationPanel(targetFactionId, viceroyMode), w, h);
+    }
+
     // ── Button ID prefixes ────────────────────────────────────
-    public static final String REMOVE_OFFER_PREFIX   = "np_rmv_o_";
-    public static final String REMOVE_REQUEST_PREFIX = "np_rmv_r_";
-    public static final String ADD_OFFER_PREFIX      = "np_add_o_";
-    public static final String ADD_REQUEST_PREFIX    = "np_add_r_";
-    public static final String BTN_AUTO_BALANCE      = "np_auto_balance";
-    public static final String BTN_SPEAK_LEADER      = "np_speak_leader"; // reserved Phase 9+
+    private static final String REMOVE_OFFER_PREFIX = "rmv_o_";
+    private static final String REMOVE_REQUEST_PREFIX = "rmv_r_";
+    private static final String ADD_OFFER_PREFIX = "add_o_";
+    private static final String ADD_REQUEST_PREFIX = "add_r_";
+    private static final String BTN_AUTO_NEGOTIATE = "auto_neg";
 
     // ── State ─────────────────────────────────────────────────
     private final String targetFactionId;
     private final String playerFactionId;
-    private final DealProposal deal;
-    private final LeaderProfile leader;
-    private final IntelTier intelTier;
-    private final SessionMood mood;
-    private final NegotiableItemCatalog catalog;
-    private final int acceptanceThreshold;
+    private final DealPackage deal;
+    private final DealEvaluator evaluator;
+    private final ItemValuator valuator;
+    private final AgreementType currentTier;
     private final boolean atWar;
+    private final boolean viceroyMode;
+    private final boolean viaViceroyAgreement;
+
+    private final SessionMood mood;
+    private final LeaderProfile leader;
+
+    private final DealProposal dealProposal;
+    private final NegotiableItemCatalog catalog = new NegotiableItemCatalog();
 
     private boolean needsRefresh;
 
     public NegotiationPanel(String targetFactionId) {
-        super("Negotiate \u2014 " + Global.getSector().getFaction(targetFactionId).getDisplayName());
+        this(targetFactionId, false);
+    }
+
+    public NegotiationPanel(String targetFactionId, boolean viceroyMode) {
+        super(negotiateTitle(targetFactionId));
         this.targetFactionId = targetFactionId;
         this.playerFactionId = Global.getSector().getPlayerFaction().getId();
+        this.viceroyMode = viceroyMode;
+        this.viaViceroyAgreement = viceroyMode;
 
-        this.deal = new DealProposal(playerFactionId, targetFactionId);
-        this.leader = Nex4xManager.getOrCreateManager()
-                .getLeaderRegistry().getProfile(targetFactionId);
-        this.intelTier = IntelTierResolver.resolve(targetFactionId);
+        this.deal = new DealPackage(playerFactionId, targetFactionId);
+        this.dealProposal = new DealProposal(playerFactionId, targetFactionId);
+        this.evaluator = new DealEvaluator();
+        this.valuator = evaluator.getValuator();
+
+        Nex4xManager mgr = Nex4xManager.getManager();
+        this.currentTier = mgr != null
+                ? mgr.getAgreementManager().getAllianceTier(playerFactionId, targetFactionId)
+                : AgreementType.COLD_WAR;
+        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
+        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
+        this.atWar = targetFac != null && playerFac != null && playerFac.isHostileTo(targetFac);
+
+        this.leader = Nex4xManager.getOrCreateManager().getLeaderRegistry().getProfile(targetFactionId);
         this.mood = new SessionMood();
-        this.catalog = new NegotiableItemCatalog();
-        this.acceptanceThreshold = 500;
-        this.atWar = Global.getSector().getFaction(playerFactionId).isHostileTo(targetFactionId);
 
         setConfirmText("Send Proposal");
     }
 
-    // ── Content rendering (Tasks 8.6-8.8 fill these) ─────────
+    /**
+     * Counter-proposal constructor: opens the table pre-filled from an AI proposal.
+     * The aiDeal has proposer=AI, target=player. We swap perspectives:
+     * AI's offers (what AI gives us) → our requests (what we want from them).
+     * AI's requests (what AI wants) → our offers (what we give them).
+     */
+    public NegotiationPanel(String targetFactionId, DealPackage aiDeal) {
+        this(targetFactionId, false);
+        for (NegotiableItem item : aiDeal.getOffers()) {
+            deal.addRequest(item);
+        }
+        for (NegotiableItem item : aiDeal.getRequests()) {
+            deal.addOffer(item);
+        }
+    }
+
+    // ── Content rendering ─────────────────────────────────────
 
     @Override
     public void createContentForDialog(TooltipMakerAPI info, float width) {
-        renderHeader(info, width);
-        renderBalanceBar(info, width);
-        renderTwoColumns(info, width);
+        FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
+        if (targetFaction == null) {
+            info.addPara("Unknown faction id: " + targetFactionId + ". Cannot open negotiation.",
+                    Misc.getNegativeHighlightColor(), 10f);
+            log.error("[Nex4x] NegotiationPanel: no FactionAPI for " + targetFactionId);
+            return;
+        }
+        Color factionColor = targetFaction.getBaseUIColor();
+        Color darkColor = targetFaction.getDarkUIColor();
+        float pad = 10f;
+        float sPad = 3f;
+
+        if (viceroyMode) {
+            info.addPara("Negotiation via the Viceroy: commerce, intelligence, and minor arrangements "
+                            + "only. War, peace, and formal alliances are reserved for audiences "
+                            + "with faction leadership.",
+                    Misc.getBasePlayerColor(), pad);
+        }
+        renderLeaderHeader(info, width, targetFaction, factionColor, darkColor);
+        renderPressureRow(info, width, factionColor, darkColor);
+
+        // ── Your Offer ────────────────────────────────────────
+        info.addSectionHeading("YOUR OFFER", Misc.getBasePlayerColor(),
+                Misc.getDarkPlayerColor(), Alignment.MID, 0);
+
+        List<NegotiableItem> offers = deal.getOffers();
+        if (offers.isEmpty()) {
+            info.addPara("No items offered.", Misc.getGrayColor(), pad);
+        } else {
+            for (int i = 0; i < offers.size(); i++) {
+                NegotiableItem item = offers.get(i);
+                float val = valuator.evaluate(item, targetFactionId);
+                String label = item.getDisplayLabel();
+                String valStr = String.format("%.0f", val);
+                info.addPara(label + "  (" + valStr + ")", sPad,
+                        Misc.getHighlightColor(), label);
+                info.addButton("[x]", REMOVE_OFFER_PREFIX + i,
+                        Misc.getNegativeHighlightColor(), Misc.getDarkPlayerColor(),
+                        30, 16, 2f);
+            }
+        }
+
+        // ── Their Demand ──────────────────────────────────────
+        info.addSectionHeading("THEIR DEMAND", factionColor, darkColor, Alignment.MID, pad);
+
+        List<NegotiableItem> requests = deal.getRequests();
+        if (requests.isEmpty()) {
+            info.addPara("No items requested.", Misc.getGrayColor(), pad);
+        } else {
+            for (int i = 0; i < requests.size(); i++) {
+                NegotiableItem item = requests.get(i);
+                float val = valuator.evaluate(item, targetFactionId);
+                String label = item.getDisplayLabel();
+                String valStr = String.format("%.0f", val);
+                info.addPara(label + "  (" + valStr + ")", sPad,
+                        Misc.getHighlightColor(), label);
+                info.addButton("[x]", REMOVE_REQUEST_PREFIX + i,
+                        Misc.getNegativeHighlightColor(), darkColor,
+                        30, 16, 2f);
+            }
+        }
+
+        // ── Balance + Assessment ──────────────────────────────
+        info.addSpacer(pad);
+        renderBalanceSection(info);
+
+        // ── Item Catalog ──────────────────────────────────────
+        info.addSectionHeading("AVAILABLE ITEMS", factionColor, darkColor, Alignment.MID, pad);
+
+        boolean ceasefireOnTable = deal.hasCeasefire();
+        for (NegotiableItemType type : NegotiableItemType.values()) {
+            if (viceroyMode && isViceroyCatalogTypeExcluded(type)) continue;
+            boolean available = type.isAvailable(currentTier, atWar, ceasefireOnTable);
+            Color labelColor = available ? Misc.getTextColor() : Misc.getGrayColor();
+
+            info.addPara(type.displayName, labelColor, pad);
+
+            if (!available) {
+                info.addPara("  " + getUnavailableReason(type), Misc.getGrayColor(), 2f);
+                continue;
+            }
+
+            addCatalogItems(info, type, sPad);
+        }
+
+        // Auto-Negotiate
+        info.addSpacer(pad);
+        info.addButton("Auto-Negotiate", BTN_AUTO_NEGOTIATE,
+                factionColor, darkColor, Alignment.MID, CutStyle.ALL,
+                width - pad * 4, 24, pad);
     }
 
-    void renderHeader(TooltipMakerAPI info, float width) {
+    // ── Button dispatch ───────────────────────────────────────
+
+    @Override
+    public void buttonPressed(Object buttonId) {
+        if (buttonId == null) return;
+        String id = buttonId.toString();
+
+        if (id.startsWith(REMOVE_OFFER_PREFIX)) {
+            int idx = parseIndex(id, REMOVE_OFFER_PREFIX);
+            if (idx >= 0 && idx < deal.getOffers().size()) {
+                String removedId = deal.getOffers().get(idx).getId();
+                deal.removeOffer(idx);
+                if (removedId != null) {
+                    dealProposal.applyMutation(DealMutation.removeOffer(removedId), catalog);
+                }
+                log.info("[Nex4x] Removed offer at index " + idx);
+            }
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(REMOVE_REQUEST_PREFIX)) {
+            int idx = parseIndex(id, REMOVE_REQUEST_PREFIX);
+            if (idx >= 0 && idx < deal.getRequests().size()) {
+                String removedId = deal.getRequests().get(idx).getId();
+                deal.removeRequest(idx);
+                if (removedId != null) {
+                    dealProposal.applyMutation(DealMutation.removeRequest(removedId), catalog);
+                }
+                log.info("[Nex4x] Removed request at index " + idx);
+            }
+            needsRefresh = true;
+            return;
+        }
+
+        if (BTN_AUTO_NEGOTIATE.equals(id)) {
+            runAutoNegotiate();
+            mood.apply(SessionMood.Event.AUTO_BALANCE, leader.getPersonality());
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(ADD_OFFER_PREFIX)) {
+            String key = id.substring(ADD_OFFER_PREFIX.length());
+            NegotiableItem item = createItemFromKey(key);
+            if (item != null) {
+                if (item.getId() == null) item.setId(key);
+                deal.addOffer(item);
+                dealProposal.applyMutation(
+                        DealMutation.addOffer(item.getId(), (int) item.getAmount()), catalog);
+                log.info("[Nex4x] Added offer: " + item.getDisplayLabel());
+            }
+            needsRefresh = true;
+            return;
+        }
+
+        if (id.startsWith(ADD_REQUEST_PREFIX)) {
+            String key = id.substring(ADD_REQUEST_PREFIX.length());
+            NegotiableItem item = createItemFromKey(key);
+            if (item != null) {
+                if (item.getId() == null) item.setId(key);
+                deal.addRequest(item);
+                dealProposal.applyMutation(
+                        DealMutation.addRequest(item.getId(), (int) item.getAmount()), catalog);
+                log.info("[Nex4x] Added request: " + item.getDisplayLabel());
+            }
+            needsRefresh = true;
+            return;
+        }
+    }
+
+    @Override
+    public void advance(float amount) {
+        super.advance(amount);
+        if (needsRefresh) {
+            needsRefresh = false;
+            removeUI();
+            createUI(panelToInfluence);
+        }
+    }
+
+    // ── Confirm: send proposal ────────────────────────────────
+
+    @Override
+    public void applyConfirmScript() {
+        if (deal.isEmpty()) return;
+
+        DealEvaluator.EvaluationResult result = evaluator.evaluate(deal);
+        FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
+        if (targetFaction == null) {
+            log.error("[Nex4x] applyConfirmScript: missing faction " + targetFactionId);
+            return;
+        }
+        String factionName = targetFaction.getDisplayName();
+
+        if (result.accepted) {
+            executeDeal();
+            Global.getSector().getCampaignUI().addMessage(
+                    factionName + " accepted the deal. " + result.reason,
+                    Misc.getPositiveHighlightColor());
+            log.info("[Nex4x] Deal accepted by " + targetFactionId + ": " + result.reason);
+        } else {
+            String msg = factionName + " rejected the deal: " + result.reason;
+            if (result.vote != null) {
+                msg += " " + result.vote.getSummary();
+            }
+            Global.getSector().getCampaignUI().addMessage(msg,
+                    Misc.getNegativeHighlightColor());
+            log.info("[Nex4x] Deal rejected by " + targetFactionId + ": " + result.reason);
+        }
+    }
+
+    // ── Balance rendering ─────────────────────────────────────
+
+    private void renderBalanceSection(TooltipMakerAPI info) {
+        float balance = deal.getBalance(valuator);
+        String balanceStr = String.format("Balance: %+.0f", balance);
+        Color balanceColor;
+        if (balance > 1000) {
+            balanceColor = Misc.getPositiveHighlightColor();
+        } else if (balance > -1000) {
+            balanceColor = Misc.getHighlightColor();
+        } else {
+            balanceColor = Misc.getNegativeHighlightColor();
+        }
+
+        LabelAPI label = info.addPara(balanceStr, 0);
+        label.setHighlight(balanceStr);
+        label.setHighlightColor(balanceColor);
+
+        if (deal.isEmpty()) {
+            info.addPara("Add items to both sides to see an assessment.",
+                    Misc.getGrayColor(), 3f);
+        } else {
+            info.addPara(getAssessmentText(balance), 3f);
+        }
+    }
+
+    private String getAssessmentText(float balance) {
+        boolean alwaysVisible = "always_visible".equals(Nex4xSettings.negotiationAssessmentMode);
+
+        if (!alwaysVisible) {
+            return "Your agents have insufficient insight into their decision-making.";
+        }
+
+        if (balance > 5000) {
+            return "They would eagerly accept these terms.";
+        } else if (balance > 1000) {
+            return "They would likely accept.";
+        } else if (balance > -1000) {
+            return "The deal is borderline - could go either way.";
+        } else if (balance > -5000) {
+            return "They would likely reject. The terms are unfavorable to them.";
+        } else {
+            return "They would firmly reject. This is far below what they'd accept.";
+        }
+    }
+
+    // ── Item catalog ──────────────────────────────────────────
+
+    private void addCatalogItems(TooltipMakerAPI catalog, NegotiableItemType type, float pad) {
+        float btnWidth = 70f;
+        float btnHeight = 18f;
+
+        switch (type) {
+            case CREDITS:
+                addDualButtons(catalog, "10,000 credits",
+                        "credits_10000", btnWidth, btnHeight, pad);
+                addDualButtons(catalog, "50,000 credits",
+                        "credits_50000", btnWidth, btnHeight, pad);
+                break;
+
+            case TRIBUTE:
+                addDualButtons(catalog, "5,000 cr/cycle (90 days)",
+                        "tribute_5000", btnWidth, btnHeight, pad);
+                break;
+
+            case AGREEMENTS: {
+                AgreementType[] types = viceroyMode
+                        ? new AgreementType[]{AgreementType.TRADE_AGREEMENT}
+                        : getAvailableAgreementTypes();
+                for (AgreementType at : types) {
+                    addDualButtons(catalog, at.displayName,
+                            "agree_" + at.name(), btnWidth, btnHeight, pad);
+                }
+                break;
+            }
+
+            case PEACE_TERMS:
+                addDualButtons(catalog, "Ceasefire",
+                        "ceasefire", btnWidth, btnHeight, pad);
+                addDualButtons(catalog, "Peace Treaty",
+                        "peace_treaty", btnWidth, btnHeight, pad);
+                break;
+
+            case WAR_DECLARATION:
+                for (FactionAPI faction : Global.getSector().getAllFactions()) {
+                    if (faction.getId().equals(playerFactionId)) continue;
+                    if (faction.getId().equals(targetFactionId)) continue;
+                    if (faction.isNeutralFaction()) continue;
+                    if (!hasMarkets(faction.getId())) continue;
+                    addDualButtons(catalog, "War on " + faction.getDisplayName(),
+                            "war_" + faction.getId(), btnWidth, btnHeight, pad);
+                }
+                break;
+
+            case TERRITORY:
+                for (MarketAPI market : Global.getSector().getEconomy().getMarketsCopy()) {
+                    if (market.getFactionId().equals(playerFactionId)) {
+                        catalog.addPara("  " + market.getName()
+                                + " (yours, size " + market.getSize() + ")", pad);
+                        catalog.addButton("[<- Offer]",
+                                ADD_OFFER_PREFIX + "territory_" + market.getId(),
+                                Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
+                                btnWidth, btnHeight, 2f);
+                    } else if (market.getFactionId().equals(targetFactionId)) {
+                        catalog.addPara("  " + market.getName()
+                                + " (theirs, size " + market.getSize() + ")", pad);
+                        catalog.addButton("[Request >]",
+                                ADD_REQUEST_PREFIX + "territory_" + market.getId(),
+                                Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
+                                btnWidth, btnHeight, 2f);
+                    }
+                }
+                break;
+
+            case COMMODITIES:
+                String[] commodities = {"supplies", "fuel", "metals", "rare_metals",
+                        "organics", "food", "hand_weapons"};
+                for (String c : commodities) {
+                    addDualButtons(catalog, "500 x " + c,
+                            "commodity_" + c, btnWidth, btnHeight, pad);
+                }
+                break;
+
+            case KNOWLEDGE:
+                addDualButtons(catalog, "Blueprint package",
+                        "knowledge_blueprints", btnWidth, btnHeight, pad);
+                break;
+
+            case INTEL:
+                addDualButtons(catalog, "Map data",
+                        "intel_map", btnWidth, btnHeight, pad);
+                addDualButtons(catalog, "Fleet intel",
+                        "intel_fleet", btnWidth, btnHeight, pad);
+                break;
+
+            case CONTRACTS:
+                addDualButtons(catalog, "Mercenary contract (180 days)",
+                        "contract_mercenary", btnWidth, btnHeight, pad);
+                break;
+
+            case CONCESSIONS:
+                for (FactionAPI faction : Global.getSector().getAllFactions()) {
+                    if (faction.getId().equals(playerFactionId)) continue;
+                    if (faction.getId().equals(targetFactionId)) continue;
+                    if (faction.isNeutralFaction()) continue;
+                    if (!hasMarkets(faction.getId())) continue;
+                    addDualButtons(catalog, "Embargo " + faction.getDisplayName(),
+                            "concession_embargo_" + faction.getId(),
+                            btnWidth, btnHeight, pad);
+                }
+                break;
+
+            case PRISONERS:
+                addDualButtons(catalog, "Prisoner exchange",
+                        "prisoner_exchange", btnWidth, btnHeight, pad);
+                break;
+        }
+    }
+
+    /**
+     * Adds a labeled row with [<- Offer] and [Request >] buttons.
+     * The itemKey is shared — prefixed with ADD_OFFER_ or ADD_REQUEST_ as button IDs.
+     */
+    private void addDualButtons(TooltipMakerAPI tooltip, String label,
+                                String itemKey, float btnWidth, float btnHeight, float pad) {
+        Color baseColor = Misc.getButtonTextColor();
+        Color darkColor = Misc.getDarkPlayerColor();
+
+        tooltip.addPara("  " + label, pad);
+        tooltip.addButton("[<- Offer]", ADD_OFFER_PREFIX + itemKey,
+                baseColor, darkColor, btnWidth, btnHeight, 2f);
+        tooltip.addButton("[Request >]", ADD_REQUEST_PREFIX + itemKey,
+                baseColor, darkColor, btnWidth, btnHeight, 2f);
+    }
+
+    // ── Item creation from button key ─────────────────────────
+
+    private NegotiableItem createItemFromKey(String key) {
+        if (key.startsWith("credits_")) {
+            float amount = parseFloat(key.substring("credits_".length()));
+            return NegotiableItem.credits(amount);
+        }
+
+        if (key.startsWith("tribute_")) {
+            float amount = parseFloat(key.substring("tribute_".length()));
+            return NegotiableItem.tribute(amount, 90);
+        }
+
+        if ("ceasefire".equals(key)) return NegotiableItem.ceasefire();
+        if ("peace_treaty".equals(key)) return NegotiableItem.peaceTreaty();
+
+        if (key.startsWith("agree_")) {
+            String typeName = key.substring("agree_".length());
+            try {
+                AgreementType type = AgreementType.valueOf(typeName);
+                return NegotiableItem.agreement(type);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        if (key.startsWith("war_")) {
+            return NegotiableItem.warDeclaration(key.substring("war_".length()));
+        }
+
+        if (key.startsWith("territory_")) {
+            return NegotiableItem.territory(key.substring("territory_".length()));
+        }
+
+        if (key.startsWith("commodity_")) {
+            return NegotiableItem.commodity(key.substring("commodity_".length()), 500);
+        }
+
+        if (key.startsWith("knowledge_")) {
+            return NegotiableItem.knowledge(key.substring("knowledge_".length()));
+        }
+
+        if (key.startsWith("intel_")) {
+            return NegotiableItem.intel(key.substring("intel_".length()));
+        }
+
+        if (key.startsWith("contract_")) {
+            return NegotiableItem.contract(key.substring("contract_".length()), 180);
+        }
+
+        if (key.startsWith("concession_embargo_")) {
+            String factionId = key.substring("concession_embargo_".length());
+            return NegotiableItem.concession(factionId, "embargo");
+        }
+
+        if ("prisoner_exchange".equals(key)) {
+            return NegotiableItem.prisoner("exchange");
+        }
+
+        log.warn("[Nex4x] Unknown item key: " + key);
+        return null;
+    }
+
+    // ── Auto-Negotiate ────────────────────────────────────────
+
+    private void runAutoNegotiate() {
+        AutoNegotiator auto = new AutoNegotiator(evaluator);
+
+        if (!deal.getRequests().isEmpty() && deal.getOffers().isEmpty()) {
+            AutoNegotiator.AutoNegotiateResult result =
+                    auto.suggestCounterForRequests(deal.getRequests(),
+                            deal.getProposerFactionId(), deal.getTargetFactionId());
+            if (result.possible && result.deal != null) {
+                deal.clearOffers();
+                for (NegotiableItem item : result.deal.getOffers()) {
+                    deal.addOffer(item);
+                }
+            }
+        } else if (!deal.getOffers().isEmpty() && deal.getRequests().isEmpty()) {
+            AutoNegotiator.AutoNegotiateResult result =
+                    auto.suggestCounterForOffers(deal.getOffers(),
+                            deal.getProposerFactionId(), deal.getTargetFactionId());
+            if (result.possible && result.deal != null) {
+                deal.clearRequests();
+                for (NegotiableItem item : result.deal.getRequests()) {
+                    deal.addRequest(item);
+                }
+            }
+        }
+    }
+
+    // ── Agreement helpers ─────────────────────────────────────
+
+    private AgreementType[] getAvailableAgreementTypes() {
+        AgreementType next = currentTier.getNextAllianceTier();
+        if (next != null) {
+            if (currentTier == AgreementType.DEFENSIVE_PACT) {
+                return new AgreementType[]{
+                        AgreementType.MILITARY_PARTNERSHIP,
+                        AgreementType.ECONOMIC_PARTNERSHIP,
+                        AgreementType.TRADE_AGREEMENT
+                };
+            }
+            return new AgreementType[]{next, AgreementType.TRADE_AGREEMENT};
+        }
+        return new AgreementType[]{AgreementType.TRADE_AGREEMENT};
+    }
+
+    private String getUnavailableReason(NegotiableItemType type) {
+        if (atWar && type != NegotiableItemType.PEACE_TERMS) {
+            if (!deal.hasCeasefire()) {
+                return "Ceasefire must be on the table first.";
+            }
+        }
+        if (type.minAllianceTier > currentTier.tier) {
+            return "Requires " + getMinTierName(type.minAllianceTier) + " or higher.";
+        }
+        if (type == NegotiableItemType.PEACE_TERMS && !atWar) {
+            return "Not at war.";
+        }
+        return "Not available.";
+    }
+
+    private String getMinTierName(int tier) {
+        switch (tier) {
+            case 1: return "Non-Aggression Pact";
+            case 2: return "Defensive Pact";
+            case 3: return "Military Partnership";
+            default: return "higher tier agreement";
+        }
+    }
+
+    // ── Deal execution ────────────────────────────────────────
+
+    private void executeDeal() {
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null) return;
+        NegotiationDealExecutor.executeDeal(deal, mgr, viaViceroyAgreement);
+    }
+
+    private boolean isViceroyCatalogTypeExcluded(NegotiableItemType type) {
+        return type == NegotiableItemType.WAR_DECLARATION
+                || type == NegotiableItemType.PEACE_TERMS
+                || type == NegotiableItemType.TRIBUTE
+                || type == NegotiableItemType.TERRITORY
+                || type == NegotiableItemType.DECLARATIONS
+                || type == NegotiableItemType.PRISONERS;
+    }
+
+    private void renderLeaderHeader(TooltipMakerAPI info, float width, FactionAPI targetFac,
+                                    Color factionColor, Color darkColor) {
         LeaderProfile proposerProfile = proposerLeader();
-        LeaderProfile receiverProfile = leader;
-
         FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
-        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
 
-        // ── Proposer portrait (left) ──────────────────────────
-        TooltipMakerAPI leftCol = info.beginImageWithText(proposerProfile.portraitSprite(), 160f);
+        TooltipMakerAPI leftCol = info.beginImageWithText(
+                proposerProfile.portraitSpriteForCampaignImage(), 140f);
         leftCol.addPara(proposerProfile.displayName(), 4f);
-        leftCol.addPara(factionName(deal.getProposer()), 2f);
+        leftCol.addPara(factionName(playerFactionId), 2f);
         leftCol.addPara(relationBadge(playerFac, targetFac), 2f);
         info.addImageWithText(4f);
 
-        // ── Receiver dialogue line (center) ───────────────────
         ReputationTier baseT = ReputationTier.fromRelation(
                 targetFac.getRelationship(playerFactionId));
-        String line = resolveDialogue(receiverProfile, Situation.GREETING,
-                mood.effectiveTier(baseT));
-        info.addPara(receiverProfile.displayName() + ": \"" + line + "\"", 8f);
+        String line = resolveDialogue(leader, Situation.GREETING, mood.effectiveTier(baseT));
+        info.addPara(leader.displayName() + ": \"" + line + "\"", 8f);
 
-        // ── Receiver portrait (right, with mood + traits) ─────
-        TooltipMakerAPI rightCol = info.beginImageWithText(receiverProfile.portraitSprite(), 160f);
-        rightCol.addPara(receiverProfile.displayName(), 4f);
-        rightCol.addPara(factionName(deal.getReceiver()), 2f);
+        TooltipMakerAPI rightCol = info.beginImageWithText(
+                leader.portraitSpriteForCampaignImage(), 140f);
+        rightCol.addPara(leader.displayName(), 4f);
+        rightCol.addPara(factionName(targetFactionId), 2f);
         rightCol.addPara(relationBadge(targetFac, playerFac), 2f);
         rightCol.addPara("Mood: " + mood.getDelta(), 4f);
-        List<String> traits = receiverProfile.getTraits();
+        java.util.List<String> traits = leader.getTraits();
         if (!traits.isEmpty()) {
             rightCol.addPara("Traits: " + joinTraits(traits), 2f);
         }
         info.addImageWithText(4f);
-
-        // ── Action row (auto-balance + confirm/cancel from Ashlib) ─
-        float btnW = (width - 60f) / 2f;
-        info.addSpacer(8f);
-        info.addButton("Auto-Balance", BTN_AUTO_BALANCE,
-                targetFac.getBaseUIColor(), targetFac.getDarkUIColor(),
-                btnW, 28f, 4f);
+        info.addSpacer(6f);
     }
 
-    // ── Helpers used by renderHeader ──────────────────────────
+    private void renderPressureRow(TooltipMakerAPI info, float width,
+                                   Color factionColor, Color darkColor) {
+        PressureManager pm = PressureManager.getOrCreate();
+        float toThem = pm.getPressure(playerFactionId, targetFactionId);
+        float toUs = pm.getPressure(targetFactionId, playerFactionId);
+        info.addSectionHeading("PRESSURE", factionColor, darkColor, Alignment.MID, 4f);
+        info.addPara(String.format("Your leverage toward them: %.0f", toThem), 2f);
+        info.addPara(String.format("Their leverage toward you: %.0f", toUs), 2f);
+        Map<PressureSource, Float> br = pm.getSources(playerFactionId, targetFactionId);
+        if (br != null && !br.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<PressureSource, Float> e : br.entrySet()) {
+                if (e.getValue() == null || e.getValue() <= 0.5f) continue;
+                if (sb.length() > 0) sb.append("  ");
+                sb.append(e.getKey().displayName).append(": ").append(Math.round(e.getValue()));
+            }
+            if (sb.length() > 0) {
+                info.addPara("Sources (you->them): " + sb.toString(), Misc.getGrayColor(), 4f);
+            }
+        }
+    }
 
     LeaderProfile proposerLeader() {
         if (Global.getSector().getPlayerFaction().getId().equals(playerFactionId)) {
@@ -145,9 +716,10 @@ public class NegotiationPanel extends BasePopUpDialog {
     }
 
     String relationBadge(FactionAPI viewer, FactionAPI about) {
+        if (viewer == null || about == null) return "-";
         float rel = viewer.getRelationship(about.getId());
         ReputationTier t = ReputationTier.fromRelation(rel);
-        int displayed = Math.round(rel * 100f);
+        int displayed = Math.round(rel);
         return tierLabel(t) + " (" + (displayed >= 0 ? "+" : "") + displayed + ")";
     }
 
@@ -162,7 +734,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
     }
 
-    String joinTraits(List<String> traits) {
+    String joinTraits(java.util.List<String> traits) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < traits.size(); i++) {
             if (i > 0) sb.append(", ");
@@ -171,8 +743,8 @@ public class NegotiationPanel extends BasePopUpDialog {
         return sb.toString();
     }
 
-    Map<String, String> dialogueContext() {
-        Map<String, String> ctx = new HashMap<String, String>();
+    java.util.Map<String, String> dialogueContext() {
+        java.util.Map<String, String> ctx = new java.util.HashMap<String, String>();
         ctx.put("player", Global.getSector().getPlayerFaction().getDisplayName());
         ctx.put("leader", leader.displayName());
         ctx.put("faction", factionName(targetFactionId));
@@ -185,291 +757,36 @@ public class NegotiationPanel extends BasePopUpDialog {
         return sys.resolve(profile, situation, tier, dialogueContext());
     }
 
-    void renderBalanceBar(TooltipMakerAPI info, float width) {
-        nex4x.negotiation.BalanceCalculator.Result r =
-                nex4x.negotiation.BalanceCalculator.evaluate(deal, leader, acceptanceThreshold);
-        nex4x.negotiation.BalanceSurface.Surface s =
-                nex4x.negotiation.BalanceSurface.surface(r, intelTier, acceptanceThreshold);
+    // ── Utility ───────────────────────────────────────────────
 
-        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
-        Color factionColor = targetFac.getBaseUIColor();
-        Color darkColor    = targetFac.getDarkUIColor();
-
-        info.addSectionHeading("BALANCE", factionColor, darkColor, Alignment.MID, 4f);
-
-        // Qualitative verdict label — always shown
-        Color verdictColor = verdictColor(r.verdict);
-        info.addPara(s.qualitative, verdictColor, 2f);
-
-        // Numeric readout — only when intel is GOOD or FULL
-        if (!s.numeric.isEmpty()) {
-            info.addPara(s.numeric, Misc.getHighlightColor(), 2f);
+    private boolean hasMarkets(String factionId) {
+        for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (factionId.equals(m.getFactionId())) return true;
         }
-
-        // ASCII balance meter: [.....<.....|.....*.....]  -500 ... 0 ... +500
-        String meter = renderMeter(r.balance, acceptanceThreshold);
-        info.addPara(meter, Misc.getGrayColor(), 4f);
+        return false;
     }
 
-    private static Color verdictColor(nex4x.negotiation.BalanceCalculator.Verdict v) {
-        switch (v) {
-            case EXTRAORDINARY: return Misc.getPositiveHighlightColor();
-            case GENEROUS:      return Misc.getPositiveHighlightColor();
-            case FAIR:          return Misc.getHighlightColor();
-            case COLD:          return Misc.getNegativeHighlightColor();
-            case INSULTING:     return Misc.getNegativeHighlightColor();
-            default:            return Misc.getTextColor();
+    private int parseIndex(String id, String prefix) {
+        try {
+            return Integer.parseInt(id.substring(prefix.length()));
+        } catch (NumberFormatException e) {
+            return -1;
         }
     }
 
-    static String renderMeter(int balance, int threshold) {
-        // 21-slot ASCII track: [.....<.....|.....*.....] -T ... 0 ... +T
-        int slots = 21;
-        int mid = slots / 2;   // 10 = centre
-        int pos;
-        if (threshold == 0) {
-            pos = mid;
-        } else {
-            pos = mid + Math.round((float) balance / threshold * mid);
-            if (pos < 0)       pos = 0;
-            if (pos >= slots)  pos = slots - 1;
-        }
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < slots; i++) {
-            if (i == mid && i == pos) sb.append('X');   // balanced AND at centre
-            else if (i == mid)        sb.append('|');   // centre tick
-            else if (i == pos)        sb.append('*');   // current balance marker
-            else                      sb.append('.');
-        }
-        sb.append("]  ").append(-threshold).append("...0...+").append(threshold);
-        return sb.toString();
-    }
-
-    void renderTwoColumns(TooltipMakerAPI info, float width) {
-        float pad    = 6f;
-        float colW   = (width - pad * 3f) / 2f;
-        float colH   = 260f;
-
-        // Create a CustomPanel to hold the two side-by-side scrollable columns.
-        CustomPanelAPI cols = Global.getSettings().createCustom(width, colH, null);
-
-        // ── Left column: proposer's offers + catalog ──────────
-        TooltipMakerAPI leftCol = cols.createUIElement(colW, colH, true);
-        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
-        leftCol.addSectionHeading("YOUR OFFER",
-                playerFac.getBaseUIColor(), playerFac.getDarkUIColor(),
-                Alignment.MID, 0f);
-        renderOnTable(leftCol, true);
-        leftCol.addSectionHeading("ADD TO OFFER",
-                playerFac.getBaseUIColor(), playerFac.getDarkUIColor(),
-                Alignment.MID, 8f);
-        renderCatalog(leftCol, true);
-        cols.addUIElement(leftCol).inTL(0f, 0f);
-
-        // ── Right column: receiver's requests + catalog ───────
-        TooltipMakerAPI rightCol = cols.createUIElement(colW, colH, true);
-        FactionAPI targetFac = Global.getSector().getFaction(targetFactionId);
-        rightCol.addSectionHeading("THEIR OFFER",
-                targetFac.getBaseUIColor(), targetFac.getDarkUIColor(),
-                Alignment.MID, 0f);
-        renderOnTable(rightCol, false);
-        rightCol.addSectionHeading("ADD TO REQUEST",
-                targetFac.getBaseUIColor(), targetFac.getDarkUIColor(),
-                Alignment.MID, 8f);
-        renderCatalog(rightCol, false);
-        cols.addUIElement(rightCol).rightOfTop(leftCol, pad);
-
-        info.addCustom(cols, 8f);
-    }
-
-    private void renderOnTable(TooltipMakerAPI col, boolean proposerSide) {
-        List<nex4x.negotiation.NegotiableItem> items = proposerSide
-                ? deal.getProposerOffers()
-                : deal.getReceiverOffers();
-        String prefix = proposerSide ? REMOVE_OFFER_PREFIX : REMOVE_REQUEST_PREFIX;
-
-        if (items.isEmpty()) {
-            col.addPara("(nothing yet)", Misc.getGrayColor(), 2f);
-        } else {
-            for (nex4x.negotiation.NegotiableItem item : items) {
-                String label = item.getDisplayLabel() + "  x" + item.getAmount();
-                col.addPara("• " + label, 2f);
-                col.addButton("Remove", prefix + item.getId(),
-                        Misc.getNegativeHighlightColor(), Misc.getDarkPlayerColor(),
-                        80f, 20f, 2f);
-            }
+    private float parseFloat(String s) {
+        try {
+            return Float.parseFloat(s);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
-    private void renderCatalog(TooltipMakerAPI col, boolean proposerSide) {
-        String addPrefix = proposerSide ? ADD_OFFER_PREFIX : ADD_REQUEST_PREFIX;
-        List<String> ids = catalog.getAvailableIds(atWar);
-        if (ids.isEmpty()) {
-            col.addPara("(no items available)", Misc.getGrayColor(), 2f);
-            return;
+    private static String negotiateTitle(String targetFactionId) {
+        FactionAPI f = Global.getSector().getFaction(targetFactionId);
+        if (f != null) {
+            return "Negotiate - " + f.getDisplayName();
         }
-        for (String id : ids) {
-            boolean locked = deal.getLockedChips().contains(id);
-            String label = catalog.getDisplayName(id) + (locked ? " [locked]" : "");
-            Color btnBase = locked ? Misc.getGrayColor() : Misc.getButtonTextColor();
-            Color btnDark = Misc.getDarkPlayerColor();
-            col.addButton(label, addPrefix + id, btnBase, btnDark, 200f, 22f, 2f);
-        }
+        return "Negotiate";
     }
-
-    // ── Button dispatch ───────────────────────────────────────
-
-    @Override
-    public void buttonPressed(Object buttonId) {
-        if (buttonId == null) return;
-        String id = buttonId.toString();
-
-        if (BTN_AUTO_BALANCE.equals(id)) {
-            nex4x.negotiation.AutoBalanceSolver.solve(
-                    deal, leader, catalog, intelTier, acceptanceThreshold);
-            mood.apply(SessionMood.Event.AUTO_BALANCE, leader.getPersonality());
-            needsRefresh = true;
-            return;
-        }
-
-        if (BTN_SPEAK_LEADER.equals(id)) {
-            // Reserved for Starlogue x Nex4x joint spec — disabled in v5
-            return;
-        }
-
-        if (id.startsWith(REMOVE_OFFER_PREFIX)) {
-            String itemId = id.substring(REMOVE_OFFER_PREFIX.length());
-            deal.applyMutation(nex4x.negotiation.DealMutation.removeOffer(itemId), catalog);
-            log.info("[Nex4x] Removed offer: " + itemId);
-            needsRefresh = true;
-            return;
-        }
-
-        if (id.startsWith(REMOVE_REQUEST_PREFIX)) {
-            String itemId = id.substring(REMOVE_REQUEST_PREFIX.length());
-            deal.applyMutation(nex4x.negotiation.DealMutation.removeRequest(itemId), catalog);
-            log.info("[Nex4x] Removed request: " + itemId);
-            needsRefresh = true;
-            return;
-        }
-
-        if (id.startsWith(ADD_OFFER_PREFIX)) {
-            String itemId = id.substring(ADD_OFFER_PREFIX.length());
-            int qty = catalog.suggestedQty(itemId, 1);
-            boolean applied = deal.applyMutation(
-                    nex4x.negotiation.DealMutation.addOffer(itemId, qty), catalog);
-            if (applied) {
-                log.info("[Nex4x] Added offer: " + itemId + " x" + qty);
-                if (isAggressiveDemand(itemId)) {
-                    mood.apply(SessionMood.Event.AGGRESSIVE_DEMAND, leader.getPersonality());
-                }
-            }
-            needsRefresh = true;
-            return;
-        }
-
-        if (id.startsWith(ADD_REQUEST_PREFIX)) {
-            String itemId = id.substring(ADD_REQUEST_PREFIX.length());
-            int qty = catalog.suggestedQty(itemId, 1);
-            boolean applied = deal.applyMutation(
-                    nex4x.negotiation.DealMutation.addRequest(itemId, qty), catalog);
-            if (applied) {
-                log.info("[Nex4x] Added request: " + itemId + " x" + qty);
-                if (isConcession(itemId)) {
-                    mood.apply(SessionMood.Event.CONCESSION, leader.getPersonality());
-                }
-            }
-            needsRefresh = true;
-            return;
-        }
-    }
-
-    private boolean isAggressiveDemand(String itemId) {
-        return itemId.contains("tribute") || itemId.contains("reparations");
-    }
-
-    private boolean isConcession(String itemId) {
-        return itemId.contains("gift") || itemId.contains("waive");
-    }
-
-    // ── Confirm: Send Proposal ────────────────────────────────
-
-    @Override
-    public void applyConfirmScript() {
-        nex4x.negotiation.BalanceCalculator.Result r =
-                nex4x.negotiation.BalanceCalculator.evaluate(deal, leader, acceptanceThreshold);
-        float moodDelta = acceptanceThreshold * mood.thresholdDeltaPct();
-        boolean accepted = (r.balance + Math.round(moodDelta)) >= acceptanceThreshold;
-
-        Situation responseType = accepted
-                ? Situation.NEGOTIATION_ACCEPT
-                : Situation.NEGOTIATION_REJECT;
-        ReputationTier effectiveTier = mood.effectiveTier(baseTier());
-        String line = resolveDialogue(leader, responseType, effectiveTier);
-
-        Global.getSector().getCampaignUI().addMessage(
-                leader.displayName() + ": \"" + line + "\"",
-                accepted ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor());
-
-        if (accepted) {
-            executeAcceptedDeal();
-            log.info("[Nex4x] Deal accepted by " + targetFactionId);
-        } else {
-            log.info("[Nex4x] Deal rejected by " + targetFactionId);
-        }
-    }
-
-    private ReputationTier baseTier() {
-        float rel = Global.getSector().getFaction(targetFactionId)
-                .getRelationship(playerFactionId);
-        return ReputationTier.fromRelation(rel);
-    }
-
-    private void executeAcceptedDeal() {
-        nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getOrCreateManager();
-        for (nex4x.negotiation.NegotiableItem item : deal.getProposerOffers()) {
-            applyItemEffect(item, deal.getProposer(), deal.getReceiver(), mgr);
-        }
-        for (nex4x.negotiation.NegotiableItem item : deal.getReceiverOffers()) {
-            applyItemEffect(item, deal.getReceiver(), deal.getProposer(), mgr);
-        }
-        log.info("[Nex4x] Deal executed: " + deal.getProposer() + " -> " + deal.getReceiver());
-    }
-
-    private void applyItemEffect(nex4x.negotiation.NegotiableItem item, String fromFaction, String toFaction,
-                                 nex4x.managers.Nex4xManager mgr) {
-        switch (item.getType()) {
-            case AGREEMENTS:
-                mgr.getAgreementManager().createAgreement(fromFaction, toFaction, item.getAgreementType());
-                break;
-            case WAR_DECLARATION:
-                mgr.getExecutor(fromFaction).declareWarPlayer(toFaction);
-                break;
-            case CREDITS:
-            case PEACE_TERMS:
-            default:
-                log.info("[Nex4x] Deal item placeholder: " + item.getType() + " (" + fromFaction + " -> " + toFaction + ")");
-                break;
-        }
-    }
-
-    // ── Refresh ───────────────────────────────────────────────
-
-    @Override
-    public void advance(float amount) {
-        super.advance(amount);
-        if (needsRefresh) {
-            needsRefresh = false;
-            removeUI();
-            createUI(panelToInfluence);
-        }
-    }
-
-    // ── Accessors ─────────────────────────────────────────────
-
-    public DealProposal getDeal()           { return deal; }
-    public LeaderProfile getLeader()        { return leader; }
-    public IntelTier getIntelTier()         { return intelTier; }
-    public SessionMood getMood()            { return mood; }
-    public int getAcceptanceThreshold()     { return acceptanceThreshold; }
 }

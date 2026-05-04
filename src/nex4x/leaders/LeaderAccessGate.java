@@ -16,21 +16,25 @@ public class LeaderAccessGate {
     public enum Gate { RAPPORT, COMMISSION, OWN_FACTION, OTHER_MEANS, NONE }
 
     public static Gate resolve(String targetFactionId) {
-        // Path 1: rapport ≥ +50
+        float rapportNeed = LeaderAccessConfig.getRapportThreshold(targetFactionId);
         FactionAPI player = Global.getSector().getPlayerFaction();
-        if (player.getRelationship(targetFactionId) >= 0.50f) return Gate.RAPPORT;
+        if (player.getRelationship(targetFactionId) >= rapportNeed) return Gate.RAPPORT;
 
-        // Path 2: commission credential — player holds a FactionCommissionIntel
-        // Any active commission grants diplomatic access to all factions.
-        // (Rank checking deferred — API for fetching player rank from FactionCommissionIntel varies by version)
         FactionCommissionIntel commission = findActiveCommission();
         if (commission != null && commission.getFaction() != null) {
-            return Gate.COMMISSION;
+            if (!LeaderAccessConfig.isCommissionMustMatchTarget()
+                    || targetFactionId.equals(commission.getFaction().getId())) {
+                return Gate.COMMISSION;
+            }
         }
 
-        // Path 3: player owns ≥ 1 market of their own faction
+        int needMarkets = LeaderAccessConfig.getOwnMarketCount();
+        int owned = 0;
         for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
-            if (m.getFaction() != null && m.getFaction().isPlayerFaction()) return Gate.OWN_FACTION;
+            if (m.getFaction() != null && m.getFaction().isPlayerFaction()) {
+                owned++;
+                if (owned >= needMarkets) return Gate.OWN_FACTION;
+            }
         }
 
         // Path 4: "other means" hook — stubbed; future plot tokens, diplomat unlocks

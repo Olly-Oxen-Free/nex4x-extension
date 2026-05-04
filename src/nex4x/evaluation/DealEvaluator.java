@@ -5,6 +5,7 @@ import nex4x.data.FactionBeliefs;
 import nex4x.data.FactionBeliefsLoader;
 import nex4x.data.BeliefDef;
 import nex4x.managers.Nex4xManager;
+import nex4x.policies.PolicyManager;
 import nex4x.negotiation.DealPackage;
 import nex4x.negotiation.ItemValuator;
 import nex4x.negotiation.NegotiableItem;
@@ -57,6 +58,12 @@ public class DealEvaluator {
         // Step 3: Memory modifier — disposition shifts threshold
         float dispositionMod = getDispositionModifier(targetId, proposerId);
         float adjustedBalance = balance + dispositionMod;
+
+        // Active policies shift negotiation tolerance (negative negotiation_fatigue = more lenient).
+        try {
+            float fatigueMod = PolicyManager.getOrCreate().getPolicyModifier(targetId, "negotiation_fatigue");
+            adjustedBalance -= fatigueMod * 400f;
+        } catch (Exception ignore) { }
 
         // Step 4: Desperation
         float desperation = DesperationCalculator.calculate(targetId);

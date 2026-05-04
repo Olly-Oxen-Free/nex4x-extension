@@ -21,13 +21,18 @@ public class WarDeclarationIntel extends BaseIntelPlugin {
 
     private static final long serialVersionUID = 1L;
 
+    /** Safety net until Phase 1 replaces this with event-driven peace detection. */
+    private static final float MAX_LIFETIME_DAYS = 90f;
+
     private final String declarerFactionId;
     private final String targetFactionId;
     private final String line;
+    private final long createdTimestamp;
 
     public WarDeclarationIntel(String declarer, String target, boolean byAi) {
         this.declarerFactionId = declarer;
         this.targetFactionId = target;
+        this.createdTimestamp = Global.getSector().getClock().getTimestamp();
         LeaderProfile leader = Nex4xManager.getOrCreateManager()
                 .getLeaderRegistry().getProfile(declarer);
         float rel = Global.getSector().getFaction(declarer).getRelationship(target);
@@ -103,8 +108,18 @@ public class WarDeclarationIntel extends BaseIntelPlugin {
         return f != null ? f : Global.getSector().getPlayerFaction();
     }
 
+    private float elapsedDays() {
+        return Global.getSector().getClock().getElapsedDaysSince(createdTimestamp);
+    }
+
+    private boolean atPeace() {
+        FactionAPI d = Global.getSector().getFaction(declarerFactionId);
+        FactionAPI t = Global.getSector().getFaction(targetFactionId);
+        return d != null && t != null && !d.isHostileTo(t);
+    }
+
     @Override
-    public boolean isEnding() { return false; }
+    public boolean isEnding() { return atPeace() || elapsedDays() >= MAX_LIFETIME_DAYS - 5f; }
     @Override
-    public boolean isEnded() { return false; }
+    public boolean isEnded() { return atPeace() || elapsedDays() >= MAX_LIFETIME_DAYS; }
 }

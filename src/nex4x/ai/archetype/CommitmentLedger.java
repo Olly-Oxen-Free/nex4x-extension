@@ -87,7 +87,9 @@ public class CommitmentLedger implements Serializable {
             }
         }
 
-        currentArchetype = resolveArchetype();
+        Archetype resolved = resolveArchetype();
+        Archetype forced = ArchetypeOverrideRegistry.getForced(factionId);
+        currentArchetype = forced != null ? forced : resolved;
         archetypeSince = Global.getSector().getClock().getTimestamp();
         log.info("[Nex4x] " + factionId + " initialized archetype: " + currentArchetype.displayName);
     }
@@ -207,10 +209,42 @@ public class CommitmentLedger implements Serializable {
             }
         }
 
-        if (bestScore - secondScore < OPPORTUNIST_THRESHOLD) {
+        if (best == Archetype.OPPORTUNIST) {
             return Archetype.OPPORTUNIST;
         }
+
+        if (bestScore - secondScore < OPPORTUNIST_THRESHOLD) {
+            TendencyProfile profile = TendencyProfileLoader.getProfile(factionId);
+            if (profile != null) {
+                Archetype pick = null;
+                float bestAlign = -1f;
+                for (Archetype a : Archetype.values()) {
+                    if (a == Archetype.OPPORTUNIST) continue;
+                    float s = scores.get(a);
+                    if (s + 0.01f < bestScore) continue;
+                    float align = tendencyAlignment(a, profile);
+                    if (align > bestAlign) {
+                        bestAlign = align;
+                        pick = a;
+                    } else if (Math.abs(align - bestAlign) < 0.001f && pick != null
+                            && a.ordinal() < pick.ordinal()) {
+                        pick = a;
+                    }
+                }
+                if (pick != null) {
+                    return pick;
+                }
+            }
+        }
         return best;
+    }
+
+    private static float tendencyAlignment(Archetype a, TendencyProfile p) {
+        float sum = 0f;
+        for (TendencyId t : TendencyId.values()) {
+            sum += a.getTendencyAffinity(t) * p.get(t);
+        }
+        return sum;
     }
 
     private Archetype beliefCategoryToArchetype(BeliefDef.Category cat) {

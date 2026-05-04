@@ -12,7 +12,7 @@ public enum AgreementType {
     COLD_WAR(0, "Cold War", "No agreement. Factions can attack freely.",
             new Color(128, 128, 128), -1, Float.MIN_VALUE),
     NAP(1, "Non-Aggression Pact", "Neither party can declare war. Breaking = Oathbreaker badge.",
-            new Color(100, 200, 100), 120, 0f),
+            new Color(100, 200, 100), 120, 10f),
     DEFENSIVE_PACT(2, "Defensive Pact", "If one party is attacked, the other joins the war.",
             new Color(50, 150, 255), 180, 20f),
     MILITARY_PARTNERSHIP(3, "Military Partnership", "Joint war proposals. Coordinated invasions. Fleet support.",
@@ -33,7 +33,10 @@ public enum AgreementType {
     public final Color color;
     /** Default duration in days. -1 = permanent until dissolved. */
     public final float defaultDurationDays;
-    /** Minimum relation level required to propose this agreement. */
+    /**
+     * Minimum {@link com.fs.starfarer.api.campaign.FactionAPI#getRelationship(String)} value
+     * (roughly -100..+100) for AI tier-upgrade proposals; compared directly, not divided.
+     */
     public final float relationThreshold;
 
     AgreementType(int tier, String displayName, String description,

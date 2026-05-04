@@ -1,170 +1,203 @@
 package nex4x.ui;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomDialogDelegate;
 import com.fs.starfarer.api.campaign.CustomUIPanelPlugin;
 import com.fs.starfarer.api.ui.Alignment;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.PositionAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 import exerelin.campaign.diplomacy.DiplomacyTraits;
 import nex4x.data.TendencyId;
 import nex4x.data.TendencyProfile;
+import nex4x.data.TendencyProfileLoader;
 import nex4x.managers.Nex4xManager;
+import org.apache.log4j.Logger;
 
 import java.awt.Color;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 
 /**
- * CustomDialogDelegate for player faction doctrine creation.
- * Player allocates 10-point budget across 6 tendencies + picks 0-5 diplomacy traits.
- * Fires once at faction formation.
- *
- * v0 limitation: dialog is read-only (shows auto-derived profile from traits).
- * Interactive allocation via CustomUIPanelPlugin is a v1 polish item.
+ * Player doctrine setup for custom player factions: tendency budget + trait picks.
  */
 public class DoctrineSetupDialog implements CustomDialogDelegate {
 
-    private static final float BUDGET = 10f;
-    private static final int MAX_TRAITS = 5;
+    private static final Logger log = Global.getLogger(DoctrineSetupDialog.class);
 
-    private final EnumMap<TendencyId, Float> allocations = new EnumMap<TendencyId, Float>(TendencyId.class);
-    private final List<String> selectedTraits = new ArrayList<String>();
+    private static final float BUDGET = 10f;
+    private static final float STEP = 0.5f;
+    private static final int MAX_TRAITS = 5;
+    private static final int MIN_TRAITS = 1;
+
+    final EnumMap<TendencyId, Float> allocations = new EnumMap<TendencyId, Float>(TendencyId.class);
+    final List<String> selectedTraits = new ArrayList<String>();
 
     public DoctrineSetupDialog() {
+        float start = BUDGET / TendencyId.values().length;
         for (TendencyId t : TendencyId.values()) {
-            allocations.put(t, 0f);
+            allocations.put(t, start);
         }
     }
 
     @Override
     public void createCustomDialog(CustomPanelAPI panel, CustomDialogCallback callback) {
-        float width = panel.getPosition().getWidth();
-        float height = panel.getPosition().getHeight();
-        float pad = 10f;
-
-        TooltipMakerAPI info = panel.createUIElement(width - 20, height - 20, true);
-
-        info.addSectionHeading("FACTION DOCTRINE", Alignment.MID, pad);
-        info.addPara("Allocate 10 points across 6 political tendencies. This defines your faction's " +
-                "internal politics — which voices are loudest when decisions are made.", pad);
-        info.addPara("Each tendency influences how your faction evaluates diplomatic proposals, " +
-                "trade deals, and war declarations.", Misc.getGrayColor(), 3f);
-
-        // Tendency allocation section
-        info.addSectionHeading("POLITICAL TENDENCIES (10 points)", Alignment.MID, 15f);
-
-        for (TendencyId t : TendencyId.values()) {
-            float val = allocations.get(t);
-            String text = String.format("%-15s  %.1f / 10", t.displayName, val);
-            LabelAPI label = info.addPara(text, 3f);
-            label.setHighlight(t.displayName);
-            label.setHighlightColor(t.color);
-            info.addPara("  " + t.description + "  (opposes: " + t.getOpposite().displayName + ")",
-                    Misc.getGrayColor(), 1f);
-        }
-
-        float remaining = BUDGET - getTotal();
-        Color remainColor = remaining < 0 ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor();
-        String remStr = String.format("%.1f", remaining);
-        LabelAPI remLabel = info.addPara("Remaining: " + remStr + " points", 10f);
-        remLabel.setHighlight(remStr);
-        remLabel.setHighlightColor(remainColor);
-
-        // Trait selection section
-        info.addSectionHeading("DIPLOMACY TRAITS (pick up to " + MAX_TRAITS + ")", Alignment.MID, 15f);
-        info.addPara("Traits define how other factions perceive you and how your faction handles " +
-                "specific diplomatic situations.", 5f);
-
-        List<DiplomacyTraits.TraitDef> allTraits = DiplomacyTraits.getTraits();
-        for (DiplomacyTraits.TraitDef def : allTraits) {
-            if (def.noRandom) continue;
-            boolean selected = selectedTraits.contains(def.id);
-            String prefix = selected ? "[X] " : "[ ] ";
-            LabelAPI label = info.addPara(prefix + def.name + " — " + def.desc, 2f);
-            label.setHighlight(def.name);
-            label.setHighlightColor(selected ? Misc.getHighlightColor() : Misc.getGrayColor());
-        }
-
-        info.addPara("Selected: " + selectedTraits.size() + " / " + MAX_TRAITS,
-                Misc.getGrayColor(), 10f);
-
-        // Preview section
-        info.addSectionHeading("PREVIEW", Alignment.MID, 15f);
-        TendencyId dominant = getDominant();
-        if (dominant != null) {
-            info.addPara("Dominant tendency: " + dominant.displayName, 5f);
-        }
-        info.addPara("Other factions will perceive your faction based on these choices. " +
-                "Diplomatic proposals, trade deals, and alliance opportunities will be " +
-                "filtered through your doctrine.", Misc.getGrayColor(), 3f);
-
-        panel.addUIElement(info).inTL(10, 10);
+        float w = panel.getPosition().getWidth();
+        float h = panel.getPosition().getHeight();
+        DoctrinePanelPlugin plug = new DoctrinePanelPlugin(this);
+        CustomPanelAPI inner = panel.createCustomPanel(w, h, plug);
+        plug.bind(inner);
+        panel.addComponent((UIComponentAPI) inner).inTL(0, 0);
     }
 
     @Override
-    public boolean hasCancelButton() { return false; }
+    public boolean hasCancelButton() {
+        return false;
+    }
 
     @Override
-    public String getConfirmText() { return "Establish Doctrine"; }
+    public String getConfirmText() {
+        return "Establish Doctrine";
+    }
+
     @Override
-    public String getCancelText() { return null; }
+    public String getCancelText() {
+        return null;
+    }
 
     @Override
     public void customDialogConfirm() {
-        // Validate: must total ~10 points
         float total = getTotal();
-        if (Math.abs(total - BUDGET) > 0.5f) {
-            // Normalize to 10 for v0 (interactive editing is v1)
+        if (Math.abs(total - BUDGET) > 0.01f) {
             float scale = BUDGET / Math.max(total, 0.1f);
             for (TendencyId t : TendencyId.values()) {
-                allocations.put(t, allocations.get(t) * scale);
+                allocations.put(t, roundStep(allocations.get(t) * scale));
+            }
+        }
+        if (selectedTraits.size() < MIN_TRAITS) {
+            for (DiplomacyTraits.TraitDef def : DiplomacyTraits.getTraits()) {
+                if (def.noRandom) continue;
+                selectedTraits.add(def.id);
+                if (selectedTraits.size() >= MIN_TRAITS) break;
             }
         }
 
-        TendencyProfile profile = new TendencyProfile(allocations);
-        Nex4xManager mgr = Nex4xManager.getManager();
-        if (mgr != null) {
-            mgr.setPlayerDoctrine(profile);
+        TendencyProfile profile = new TendencyProfile(new EnumMap<TendencyId, Float>(allocations));
+        Nex4xManager mgr = Nex4xManager.getOrCreateManager();
+        mgr.setPlayerDoctrine(profile);
+        mgr.setPlayerDoctrineTraitIds(new ArrayList<String>(selectedTraits));
+        try {
+            TendencyProfileLoader.registerProfile(Global.getSector().getPlayerFaction().getId(), profile);
+        } catch (Exception e) {
+            log.warn("[Nex4x] registerProfile(player): " + e.getMessage());
         }
+        log.info("[Nex4x] Player doctrine established (" + selectedTraits.size() + " traits)");
     }
 
     @Override
-    public void customDialogCancel() {}
+    public void customDialogCancel() {
+    }
 
     @Override
-    public CustomUIPanelPlugin getCustomPanelPlugin() { return null; }
+    public CustomUIPanelPlugin getCustomPanelPlugin() {
+        return null;
+    }
 
-    private float getTotal() {
-        float sum = 0;
+    float getTotal() {
+        float sum = 0f;
         for (float v : allocations.values()) sum += v;
         return sum;
     }
 
-    private TendencyId getDominant() {
-        TendencyId best = null;
-        float bestVal = 0;
-        for (Map.Entry<TendencyId, Float> e : allocations.entrySet()) {
-            if (e.getValue() > bestVal) {
-                bestVal = e.getValue();
-                best = e.getKey();
-            }
+    static float roundStep(float v) {
+        return Math.round(v / STEP) * STEP;
+    }
+
+    private static final class DoctrinePanelPlugin extends BaseCustomUIPanelPlugin {
+        private final DoctrineSetupDialog dlg;
+        private CustomPanelAPI panel;
+        private TooltipMakerAPI ui;
+
+        DoctrinePanelPlugin(DoctrineSetupDialog dlg) {
+            this.dlg = dlg;
         }
-        return best;
-    }
 
-    /** For v1 interactive UI — set a tendency allocation via buttons. */
-    public void setAllocation(TendencyId tendency, float value) {
-        allocations.put(tendency, Math.max(0, Math.min(BUDGET, value)));
-    }
+        void bind(CustomPanelAPI p) {
+            this.panel = p;
+            rebuild();
+        }
 
-    /** For v1 interactive UI — toggle a trait selection. */
-    public void toggleTrait(String traitId) {
-        if (selectedTraits.contains(traitId)) {
-            selectedTraits.remove(traitId);
-        } else if (selectedTraits.size() < MAX_TRAITS) {
-            selectedTraits.add(traitId);
+        @Override
+        public void positionChanged(PositionAPI position) {
+        }
+
+        @Override
+        public void buttonPressed(Object buttonId) {
+            if (!(buttonId instanceof String)) return;
+            String id = (String) buttonId;
+            if (id.startsWith("T+_")) {
+                TendencyId t = TendencyId.valueOf(id.substring(3));
+                float v = dlg.allocations.get(t);
+                if (dlg.getTotal() >= BUDGET - 0.01f) return;
+                dlg.allocations.put(t, DoctrineSetupDialog.roundStep(v + STEP));
+            } else if (id.startsWith("T-_")) {
+                TendencyId t = TendencyId.valueOf(id.substring(3));
+                float v = dlg.allocations.get(t);
+                dlg.allocations.put(t, Math.max(0f, DoctrineSetupDialog.roundStep(v - STEP)));
+            } else if (id.startsWith("TR_")) {
+                String traitId = id.substring(3);
+                if (dlg.selectedTraits.contains(traitId)) {
+                    dlg.selectedTraits.remove(traitId);
+                } else if (dlg.selectedTraits.size() < MAX_TRAITS) {
+                    dlg.selectedTraits.add(traitId);
+                }
+            }
+            rebuild();
+        }
+
+        private void rebuild() {
+            if (panel == null) return;
+            if (ui != null) {
+                panel.removeComponent((UIComponentAPI) ui);
+                ui = null;
+            }
+            float w = Math.max(200f, panel.getPosition().getWidth() - 10f);
+            float h = Math.max(300f, panel.getPosition().getHeight() - 10f);
+            ui = panel.createUIElement(w, h, true);
+
+            ui.addSectionHeading("POLITICAL TENDENCIES (total 10)", Alignment.MID, 8f);
+            for (TendencyId t : TendencyId.values()) {
+                float val = dlg.allocations.get(t);
+                LabelAPI row = ui.addPara(String.format("%s  %.1f", t.displayName, val), t.color, 6f);
+                row.setHighlight(t.displayName);
+                row.setHighlightColor(t.color);
+                ui.addButton("-", "T-_" + t.name(), 36, 20, 2f);
+                ui.addButton("+", "T+_" + t.name(), 36, 20, 2f);
+                ui.addPara("  " + t.description, Misc.getGrayColor(), 4f);
+            }
+            float remaining = BUDGET - dlg.getTotal();
+            Color rc = remaining < -0.01f ? Misc.getNegativeHighlightColor() : Misc.getHighlightColor();
+            LabelAPI rem = ui.addPara("Remaining: " + String.format("%.1f", remaining), 10f);
+            rem.setHighlight(String.format("%.1f", remaining));
+            rem.setHighlightColor(rc);
+
+            ui.addSectionHeading("DIPLOMACY TRAITS (" + dlg.selectedTraits.size() + "/" + MAX_TRAITS + ")",
+                    Alignment.MID, 12f);
+            for (DiplomacyTraits.TraitDef def : DiplomacyTraits.getTraits()) {
+                if (def.noRandom) continue;
+                boolean on = dlg.selectedTraits.contains(def.id);
+                ui.addButton((on ? "[x] " : "[ ] ") + def.name, "TR_" + def.id,
+                        420f, 18f, 3f);
+                ui.addPara("   " + def.desc, Misc.getGrayColor(), 2f);
+            }
+
+            panel.addUIElement(ui).inTL(5, 5);
+            panel.updateUIElementSizeAndMakeItProcessInput(ui);
         }
     }
 }

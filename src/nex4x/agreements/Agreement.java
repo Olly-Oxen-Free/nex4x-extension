@@ -17,8 +17,14 @@ public class Agreement implements Serializable {
     private final float creationDay;
     private float expiryDay;  // -1 = permanent
     private boolean active;
+    /** True if the deal was struck through a viceroy proxy (restricted negotiation). */
+    private boolean viaViceroy;
 
     public Agreement(String factionIdA, String factionIdB, AgreementType type) {
+        this(factionIdA, factionIdB, type, false);
+    }
+
+    public Agreement(String factionIdA, String factionIdB, AgreementType type, boolean viaViceroy) {
         // Normalize ordering so lookup is consistent
         if (factionIdA.compareTo(factionIdB) > 0) {
             this.factionIdA = factionIdB;
@@ -33,6 +39,7 @@ public class Agreement implements Serializable {
                 ? creationDay + type.defaultDurationDays
                 : -1;
         this.active = true;
+        this.viaViceroy = viaViceroy;
     }
 
     /** Involves this faction (either side)? */
@@ -76,6 +83,7 @@ public class Agreement implements Serializable {
     public float getCreationDay() { return creationDay; }
     public float getExpiryDay() { return expiryDay; }
     public boolean isActive() { return active && !isExpired(); }
+    public boolean isViaViceroy() { return viaViceroy; }
 
     private static float getCurrentDay() {
         return Global.getSector().getClock().getDay()

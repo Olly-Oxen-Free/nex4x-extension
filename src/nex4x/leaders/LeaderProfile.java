@@ -12,6 +12,9 @@ import java.util.List;
 public class LeaderProfile implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** Vanilla portrait path; {@code getSpriteName("characters", ...)} is not valid for campaign UI. */
+    private static final String FALLBACK_PORTRAIT_PATH = "graphics/portraits/portrait26.png";
+
     private final String factionId;
     private String personApiId;
     private Personality personality;
@@ -61,11 +64,42 @@ public class LeaderProfile implements Serializable {
         return f != null ? f.getDisplayName() + " Leader" : factionId + " Leader";
     }
 
-    public String portraitSprite() {
+    /**
+     * Portrait path safe for {@code TooltipMakerAPI#beginImageWithText}.
+     * Never returns faction crest strings (often invalid for campaign image widgets).
+     */
+    public String portraitSpriteForCampaignImage() {
         PersonAPI p = resolve();
-        if (p != null) return p.getPortraitSprite();
-        if (syntheticPortrait != null) return syntheticPortrait;
-        return Global.getSettings().getSpriteName("characters", "default_male01");
+        if (p != null) {
+            String ps = p.getPortraitSprite();
+            if (ps != null && !ps.isEmpty()) {
+                return ps;
+            }
+        }
+        if (isCampaignPortraitPath(syntheticPortrait)) {
+            return syntheticPortrait;
+        }
+        FactionAPI playerFac = Global.getSector().getPlayerFaction();
+        if (playerFac != null && factionId.equals(playerFac.getId())) {
+            PersonAPI cmd = Global.getSector().getPlayerPerson();
+            if (cmd != null) {
+                String ps = cmd.getPortraitSprite();
+                if (ps != null && !ps.isEmpty()) {
+                    return ps;
+                }
+            }
+        }
+        return FALLBACK_PORTRAIT_PATH;
+    }
+
+    /** Best-effort portrait; avoids invalid crest for UI images — prefer {@link #portraitSpriteForCampaignImage}. */
+    public String portraitSprite() {
+        return portraitSpriteForCampaignImage();
+    }
+
+    private static boolean isCampaignPortraitPath(String path) {
+        if (path == null || path.isEmpty()) return false;
+        return path.startsWith("graphics/");
     }
 
     public String titleString() {

@@ -16,6 +16,7 @@ import nex4x.data.TendencyId;
 import nex4x.data.TendencyProfile;
 import nex4x.data.TendencyProfileLoader;
 import nex4x.managers.Nex4xManager;
+import nex4x.policies.PolicyManager;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 
@@ -155,6 +156,10 @@ public class DiplomaticExecutor implements Serializable {
 
         desire += (Math.random() * WAR_RANDOM_RANGE * 2) - WAR_RANDOM_RANGE;
 
+        try {
+            desire += PolicyManager.getOrCreate().getPolicyModifier(factionId, "war_desire");
+        } catch (Exception ignore) { }
+
         return desire;
     }
 
@@ -205,6 +210,27 @@ public class DiplomaticExecutor implements Serializable {
                     .addIntel(new nex4x.ui.WarDeclarationIntel(factionId, targetFactionId, /*byAi=*/ false));
         } catch (Exception e) {
             log.error("[Nex4x] Failed to emit WarDeclarationIntel: " + e.getMessage());
+        }
+    }
+
+    /** Player seeks peace / ceasefire with target (no StrategicGoal context). */
+    public void requestPeacePlayer(String targetFactionId) {
+        FactionAPI us = Global.getSector().getFaction(factionId);
+        FactionAPI them = Global.getSector().getFaction(targetFactionId);
+        if (us == null || them == null) return;
+        log.info("[Nex4x] " + factionId + " proposes peace with " + targetFactionId + " (player-initiated)");
+        try {
+            exerelin.campaign.DiplomacyManager.createDiplomacyEventV2(us, them, "ceasefire", null);
+        } catch (Exception e) {
+            log.warn("[Nex4x] ceasefire event failed, softening relations: " + e.getMessage());
+        }
+        try {
+            if (us.isHostileTo(them)) {
+                us.setRelationship(targetFactionId, 0f);
+                them.setRelationship(factionId, 0f);
+            }
+        } catch (Exception e) {
+            log.error("[Nex4x] requestPeacePlayer relation step failed: " + e.getMessage());
         }
     }
 

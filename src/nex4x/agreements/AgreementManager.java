@@ -30,6 +30,12 @@ public class AgreementManager implements Serializable {
 
     /** Create and register a new agreement. Cancels any same-track agreement between the pair. */
     public Agreement createAgreement(String factionA, String factionB, AgreementType type) {
+        return createAgreement(factionA, factionB, type, false);
+    }
+
+    /** @param viaViceroy when true, marks the agreement as negotiated via a viceroy proxy. */
+    public Agreement createAgreement(String factionA, String factionB, AgreementType type,
+                                     boolean viaViceroy) {
         // If alliance track, cancel existing alliance-track agreement between this pair
         if (type.isAllianceTrack()) {
             Agreement existing = getAllianceAgreement(factionA, factionB);
@@ -49,7 +55,7 @@ public class AgreementManager implements Serializable {
             }
         }
 
-        Agreement agreement = new Agreement(factionA, factionB, type);
+        Agreement agreement = new Agreement(factionA, factionB, type, viaViceroy);
         agreements.add(agreement);
 
         log.info("[Nex4x] Agreement created: " + type.displayName
@@ -112,7 +118,7 @@ public class AgreementManager implements Serializable {
         // Check relation threshold
         float rel = Global.getSector().getFaction(factionA)
                 .getRelationship(factionB);
-        if (rel < type.relationThreshold / 100f) return false;
+        if (rel < type.relationThreshold) return false;
 
         // Check tier ladder
         if (type.isAllianceTrack()) {

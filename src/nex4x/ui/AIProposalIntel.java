@@ -17,8 +17,9 @@ import exerelin.campaign.ui.PopupDialogScript.PopupDialog;
 import nex4x.agreements.AgreementType;
 import nex4x.managers.Nex4xManager;
 import nex4x.negotiation.DealPackage;
-import nex4x.negotiation.NegotiableItem;
 import nex4x.negotiation.ItemValuator;
+import nex4x.negotiation.NegotiableItem;
+import nex4x.negotiation.NegotiationDealExecutor;
 import org.apache.log4j.Logger;
 import org.lazywizard.lazylib.MathUtils;
 import org.lwjgl.input.Keyboard;
@@ -101,45 +102,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     private void executeDeal() {
         Nex4xManager mgr = Nex4xManager.getManager();
         if (mgr == null) return;
-
-        String playerFactionId = Global.getSector().getPlayerFaction().getId();
-
-        // AI's offers = what AI gives to player
-        for (NegotiableItem item : aiDeal.getOffers()) {
-            executeItem(item, factionId, playerFactionId, mgr);
-        }
-        // AI's requests = what player gives to AI
-        for (NegotiableItem item : aiDeal.getRequests()) {
-            executeItem(item, playerFactionId, factionId, mgr);
-        }
-    }
-
-    private void executeItem(NegotiableItem item, String giver, String receiver,
-                              Nex4xManager mgr) {
-        String playerFactionId = Global.getSector().getPlayerFaction().getId();
-        switch (item.getType()) {
-            case AGREEMENTS:
-                if (item.getAgreementType() != null) {
-                    mgr.getAgreementManager().createAgreement(
-                            playerFactionId, factionId, item.getAgreementType());
-                }
-                break;
-            case PEACE_TERMS:
-                if (item.isCeasefire()) {
-                    try {
-                        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
-                        FactionAPI targetFac = Global.getSector().getFaction(factionId);
-                        exerelin.campaign.DiplomacyManager.createDiplomacyEventV2(
-                                playerFac, targetFac, "ceasefire", null);
-                    } catch (Exception e) {
-                        Global.getSector().getFaction(playerFactionId)
-                                .setRelationship(factionId, 0);
-                    }
-                }
-                break;
-            default:
-                break;
-        }
+        NegotiationDealExecutor.executeDeal(aiDeal, mgr, false);
     }
 
     // ── Intel description (shown in intel tab) ────────────────
@@ -287,7 +250,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     public void buttonPressConfirmed(Object buttonId, IntelUIAPI ui) {
         if (BUTTON_COUNTER.equals(buttonId)) {
             // Open negotiation table pre-filled with AI's deal
-            NegotiationPopUpDialog popup = new NegotiationPopUpDialog(factionId, aiDeal);
+            NegotiationPanel popup = new NegotiationPanel(factionId, aiDeal);
             BasePopUpDialog.popUpDialog(popup, 620, 560);
             // Treat as rejection of this specific proposal (player is now counter-proposing)
             reject();
@@ -347,7 +310,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
             accept();
             endAfterDelay();
         } else if (optionData == DIALOG_OPT_COUNTER) {
-            NegotiationPopUpDialog popup = new NegotiationPopUpDialog(factionId, aiDeal);
+            NegotiationPanel popup = new NegotiationPanel(factionId, aiDeal);
             BasePopUpDialog.popUpDialog(popup, 620, 560);
             reject();
             endAfterDelay();

@@ -3,6 +3,8 @@ package nex4x.data;
 import com.fs.starfarer.api.Global;
 import exerelin.campaign.diplomacy.DiplomacyTraits;
 import exerelin.campaign.diplomacy.DiplomacyTraits.TraitIds;
+import exerelin.utilities.NexConfig;
+import exerelin.utilities.NexFactionConfig;
 import nex4x.Nex4xConstants;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -108,6 +110,11 @@ public class TendencyProfileLoader {
         for (float v : raw.values()) total += v;
 
         if (total <= 0) {
+            TendencyProfile inferred = inferFromNexFactionConfig(factionId);
+            if (inferred != null) {
+                log.info("[Nex4x] Inferred tendency profile for " + factionId + " from NexFactionConfig");
+                return inferred;
+            }
             for (TendencyId t : TendencyId.values()) {
                 raw.put(t, 10f / TendencyId.values().length);
             }
@@ -121,6 +128,40 @@ public class TendencyProfileLoader {
         log.info("[Nex4x] Auto-derived tendency profile for " + factionId
                 + " from " + traits.size() + " traits");
         return new TendencyProfile(raw);
+    }
+
+    /**
+     * When diplomacy traits are empty, infer a coarse profile from Nex faction config flags.
+     */
+    public static TendencyProfile inferFromNexFactionConfig(String factionId) {
+        try {
+            NexFactionConfig cfg = NexConfig.getFactionConfig(factionId);
+            if (cfg == null) return null;
+            EnumMap<TendencyId, Float> raw = new EnumMap<TendencyId, Float>(TendencyId.class);
+            for (TendencyId t : TendencyId.values()) raw.put(t, 2f);
+
+            if (cfg.pirateFaction || cfg.hostileToAll >= 2) {
+                raw.put(TendencyId.MILITARISTS, raw.get(TendencyId.MILITARISTS) + 5f);
+                raw.put(TendencyId.CORPORATISTS, raw.get(TendencyId.CORPORATISTS) + 2f);
+            }
+            if (cfg.hostileToAll == 1) {
+                raw.put(TendencyId.MILITARISTS, raw.get(TendencyId.MILITARISTS) + 2f);
+            }
+            if (cfg.corvusCompatible) {
+                raw.put(TendencyId.FEDERALISTS, raw.get(TendencyId.FEDERALISTS) + 2f);
+                raw.put(TendencyId.ECOLOGISTS, raw.get(TendencyId.ECOLOGISTS) + 1f);
+            }
+            float sum = 0f;
+            for (float v : raw.values()) sum += v;
+            if (sum <= 0f) return null;
+            float scale = 10f / sum;
+            for (TendencyId t : TendencyId.values()) {
+                raw.put(t, Math.round(raw.get(t) * scale * 2f) / 2f);
+            }
+            return new TendencyProfile(raw);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static boolean hasExplicitProfile(String factionId) {

@@ -1,0 +1,14 @@
+{
+    "overrides": {
+        "hegemony": "MILITARY_SUPREMACY",
+        "pirates": "RAIDER_PREDATOR",
+        "luddic_path": "IDEOLOGICAL_CRUSADE",
+        "tritachyon": "ECONOMIC_HEGEMONY",
+        "sindrian_diktat": "MILITARY_SUPREMACY",
+        "persean": "COALITION_BUILDER",
+        "luddic_church": "DEFENSIVE_CONSOLIDATION",
+        "independent": "DEFENSIVE_CONSOLIDATION",
+        "lions_guard": "DEFENSIVE_CONSOLIDATION",
+        "knights_of_ludd": "IDEOLOGICAL_CRUSADE"
+    }
+}

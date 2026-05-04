@@ -8,6 +8,7 @@ import com.fs.starfarer.api.campaign.TextPanelAPI;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
+import exerelin.campaign.PlayerFactionStore;
 import nex4x.leaders.*;
 import nex4x.managers.Nex4xManager;
 
@@ -64,13 +65,34 @@ public class LeaderAudienceDialog implements InteractionDialogPlugin {
         String id = optionData.toString();
         if (OPT_DEPART.equals(id)) { dialog.dismiss(); return; }
         if (OPT_NEGOTIATE.equals(id)) {
-            BasePopUpDialog.popUpDialog(new NegotiationPanel(market.getFactionId()), 620, 560);
+            BasePopUpDialog.popUpDialog(new NegotiationPanel(market.getFactionId(), false), 620, 560);
             return;
         }
-        if (OPT_DECLARE_FRIENDSHIP.equals(id)) { text.addPara("[Friendship declaration — Phase 4]"); return; }
-        if (OPT_DENOUNCE.equals(id)) { text.addPara("[Denouncement — Phase 4]"); return; }
-        if (OPT_DECLARE_WAR.equals(id)) { text.addPara("[War declaration — Phase 10]"); return; }
-        if (OPT_PROPOSE_PEACE.equals(id)) { text.addPara("[Peace proposal — Phase 10]"); return; }
+        String fid = market.getFactionId();
+        String playerFid = PlayerFactionStore.getPlayerFactionId();
+        Nex4xManager mgr = Nex4xManager.getOrCreateManager();
+        if (OPT_DECLARE_FRIENDSHIP.equals(id)) {
+            mgr.getDeclarationManager().declareFriendship(playerFid, fid);
+            text.addPara("You declare public friendship with "
+                    + Global.getSector().getFaction(fid).getDisplayName() + ".");
+            return;
+        }
+        if (OPT_DENOUNCE.equals(id)) {
+            mgr.getDeclarationManager().declareDenouncement(playerFid, fid);
+            text.addPara("You publicly denounce "
+                    + Global.getSector().getFaction(fid).getDisplayName() + ".");
+            return;
+        }
+        if (OPT_DECLARE_WAR.equals(id)) {
+            mgr.getExecutor(playerFid).declareWarPlayer(fid);
+            text.addPara("War is declared.");
+            return;
+        }
+        if (OPT_PROPOSE_PEACE.equals(id)) {
+            mgr.getExecutor(playerFid).requestPeacePlayer(fid);
+            text.addPara("A peace overture has been sent.");
+            return;
+        }
     }
 
     public void optionMousedOver(String optionText, Object optionData) {}

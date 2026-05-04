@@ -8,6 +8,7 @@ import com.fs.starfarer.api.ui.SectorMapAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
 import com.fs.starfarer.api.util.Misc;
 import nex4x.leaders.LeaderProfile;
+import nex4x.managers.Nex4xManager;
 
 import java.util.Set;
 
@@ -15,16 +16,24 @@ public class LeaderChangeIntel extends BaseIntelPlugin {
 
     private static final long serialVersionUID = 1L;
 
+    /** Safety net until Phase 1 replaces this with "end when the next leader swap happens". */
+    private static final float MAX_LIFETIME_DAYS = 90f;
+
     private final String factionId;
     private final String newLeaderName;
     private final String newLeaderPortrait; // may be null
     private final String title;
+    private final long createdTimestamp;
+    /** Leader person id when this intel was created; intel ends when the seat changes again. */
+    private final String anchorLeaderPersonId;
 
     public LeaderChangeIntel(String factionId, LeaderProfile newProfile) {
         this.factionId = factionId;
         this.newLeaderName = newProfile.displayName();
         this.newLeaderPortrait = newProfile.portraitSprite();
         this.title = newProfile.titleString();
+        this.createdTimestamp = Global.getSector().getClock().getTimestamp();
+        this.anchorLeaderPersonId = newProfile.getPersonApiId();
     }
 
     @Override public boolean hasSmallDescription() { return true; }
@@ -82,6 +91,21 @@ public class LeaderChangeIntel extends BaseIntelPlugin {
         return f != null ? f : Global.getSector().getPlayerFaction();
     }
 
-    @Override public boolean isEnding() { return false; }
-    @Override public boolean isEnded() { return false; }
+    private float elapsedDays() {
+        return Global.getSector().getClock().getElapsedDaysSince(createdTimestamp);
+    }
+
+    private boolean leaderSeatChangedAgain() {
+        String now = Nex4xManager.getOrCreateManager().getLeaderRegistry()
+                .getProfile(factionId).getPersonApiId();
+        if (anchorLeaderPersonId == null) return now != null;
+        return now == null || !anchorLeaderPersonId.equals(now);
+    }
+
+    @Override public boolean isEnding() {
+        return leaderSeatChangedAgain() || elapsedDays() >= MAX_LIFETIME_DAYS - 5f;
+    }
+    @Override public boolean isEnded() {
+        return leaderSeatChangedAgain() || elapsedDays() >= MAX_LIFETIME_DAYS;
+    }
 }

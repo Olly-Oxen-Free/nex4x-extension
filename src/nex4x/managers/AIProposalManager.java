@@ -9,6 +9,7 @@ import nex4x.evaluation.DealEvaluator;
 import nex4x.evaluation.DesperationCalculator;
 import nex4x.negotiation.AutoNegotiator;
 import nex4x.negotiation.DealPackage;
+import nex4x.ui.AIProposalIntel;
 import org.apache.log4j.Logger;
 
 import java.io.Serializable;
@@ -30,14 +31,28 @@ public class AIProposalManager implements Serializable {
     /** Last day a proposal was sent, keyed by faction ID. */
     private final Map<String, Float> lastProposalDay = new HashMap<String, Float>();
 
+    /** First campaign clock tick seen; used with {@link Nex4xSettings#aiProposalMinGameDays}. */
+    private long firstProposalClockTimestamp;
+
     /**
      * Called once per day from Nex4xManager's daily tick.
      * Iterates all live factions and attempts to generate proposals for the player.
      */
     public void advanceDay() {
         String playerFactionId = Global.getSector().getPlayerFaction().getId();
-        float currentDay = Global.getSector().getClock().getTimestamp()
-                / Global.getSector().getClock().getSecondsPerDay();
+
+        if (firstProposalClockTimestamp == 0L) {
+            firstProposalClockTimestamp = Global.getSector().getClock().getTimestamp();
+        }
+        float daysSinceFirstTick = Global.getSector().getClock()
+                .getElapsedDaysSince(firstProposalClockTimestamp);
+        if (daysSinceFirstTick < Nex4xSettings.aiProposalMinGameDays) {
+            return;
+        }
+
+        if (Nex4xSettings.aiProposalRequirePlayerMarket && !hasMarkets(playerFactionId)) {
+            return;
+        }
 
         // Use sector day count for simpler math
         float dayNum = Global.getSector().getClock().getDay()
@@ -62,15 +77,11 @@ public class AIProposalManager implements Serializable {
             DealPackage proposal = generateProposal(fid, playerFactionId);
             if (proposal == null) continue;
 
-            // Create and register the intel notification (reflection — AIProposalIntel has Ashlib dep)
             try {
-                Class<?> intelClass = Class.forName("nex4x.ui.AIProposalIntel");
-                Object intel = intelClass
-                        .getConstructor(String.class, DealPackage.class)
-                        .newInstance(fid, proposal);
-                intelClass.getMethod("init").invoke(intel);
-            } catch (Exception e) {
-                log.warn("[Nex4x] Could not create AIProposalIntel for " + fid + ": " + e.getMessage());
+                AIProposalIntel intel = new AIProposalIntel(fid, proposal);
+                intel.init();
+            } catch (Throwable t) {
+                log.error("[Nex4x] Could not create AIProposalIntel for " + fid + ": " + t.getMessage(), t);
                 continue;
             }
 

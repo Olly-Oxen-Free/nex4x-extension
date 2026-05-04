@@ -13,3 +13,13 @@ convoy_raided,"Convoy Raided",-8,180,ECONOMIC,#
 sat_bombardment,"Sat Bombardment",-25,720,TERRITORIAL|IDEOLOGICAL,#
 contract_betrayal,"Contract Betrayal",-18,360,ECONOMIC|POLITICAL,#
 war_profiteering,"War Profiteering",-8,180,POLITICAL,#
+market_capture,"Market Captured",-12,360,TERRITORIAL|MILITARY,#
+market_transfer,"Market Transferred",-6,240,TERRITORIAL,#
+raid_valuables,"Raid for Valuables",-8,180,MILITARY|ECONOMIC,#
+raid_stability,"Raid (Stability)",-5,120,MILITARY,#
+blockade_impact,"Blockade Strain",-6,180,ECONOMIC,#
+rep_loss,"Reputation Lost",-4,90,POLITICAL,#
+rep_gain,"Reputation Improved",3,90,POLITICAL,#
+bounty_completed,"Bounty Completed",2,60,MILITARY,#
+commission_change,"Commission Change",-5,180,POLITICAL,#
+covert_operation,"Covert Operation",-6,120,MILITARY|POLITICAL,#
