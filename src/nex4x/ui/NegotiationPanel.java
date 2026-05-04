@@ -262,7 +262,7 @@ public class NegotiationPanel extends BasePopUpDialog {
     @Override
     public void advance(float amount) {
         super.advance(amount);
-        if (needsRefresh) {
+        if (needsRefresh && panelToInfluence != null) {
             needsRefresh = false;
             removeUI();
             createUI(panelToInfluence);
@@ -389,8 +389,6 @@ public class NegotiationPanel extends BasePopUpDialog {
 
         return y + dealH + 6f;
     }
-
-    // ── Balance rendering ─────────────────────────────────────
 
     // ── Item catalog ──────────────────────────────────────────
 
@@ -767,7 +765,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         return y + headerH + 6f;
     }
 
-    LeaderProfile proposerLeader() {
+    private LeaderProfile proposerLeader() {
         if (Global.getSector().getPlayerFaction().getId().equals(playerFactionId)) {
             LeaderProfile p = new LeaderProfile(playerFactionId, Personality.PRAGMATIC);
             String name = Global.getSector().getPlayerPerson() != null
@@ -779,12 +777,12 @@ public class NegotiationPanel extends BasePopUpDialog {
         return Nex4xManager.getOrCreateManager().getLeaderRegistry().getProfile(playerFactionId);
     }
 
-    String factionName(String factionId) {
+    private String factionName(String factionId) {
         FactionAPI f = Global.getSector().getFaction(factionId);
         return f != null ? f.getDisplayName() : factionId;
     }
 
-    String relationBadge(FactionAPI viewer, FactionAPI about) {
+    private String relationBadge(FactionAPI viewer, FactionAPI about) {
         if (viewer == null || about == null) return "-";
         float rel = viewer.getRelationship(about.getId());
         ReputationTier t = ReputationTier.fromRelation(rel);
@@ -792,7 +790,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         return tierLabel(t) + " (" + (displayed >= 0 ? "+" : "") + displayed + ")";
     }
 
-    String tierLabel(ReputationTier t) {
+    private String tierLabel(ReputationTier t) {
         switch (t) {
             case HOSTILE:     return "Hostile";
             case SUSPICIOUS:  return "Suspicious";
@@ -803,7 +801,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
     }
 
-    String joinTraits(java.util.List<String> traits) {
+    private String joinTraits(java.util.List<String> traits) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < traits.size(); i++) {
             if (i > 0) sb.append(", ");
@@ -812,7 +810,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         return sb.toString();
     }
 
-    java.util.Map<String, String> dialogueContext() {
+    private java.util.Map<String, String> dialogueContext() {
         java.util.Map<String, String> ctx = new java.util.HashMap<String, String>();
         ctx.put("player", Global.getSector().getPlayerFaction().getDisplayName());
         ctx.put("leader", leader.displayName());
@@ -820,7 +818,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         return ctx;
     }
 
-    String resolveDialogue(LeaderProfile profile, Situation situation, ReputationTier tier) {
+    private String resolveDialogue(LeaderProfile profile, Situation situation, ReputationTier tier) {
         DialogueSystem sys = DialogueSystem.get();
         if (sys == null) return "...";
         return sys.resolve(profile, situation, tier, dialogueContext());
