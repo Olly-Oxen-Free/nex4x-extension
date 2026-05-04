@@ -399,15 +399,18 @@ public class NegotiationPanel extends BasePopUpDialog {
         float pad   = 6f;
         float btnW  = 80f;
         float btnH  = 18f;
+        float declH = 80f;
         Color factionColor = targetFaction.getBaseUIColor();
         Color factionDark  = targetFaction.getDarkUIColor();
         Color playerColor  = Misc.getBasePlayerColor();
         Color playerDark   = Misc.getDarkPlayerColor();
 
-        TooltipMakerAPI info = panel.createUIElement(contentW - pad, catalogH, true);
+        TooltipMakerAPI info = panel.createUIElement(contentW - pad, catalogH - declH - 8f, true);
         panel.addUIElement(info).inTL(x, y);
 
         info.addSectionHeading("AVAILABLE ITEMS", factionColor, factionDark, Alignment.MID, 0f);
+        info.addPara("← ADD TO OFFER          ITEM          ADD TO REQUESTS →",
+                Misc.getGrayColor(), 4f);
 
         boolean ceasefireOnTable = deal.hasCeasefire();
 
@@ -436,16 +439,20 @@ public class NegotiationPanel extends BasePopUpDialog {
                     playerColor, playerDark, factionColor, factionDark);
         }
 
-        // ── Declarations ──────────────────────────────────────
-        info.addSectionHeading("DECLARATIONS", new Color(180, 60, 60, 255),
-                new Color(40, 0, 0, 255), Alignment.MID, pad);
-        info.addPara("Unilateral — cannot be refused.", Misc.getGrayColor(), 2f);
-        info.addButton("Declare War", BTN_DECLARE_WAR,
+        // ── Declarations (pinned outside scroll area) ─────────
+        float declY = y + (catalogH - declH);
+        TooltipMakerAPI declTip = panel.createUIElement(contentW - pad, declH, false);
+        panel.addUIElement(declTip).inTL(x, declY);
+
+        declTip.addSectionHeading("DECLARATIONS", new Color(180, 60, 60, 255),
+                new Color(40, 0, 0, 255), Alignment.MID, 0f);
+        declTip.addPara("(unilateral — cannot be refused)", Misc.getGrayColor(), 2f);
+        declTip.addButton("Declare War", BTN_DECLARE_WAR,
                 new Color(200, 80, 80, 255), new Color(50, 0, 0, 255),
-                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 24f, pad);
-        info.addButton("Denounce", BTN_DENOUNCE,
+                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 22f, 4f);
+        declTip.addButton("Denounce", BTN_DENOUNCE,
                 new Color(200, 80, 80, 255), new Color(50, 0, 0, 255),
-                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 24f, 4f);
+                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 22f, 3f);
     }
 
     private void addCatalogItemsThreeZone(TooltipMakerAPI info, NegotiableItemType type,
