@@ -67,6 +67,10 @@ public class NegotiationPanel extends BasePopUpDialog {
 
     private boolean needsRefresh;
 
+    private static final String CAT_TOGGLE_PREFIX = "cat_toggle_";
+    private final java.util.Set<NegotiableItemType> expandedCategories =
+            new java.util.HashSet<NegotiableItemType>();
+
     public NegotiationPanel(String targetFactionId) {
         this(targetFactionId, false);
     }
@@ -95,6 +99,16 @@ public class NegotiationPanel extends BasePopUpDialog {
         this.mood = new SessionMood();
 
         setConfirmText("Send Proposal");
+
+        // Expand first available category by default
+        for (NegotiableItemType type : NegotiableItemType.values()) {
+            if (viceroyMode && isViceroyCatalogTypeExcluded(type)) continue;
+            if (type == NegotiableItemType.DECLARATIONS) continue;
+            if (type.isAvailable(currentTier, atWar, false)) {
+                expandedCategories.add(type);
+                break;
+            }
+        }
     }
 
     /**
@@ -116,97 +130,24 @@ public class NegotiationPanel extends BasePopUpDialog {
     // ── Content rendering ─────────────────────────────────────
 
     @Override
-    public void createContentForDialog(TooltipMakerAPI info, float width) {
+    public void createUI(CustomPanelAPI panel) {
+        createHeaader(panel); // Ashlib title bar — sets this.y
         FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
-        if (targetFaction == null) {
-            info.addPara("Unknown faction id: " + targetFactionId + ". Cannot open negotiation.",
-                    Misc.getNegativeHighlightColor(), 10f);
-            log.error("[Nex4x] NegotiationPanel: no FactionAPI for " + targetFactionId);
-            return;
-        }
-        Color factionColor = targetFaction.getBaseUIColor();
-        Color darkColor = targetFaction.getDarkUIColor();
-        float pad = 10f;
-        float sPad = 3f;
+        if (targetFaction == null) return;
 
-        if (viceroyMode) {
-            info.addPara("Negotiation via the Viceroy: commerce, intelligence, and minor arrangements "
-                            + "only. War, peace, and formal alliances are reserved for audiences "
-                            + "with faction leadership.",
-                    Misc.getBasePlayerColor(), pad);
-        }
-        renderLeaderHeader(info, width, targetFaction, factionColor, darkColor);
-        renderPressureRow(info, width, factionColor, darkColor);
+        float pw    = panel.getPosition().getWidth();
+        float ph    = panel.getPosition().getHeight();
+        float pad   = 10f;
+        float colGap = 8f;
+        float contentW = pw - pad * 2f;
+        float curY  = y + pad;
 
-        // ── Your Offer ────────────────────────────────────────
-        info.addSectionHeading("YOUR OFFER", Misc.getBasePlayerColor(),
-                Misc.getDarkPlayerColor(), Alignment.MID, 0);
+        curY = buildLeaderHeader(panel, pad, curY, contentW, targetFaction);
+        curY = buildDealColumns(panel, pad, curY, contentW, colGap, targetFaction);
+        curY = buildBalanceBar(panel, pad, curY, contentW);
+        buildCatalog(panel, pad, curY, contentW, ph - curY - 46f, targetFaction);
 
-        List<NegotiableItem> offers = deal.getOffers();
-        if (offers.isEmpty()) {
-            info.addPara("No items offered.", Misc.getGrayColor(), pad);
-        } else {
-            for (int i = 0; i < offers.size(); i++) {
-                NegotiableItem item = offers.get(i);
-                float val = valuator.evaluate(item, targetFactionId);
-                String label = item.getDisplayLabel();
-                String valStr = String.format("%.0f", val);
-                info.addPara(label + "  (" + valStr + ")", sPad,
-                        Misc.getHighlightColor(), label);
-                info.addButton("[x]", REMOVE_OFFER_PREFIX + i,
-                        Misc.getNegativeHighlightColor(), Misc.getDarkPlayerColor(),
-                        30, 16, 2f);
-            }
-        }
-
-        // ── Their Demand ──────────────────────────────────────
-        info.addSectionHeading("THEIR DEMAND", factionColor, darkColor, Alignment.MID, pad);
-
-        List<NegotiableItem> requests = deal.getRequests();
-        if (requests.isEmpty()) {
-            info.addPara("No items requested.", Misc.getGrayColor(), pad);
-        } else {
-            for (int i = 0; i < requests.size(); i++) {
-                NegotiableItem item = requests.get(i);
-                float val = valuator.evaluate(item, targetFactionId);
-                String label = item.getDisplayLabel();
-                String valStr = String.format("%.0f", val);
-                info.addPara(label + "  (" + valStr + ")", sPad,
-                        Misc.getHighlightColor(), label);
-                info.addButton("[x]", REMOVE_REQUEST_PREFIX + i,
-                        Misc.getNegativeHighlightColor(), darkColor,
-                        30, 16, 2f);
-            }
-        }
-
-        // ── Balance + Assessment ──────────────────────────────
-        info.addSpacer(pad);
-        renderBalanceSection(info);
-
-        // ── Item Catalog ──────────────────────────────────────
-        info.addSectionHeading("AVAILABLE ITEMS", factionColor, darkColor, Alignment.MID, pad);
-
-        boolean ceasefireOnTable = deal.hasCeasefire();
-        for (NegotiableItemType type : NegotiableItemType.values()) {
-            if (viceroyMode && isViceroyCatalogTypeExcluded(type)) continue;
-            boolean available = type.isAvailable(currentTier, atWar, ceasefireOnTable);
-            Color labelColor = available ? Misc.getTextColor() : Misc.getGrayColor();
-
-            info.addPara(type.displayName, labelColor, pad);
-
-            if (!available) {
-                info.addPara("  " + getUnavailableReason(type), Misc.getGrayColor(), 2f);
-                continue;
-            }
-
-            addCatalogItems(info, type, sPad);
-        }
-
-        // Auto-Negotiate
-        info.addSpacer(pad);
-        info.addButton("Auto-Negotiate", BTN_AUTO_NEGOTIATE,
-                factionColor, darkColor, Alignment.MID, CutStyle.ALL,
-                width - pad * 4, 24, pad);
+        createConfirmAndCancelSection(panel);
     }
 
     // ── Button dispatch ───────────────────────────────────────
@@ -215,6 +156,20 @@ public class NegotiationPanel extends BasePopUpDialog {
     public void buttonPressed(Object buttonId) {
         if (buttonId == null) return;
         String id = buttonId.toString();
+
+        if (id.startsWith(CAT_TOGGLE_PREFIX)) {
+            String typeName = id.substring(CAT_TOGGLE_PREFIX.length());
+            try {
+                NegotiableItemType type = NegotiableItemType.valueOf(typeName);
+                if (expandedCategories.contains(type)) {
+                    expandedCategories.remove(type);
+                } else {
+                    expandedCategories.add(type);
+                }
+            } catch (IllegalArgumentException ignored) {}
+            needsRefresh = true;
+            return;
+        }
 
         if (id.startsWith(REMOVE_OFFER_PREFIX)) {
             int idx = parseIndex(id, REMOVE_OFFER_PREFIX);
