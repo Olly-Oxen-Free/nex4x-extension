@@ -21,8 +21,10 @@ import nex4x.pressure.PressureSource;
 import org.apache.log4j.Logger;
 
 import java.awt.Color;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Merged negotiation UI: Civ-style leader header + mood, bilateral pressure readout,
@@ -68,8 +70,7 @@ public class NegotiationPanel extends BasePopUpDialog {
     private boolean needsRefresh;
 
     private static final String CAT_TOGGLE_PREFIX = "cat_toggle_";
-    private final java.util.Set<NegotiableItemType> expandedCategories =
-            new java.util.HashSet<NegotiableItemType>();
+    private final Set<NegotiableItemType> expandedCategories = new HashSet<NegotiableItemType>();
 
     public NegotiationPanel(String targetFactionId) {
         this(targetFactionId, false);
@@ -133,7 +134,10 @@ public class NegotiationPanel extends BasePopUpDialog {
     public void createUI(CustomPanelAPI panel) {
         createHeaader(panel); // Ashlib title bar — sets this.y
         FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
-        if (targetFaction == null) return;
+        if (targetFaction == null) {
+            log.error("[Nex4x] NegotiationPanel: no FactionAPI for " + targetFactionId);
+            return;
+        }
 
         float pw    = panel.getPosition().getWidth();
         float ph    = panel.getPosition().getHeight();
@@ -161,9 +165,7 @@ public class NegotiationPanel extends BasePopUpDialog {
             String typeName = id.substring(CAT_TOGGLE_PREFIX.length());
             try {
                 NegotiableItemType type = NegotiableItemType.valueOf(typeName);
-                if (expandedCategories.contains(type)) {
-                    expandedCategories.remove(type);
-                } else {
+                if (!expandedCategories.remove(type)) {
                     expandedCategories.add(type);
                 }
             } catch (IllegalArgumentException ignored) {}
