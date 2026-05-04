@@ -633,6 +633,63 @@ public class NegotiationPanel extends BasePopUpDialog {
         info.addSpacer(6f);
     }
 
+    private float buildLeaderHeader(CustomPanelAPI panel, float x, float y,
+                                    float contentW, FactionAPI targetFaction) {
+        float headerH = 90f;
+        float colW    = contentW / 3f;
+        float pad     = 6f;
+
+        CustomPanelAPI headerPanel = panel.createCustomPanel(contentW, headerH, null);
+        panel.addComponent((UIComponentAPI) headerPanel).inTL(x, y);
+
+        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
+
+        // ── Left: player portrait + identity ─────────────────────
+        CustomPanelAPI leftPanel = headerPanel.createCustomPanel(colW, headerH, null);
+        headerPanel.addComponent((UIComponentAPI) leftPanel).inTL(0, 0);
+        TooltipMakerAPI leftTip = leftPanel.createUIElement(colW - pad, headerH, false);
+
+        LeaderProfile proposer = proposerLeader();
+        leftTip.addImage(proposer.portraitSpriteForCampaignImage(), 48f, 48f, 0f);
+        leftTip.addPara(proposer.displayName(), Misc.getBasePlayerColor(), pad);
+        leftTip.addPara(factionName(playerFactionId), Misc.getTextColor(), 2f);
+        leftTip.addPara(relationBadge(playerFac, targetFaction), Misc.getTextColor(), 2f);
+        leftPanel.addUIElement(leftTip).inTL(pad, pad);
+
+        // ── Center: dialogue + Auto-Balance button ────────────────
+        CustomPanelAPI centerPanel = headerPanel.createCustomPanel(colW, headerH, null);
+        headerPanel.addComponent((UIComponentAPI) centerPanel).inTL(colW, 0);
+        TooltipMakerAPI centerTip = centerPanel.createUIElement(colW - pad * 2f, headerH, false);
+
+        ReputationTier baseT = ReputationTier.fromRelation(
+                targetFaction.getRelationship(playerFactionId));
+        String line = resolveDialogue(leader, Situation.GREETING, mood.effectiveTier(baseT));
+        centerTip.addPara("\"" + line + "\"", Misc.getGrayColor(), 0f);
+        centerTip.addSpacer(8f);
+        centerTip.addButton("⚖ Auto-Balance", BTN_AUTO_NEGOTIATE,
+                Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
+                Alignment.MID, CutStyle.ALL, colW - pad * 4f, 22f, 4f);
+        centerPanel.addUIElement(centerTip).inTL(pad, pad);
+
+        // ── Right: leader portrait + identity ─────────────────────
+        CustomPanelAPI rightPanel = headerPanel.createCustomPanel(colW, headerH, null);
+        headerPanel.addComponent((UIComponentAPI) rightPanel).inTL(colW * 2f, 0);
+        TooltipMakerAPI rightTip = rightPanel.createUIElement(colW - pad, headerH, false);
+
+        rightTip.addImage(leader.portraitSpriteForCampaignImage(), 48f, 48f, 0f);
+        rightTip.addPara(leader.displayName(), targetFaction.getBaseUIColor(), pad);
+        rightTip.addPara(factionName(targetFactionId), Misc.getTextColor(), 2f);
+        rightTip.addPara(relationBadge(targetFaction, playerFac), Misc.getTextColor(), 2f);
+        java.util.List<String> traits = leader.getTraits();
+        if (!traits.isEmpty()) {
+            rightTip.addPara("Mood: " + mood.getDelta(), Misc.getGrayColor(), 2f);
+            rightTip.addPara("Traits: " + joinTraits(traits), Misc.getGrayColor(), 2f);
+        }
+        rightPanel.addUIElement(rightTip).inTL(pad, pad);
+
+        return y + headerH + 6f;
+    }
+
     private void renderPressureRow(TooltipMakerAPI info, float width,
                                    Color factionColor, Color darkColor) {
         PressureManager pm = PressureManager.getOrCreate();
