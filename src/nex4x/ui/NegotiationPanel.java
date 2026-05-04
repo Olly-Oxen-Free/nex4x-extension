@@ -278,6 +278,35 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
     }
 
+    // ── Balance bar ───────────────────────────────────────────
+
+    private float buildBalanceBar(CustomPanelAPI panel, float x, float y, float contentW) {
+        float barH = 18f;
+        float pad  = 6f;
+        float innerW = contentW - pad * 2f;
+
+        float rawBalance = deal.getBalance(valuator);
+        float normalized = Math.max(-1f, Math.min(1f, rawBalance / 10000f));
+
+        BalanceBarPlugin plugin = new BalanceBarPlugin(innerW, barH, normalized);
+        CustomPanelAPI barPanel = Global.getSettings().createCustom(innerW, barH, plugin);
+        plugin.attach(barPanel);
+        panel.addComponent((com.fs.starfarer.api.ui.UIComponentAPI) barPanel).inTL(x + pad, y + 14f);
+
+        // "Favors you" label — left
+        TooltipMakerAPI leftLabel = panel.createUIElement(contentW / 2f, 14f, false);
+        leftLabel.addPara("◄ Favors you", new Color(126, 200, 227, 255), 0f);
+        panel.addUIElement(leftLabel).inTL(x, y);
+
+        // "Favors them" label — right
+        TooltipMakerAPI rightLabel = panel.createUIElement(contentW / 2f, 14f, false);
+        LabelAPI rl = rightLabel.addPara("Favors them ►", new Color(200, 180, 126, 255), 0f);
+        rl.setAlignment(com.fs.starfarer.api.ui.Alignment.RMID);
+        panel.addUIElement(rightLabel).inTL(x + contentW / 2f, y);
+
+        return y + 14f + barH + pad;
+    }
+
     // ── Deal columns ──────────────────────────────────────────
 
     private float buildDealColumns(CustomPanelAPI panel, float x, float y,
@@ -303,7 +332,7 @@ public class NegotiationPanel extends BasePopUpDialog {
                 float val = valuator.evaluate(item, targetFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
-                leftTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                leftTip.addPara(label, Misc.getHighlightColor(), 3f, Misc.getHighlightColor(), item.getDisplayLabel());
                 leftTip.addButton("[✕]", REMOVE_OFFER_PREFIX + i,
                         Misc.getNegativeHighlightColor(), new Color(30, 10, 10, 255),
                         28f, 16f, 2f);
@@ -328,7 +357,7 @@ public class NegotiationPanel extends BasePopUpDialog {
                 float val = valuator.evaluate(item, targetFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
-                rightTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                rightTip.addPara(label, Misc.getHighlightColor(), 3f, Misc.getHighlightColor(), item.getDisplayLabel());
                 rightTip.addButton("[✕]", REMOVE_REQUEST_PREFIX + i,
                         Misc.getNegativeHighlightColor(), targetFaction.getDarkUIColor(),
                         28f, 16f, 2f);
@@ -336,7 +365,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
         rightPanel.addUIElement(rightTip).inTL(pad, pad);
 
-        return y + dealH;
+        return y + dealH + 6f;
     }
 
     // ── Balance rendering ─────────────────────────────────────
