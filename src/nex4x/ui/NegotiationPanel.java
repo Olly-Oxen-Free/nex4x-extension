@@ -278,6 +278,67 @@ public class NegotiationPanel extends BasePopUpDialog {
         }
     }
 
+    // ── Deal columns ──────────────────────────────────────────
+
+    private float buildDealColumns(CustomPanelAPI panel, float x, float y,
+                                   float contentW, float colGap, FactionAPI targetFaction) {
+        float dealH = 130f;
+        float colW  = (contentW - colGap) / 2f;
+        float pad   = 6f;
+
+        // ── YOUR OFFER ────────────────────────────────────────────
+        CustomPanelAPI leftPanel = panel.createCustomPanel(colW, dealH, null);
+        panel.addComponent((UIComponentAPI) leftPanel).inTL(x, y);
+        TooltipMakerAPI leftTip = leftPanel.createUIElement(colW - pad * 2f, dealH - pad * 2f, false);
+
+        leftTip.addSectionHeading("YOUR OFFER", Misc.getBasePlayerColor(),
+                new Color(0, 30, 60, 255), Alignment.MID, 0f);
+
+        java.util.List<NegotiableItem> offers = deal.getOffers();
+        if (offers.isEmpty()) {
+            leftTip.addPara("Nothing offered yet.", Misc.getGrayColor(), 4f);
+        } else {
+            for (int i = 0; i < offers.size(); i++) {
+                NegotiableItem item = offers.get(i);
+                float val = valuator.evaluate(item, targetFactionId);
+                String label = item.getDisplayLabel()
+                        + "  (" + String.format("%.0f", val) + ")";
+                leftTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                leftTip.addButton("[✕]", REMOVE_OFFER_PREFIX + i,
+                        Misc.getNegativeHighlightColor(), new Color(30, 10, 10, 255),
+                        28f, 16f, 2f);
+            }
+        }
+        leftPanel.addUIElement(leftTip).inTL(pad, pad);
+
+        // ── YOUR REQUESTS ─────────────────────────────────────────
+        CustomPanelAPI rightPanel = panel.createCustomPanel(colW, dealH, null);
+        panel.addComponent((UIComponentAPI) rightPanel).inTL(x + colW + colGap, y);
+        TooltipMakerAPI rightTip = rightPanel.createUIElement(colW - pad * 2f, dealH - pad * 2f, false);
+
+        rightTip.addSectionHeading("YOUR REQUESTS", targetFaction.getBaseUIColor(),
+                targetFaction.getDarkUIColor(), Alignment.MID, 0f);
+
+        java.util.List<NegotiableItem> requests = deal.getRequests();
+        if (requests.isEmpty()) {
+            rightTip.addPara("Nothing requested yet.", Misc.getGrayColor(), 4f);
+        } else {
+            for (int i = 0; i < requests.size(); i++) {
+                NegotiableItem item = requests.get(i);
+                float val = valuator.evaluate(item, targetFactionId);
+                String label = item.getDisplayLabel()
+                        + "  (" + String.format("%.0f", val) + ")";
+                rightTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                rightTip.addButton("[✕]", REMOVE_REQUEST_PREFIX + i,
+                        Misc.getNegativeHighlightColor(), targetFaction.getDarkUIColor(),
+                        28f, 16f, 2f);
+            }
+        }
+        rightPanel.addUIElement(rightTip).inTL(pad, pad);
+
+        return y + dealH;
+    }
+
     // ── Balance rendering ─────────────────────────────────────
 
     private void renderBalanceSection(TooltipMakerAPI info) {
