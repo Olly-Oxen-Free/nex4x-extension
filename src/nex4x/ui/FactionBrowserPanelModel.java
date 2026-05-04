@@ -577,15 +577,7 @@ public class FactionBrowserPanelModel implements Serializable {
             if (id.startsWith(BUTTON_CONTACT_LEADER_PREFIX)) {
                 final String fid = id.substring(BUTTON_CONTACT_LEADER_PREFIX.length());
                 if (LeaderAccessGate.isOpen(fid)) {
-                    if (intelUi != null) {
-                        Nex4xDeferredUi.runNextFrame(new Runnable() {
-                            public void run() {
-                                NegotiationPanel.openScaled(fid, false);
-                            }
-                        });
-                    } else {
-                        NegotiationPanel.openScaled(fid, false);
-                    }
+                    NegotiationPanel.openScaled(fid, false);
                 } else {
                     final MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
                     if (m != null) {
@@ -609,17 +601,7 @@ public class FactionBrowserPanelModel implements Serializable {
         }
         if (BUTTON_NEGOTIATE == buttonId && selectedFactionId != null) {
             boolean viceroy = !LeaderAccessGate.isOpen(selectedFactionId);
-            if (intelUi != null) {
-                final String fid = selectedFactionId;
-                final boolean v = viceroy;
-                Nex4xDeferredUi.runNextFrame(new Runnable() {
-                    public void run() {
-                        NegotiationPanel.openScaled(fid, v);
-                    }
-                });
-            } else {
-                NegotiationPanel.openScaled(selectedFactionId, viceroy);
-            }
+            NegotiationPanel.openScaled(selectedFactionId, viceroy);
         }
     }
 
