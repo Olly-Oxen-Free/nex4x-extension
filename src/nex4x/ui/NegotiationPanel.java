@@ -49,6 +49,8 @@ public class NegotiationPanel extends BasePopUpDialog {
     private static final String ADD_OFFER_PREFIX = "add_o_";
     private static final String ADD_REQUEST_PREFIX = "add_r_";
     private static final String BTN_AUTO_NEGOTIATE = "auto_neg";
+    private static final String BTN_DECLARE_WAR    = "btn_declare_war";
+    private static final String BTN_DENOUNCE       = "btn_denounce";
 
     // ── State ─────────────────────────────────────────────────
     private final String targetFactionId;
@@ -208,6 +210,26 @@ public class NegotiationPanel extends BasePopUpDialog {
             return;
         }
 
+        if (BTN_DECLARE_WAR.equals(id)) {
+            Nex4xManager mgr = Nex4xManager.getOrCreateManager();
+            mgr.getExecutor(playerFactionId).declareWarPlayer(targetFactionId);
+            Global.getSector().getCampaignUI().addMessage(
+                    "War declared on " + factionName(targetFactionId) + ".",
+                    Misc.getNegativeHighlightColor());
+            removeUI();
+            return;
+        }
+
+        if (BTN_DENOUNCE.equals(id)) {
+            Nex4xManager mgr = Nex4xManager.getOrCreateManager();
+            mgr.getDeclarationManager().declareDenouncement(playerFactionId, targetFactionId);
+            Global.getSector().getCampaignUI().addMessage(
+                    "You publicly denounce " + factionName(targetFactionId) + ".",
+                    Misc.getNegativeHighlightColor());
+            removeUI();
+            return;
+        }
+
         if (id.startsWith(ADD_OFFER_PREFIX)) {
             String key = id.substring(ADD_OFFER_PREFIX.length());
             NegotiableItem item = createItemFromKey(key);
@@ -332,7 +354,7 @@ public class NegotiationPanel extends BasePopUpDialog {
                 float val = valuator.evaluate(item, targetFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
-                leftTip.addPara(label, Misc.getHighlightColor(), 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                leftTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
                 leftTip.addButton("[✕]", REMOVE_OFFER_PREFIX + i,
                         Misc.getNegativeHighlightColor(), new Color(30, 10, 10, 255),
                         28f, 16f, 2f);
@@ -357,7 +379,7 @@ public class NegotiationPanel extends BasePopUpDialog {
                 float val = valuator.evaluate(item, targetFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
-                rightTip.addPara(label, Misc.getHighlightColor(), 3f, Misc.getHighlightColor(), item.getDisplayLabel());
+                rightTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
                 rightTip.addButton("[✕]", REMOVE_REQUEST_PREFIX + i,
                         Misc.getNegativeHighlightColor(), targetFaction.getDarkUIColor(),
                         28f, 16f, 2f);
@@ -370,177 +392,166 @@ public class NegotiationPanel extends BasePopUpDialog {
 
     // ── Balance rendering ─────────────────────────────────────
 
-    private void renderBalanceSection(TooltipMakerAPI info) {
-        float balance = deal.getBalance(valuator);
-        String balanceStr = String.format("Balance: %+.0f", balance);
-        Color balanceColor;
-        if (balance > 1000) {
-            balanceColor = Misc.getPositiveHighlightColor();
-        } else if (balance > -1000) {
-            balanceColor = Misc.getHighlightColor();
-        } else {
-            balanceColor = Misc.getNegativeHighlightColor();
-        }
-
-        LabelAPI label = info.addPara(balanceStr, 0);
-        label.setHighlight(balanceStr);
-        label.setHighlightColor(balanceColor);
-
-        if (deal.isEmpty()) {
-            info.addPara("Add items to both sides to see an assessment.",
-                    Misc.getGrayColor(), 3f);
-        } else {
-            info.addPara(getAssessmentText(balance), 3f);
-        }
-    }
-
-    private String getAssessmentText(float balance) {
-        boolean alwaysVisible = "always_visible".equals(Nex4xSettings.negotiationAssessmentMode);
-
-        if (!alwaysVisible) {
-            return "Your agents have insufficient insight into their decision-making.";
-        }
-
-        if (balance > 5000) {
-            return "They would eagerly accept these terms.";
-        } else if (balance > 1000) {
-            return "They would likely accept.";
-        } else if (balance > -1000) {
-            return "The deal is borderline - could go either way.";
-        } else if (balance > -5000) {
-            return "They would likely reject. The terms are unfavorable to them.";
-        } else {
-            return "They would firmly reject. This is far below what they'd accept.";
-        }
-    }
-
     // ── Item catalog ──────────────────────────────────────────
 
-    private void addCatalogItems(TooltipMakerAPI catalog, NegotiableItemType type, float pad) {
-        float btnWidth = 70f;
-        float btnHeight = 18f;
+    private void buildCatalog(CustomPanelAPI panel, float x, float y,
+                              float contentW, float catalogH, FactionAPI targetFaction) {
+        float pad   = 6f;
+        float btnW  = 80f;
+        float btnH  = 18f;
+        Color factionColor = targetFaction.getBaseUIColor();
+        Color factionDark  = targetFaction.getDarkUIColor();
+        Color playerColor  = Misc.getBasePlayerColor();
+        Color playerDark   = Misc.getDarkPlayerColor();
 
+        TooltipMakerAPI info = panel.createUIElement(contentW - pad, catalogH, true);
+        panel.addUIElement(info).inTL(x, y);
+
+        info.addSectionHeading("AVAILABLE ITEMS", factionColor, factionDark, Alignment.MID, 0f);
+
+        boolean ceasefireOnTable = deal.hasCeasefire();
+
+        for (NegotiableItemType type : NegotiableItemType.values()) {
+            if (viceroyMode && isViceroyCatalogTypeExcluded(type)) continue;
+            if (type == NegotiableItemType.DECLARATIONS) continue;
+            boolean available = type.isAvailable(currentTier, atWar, ceasefireOnTable);
+            boolean expanded  = expandedCategories.contains(type);
+            String arrow = expanded ? "▼ " : "► ";
+            Color headerColor = available ? Misc.getTextColor() : Misc.getGrayColor();
+
+            info.addButton(arrow + type.displayName,
+                    CAT_TOGGLE_PREFIX + type.name(),
+                    headerColor, new Color(20, 20, 20, 255),
+                    Alignment.LMID, CutStyle.ALL,
+                    contentW - pad * 3f, 20f, pad);
+
+            if (!available) {
+                info.addPara("  " + getUnavailableReason(type), Misc.getGrayColor(), 2f);
+                continue;
+            }
+
+            if (!expanded) continue;
+
+            addCatalogItemsThreeZone(info, type, btnW, btnH, pad,
+                    playerColor, playerDark, factionColor, factionDark);
+        }
+
+        // ── Declarations ──────────────────────────────────────
+        info.addSectionHeading("DECLARATIONS", new Color(180, 60, 60, 255),
+                new Color(40, 0, 0, 255), Alignment.MID, pad);
+        info.addPara("Unilateral — cannot be refused.", Misc.getGrayColor(), 2f);
+        info.addButton("Declare War", BTN_DECLARE_WAR,
+                new Color(200, 80, 80, 255), new Color(50, 0, 0, 255),
+                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 24f, pad);
+        info.addButton("Denounce", BTN_DENOUNCE,
+                new Color(200, 80, 80, 255), new Color(50, 0, 0, 255),
+                Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 24f, 4f);
+    }
+
+    private void addCatalogItemsThreeZone(TooltipMakerAPI info, NegotiableItemType type,
+                                          float btnW, float btnH, float pad,
+                                          Color playerColor, Color playerDark,
+                                          Color factionColor, Color factionDark) {
         switch (type) {
             case CREDITS:
-                addDualButtons(catalog, "10,000 credits",
-                        "credits_10000", btnWidth, btnHeight, pad);
-                addDualButtons(catalog, "50,000 credits",
-                        "credits_50000", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "10,000 credits", "credits_10000",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
+                addThreeZoneRow(info, "50,000 credits", "credits_50000",
+                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case TRIBUTE:
-                addDualButtons(catalog, "5,000 cr/cycle (90 days)",
-                        "tribute_5000", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "5,000 cr/cycle (90 days)", "tribute_5000",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case AGREEMENTS: {
                 AgreementType[] types = viceroyMode
                         ? new AgreementType[]{AgreementType.TRADE_AGREEMENT}
                         : getAvailableAgreementTypes();
                 for (AgreementType at : types) {
-                    addDualButtons(catalog, at.displayName,
-                            "agree_" + at.name(), btnWidth, btnHeight, pad);
+                    addThreeZoneRow(info, at.displayName, "agree_" + at.name(),
+                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 }
                 break;
             }
-
             case PEACE_TERMS:
-                addDualButtons(catalog, "Ceasefire",
-                        "ceasefire", btnWidth, btnHeight, pad);
-                addDualButtons(catalog, "Peace Treaty",
-                        "peace_treaty", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "Ceasefire", "ceasefire",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
+                addThreeZoneRow(info, "Peace Treaty", "peace_treaty",
+                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case WAR_DECLARATION:
                 for (FactionAPI faction : Global.getSector().getAllFactions()) {
                     if (faction.getId().equals(playerFactionId)) continue;
                     if (faction.getId().equals(targetFactionId)) continue;
                     if (faction.isNeutralFaction()) continue;
                     if (!hasMarkets(faction.getId())) continue;
-                    addDualButtons(catalog, "War on " + faction.getDisplayName(),
-                            "war_" + faction.getId(), btnWidth, btnHeight, pad);
+                    addThreeZoneRow(info, "War on " + faction.getDisplayName(),
+                            "war_" + faction.getId(),
+                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 }
                 break;
-
             case TERRITORY:
                 for (MarketAPI market : Global.getSector().getEconomy().getMarketsCopy()) {
                     if (market.getFactionId().equals(playerFactionId)) {
-                        catalog.addPara("  " + market.getName()
-                                + " (yours, size " + market.getSize() + ")", pad);
-                        catalog.addButton("[<- Offer]",
-                                ADD_OFFER_PREFIX + "territory_" + market.getId(),
-                                Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
-                                btnWidth, btnHeight, 2f);
+                        addThreeZoneRow(info, market.getName() + " (yours, size " + market.getSize() + ")",
+                                "territory_" + market.getId(),
+                                btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                     } else if (market.getFactionId().equals(targetFactionId)) {
-                        catalog.addPara("  " + market.getName()
-                                + " (theirs, size " + market.getSize() + ")", pad);
-                        catalog.addButton("[Request >]",
-                                ADD_REQUEST_PREFIX + "territory_" + market.getId(),
-                                Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
-                                btnWidth, btnHeight, 2f);
+                        addThreeZoneRow(info, market.getName() + " (theirs, size " + market.getSize() + ")",
+                                "territory_" + market.getId(),
+                                btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                     }
                 }
                 break;
-
             case COMMODITIES:
                 String[] commodities = {"supplies", "fuel", "metals", "rare_metals",
                         "organics", "food", "hand_weapons"};
                 for (String c : commodities) {
-                    addDualButtons(catalog, "500 x " + c,
-                            "commodity_" + c, btnWidth, btnHeight, pad);
+                    addThreeZoneRow(info, "500 x " + c, "commodity_" + c,
+                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 }
                 break;
-
             case KNOWLEDGE:
-                addDualButtons(catalog, "Blueprint package",
-                        "knowledge_blueprints", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "Blueprint package", "knowledge_blueprints",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case INTEL:
-                addDualButtons(catalog, "Map data",
-                        "intel_map", btnWidth, btnHeight, pad);
-                addDualButtons(catalog, "Fleet intel",
-                        "intel_fleet", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "Map data", "intel_map",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
+                addThreeZoneRow(info, "Fleet intel", "intel_fleet",
+                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case CONTRACTS:
-                addDualButtons(catalog, "Mercenary contract (180 days)",
-                        "contract_mercenary", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "Mercenary contract (180 days)", "contract_mercenary",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 break;
-
             case CONCESSIONS:
                 for (FactionAPI faction : Global.getSector().getAllFactions()) {
                     if (faction.getId().equals(playerFactionId)) continue;
                     if (faction.getId().equals(targetFactionId)) continue;
                     if (faction.isNeutralFaction()) continue;
                     if (!hasMarkets(faction.getId())) continue;
-                    addDualButtons(catalog, "Embargo " + faction.getDisplayName(),
+                    addThreeZoneRow(info, "Embargo " + faction.getDisplayName(),
                             "concession_embargo_" + faction.getId(),
-                            btnWidth, btnHeight, pad);
+                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 }
                 break;
-
             case PRISONERS:
-                addDualButtons(catalog, "Prisoner exchange",
-                        "prisoner_exchange", btnWidth, btnHeight, pad);
+                addThreeZoneRow(info, "Prisoner exchange", "prisoner_exchange",
+                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
                 break;
         }
     }
 
-    /**
-     * Adds a labeled row with [<- Offer] and [Request >] buttons.
-     * The itemKey is shared — prefixed with ADD_OFFER_ or ADD_REQUEST_ as button IDs.
-     */
-    private void addDualButtons(TooltipMakerAPI tooltip, String label,
-                                String itemKey, float btnWidth, float btnHeight, float pad) {
-        Color baseColor = Misc.getButtonTextColor();
-        Color darkColor = Misc.getDarkPlayerColor();
-
-        tooltip.addPara("  " + label, pad);
-        tooltip.addButton("[<- Offer]", ADD_OFFER_PREFIX + itemKey,
-                baseColor, darkColor, btnWidth, btnHeight, 2f);
-        tooltip.addButton("[Request >]", ADD_REQUEST_PREFIX + itemKey,
-                baseColor, darkColor, btnWidth, btnHeight, 2f);
+    private void addThreeZoneRow(TooltipMakerAPI info, String label, String itemKey,
+                                 float btnW, float btnH, float topPad,
+                                 Color playerColor, Color playerDark,
+                                 Color factionColor, Color factionDark) {
+        info.addButton("[<- Offer]", ADD_OFFER_PREFIX + itemKey,
+                playerColor, playerDark, btnW, btnH, topPad);
+        info.addPara("  " + label, Misc.getTextColor(), 2f);
+        info.addButton("[Request ->]", ADD_REQUEST_PREFIX + itemKey,
+                factionColor, factionDark, btnW, btnH, 2f);
     }
 
     // ── Item creation from button key ─────────────────────────
@@ -692,37 +703,6 @@ public class NegotiationPanel extends BasePopUpDialog {
                 || type == NegotiableItemType.PRISONERS;
     }
 
-    private void renderLeaderHeader(TooltipMakerAPI info, float width, FactionAPI targetFac,
-                                    Color factionColor, Color darkColor) {
-        LeaderProfile proposerProfile = proposerLeader();
-        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
-
-        TooltipMakerAPI leftCol = info.beginImageWithText(
-                proposerProfile.portraitSpriteForCampaignImage(), 140f);
-        leftCol.addPara(proposerProfile.displayName(), 4f);
-        leftCol.addPara(factionName(playerFactionId), 2f);
-        leftCol.addPara(relationBadge(playerFac, targetFac), 2f);
-        info.addImageWithText(4f);
-
-        ReputationTier baseT = ReputationTier.fromRelation(
-                targetFac.getRelationship(playerFactionId));
-        String line = resolveDialogue(leader, Situation.GREETING, mood.effectiveTier(baseT));
-        info.addPara(leader.displayName() + ": \"" + line + "\"", 8f);
-
-        TooltipMakerAPI rightCol = info.beginImageWithText(
-                leader.portraitSpriteForCampaignImage(), 140f);
-        rightCol.addPara(leader.displayName(), 4f);
-        rightCol.addPara(factionName(targetFactionId), 2f);
-        rightCol.addPara(relationBadge(targetFac, playerFac), 2f);
-        rightCol.addPara("Mood: " + mood.getDelta(), 4f);
-        java.util.List<String> traits = leader.getTraits();
-        if (!traits.isEmpty()) {
-            rightCol.addPara("Traits: " + joinTraits(traits), 2f);
-        }
-        info.addImageWithText(4f);
-        info.addSpacer(6f);
-    }
-
     private float buildLeaderHeader(CustomPanelAPI panel, float x, float y,
                                     float contentW, FactionAPI targetFaction) {
         float headerH = 90f;
@@ -778,28 +758,6 @@ public class NegotiationPanel extends BasePopUpDialog {
         rightPanel.addUIElement(rightTip).inTL(pad, pad);
 
         return y + headerH + 6f;
-    }
-
-    private void renderPressureRow(TooltipMakerAPI info, float width,
-                                   Color factionColor, Color darkColor) {
-        PressureManager pm = PressureManager.getOrCreate();
-        float toThem = pm.getPressure(playerFactionId, targetFactionId);
-        float toUs = pm.getPressure(targetFactionId, playerFactionId);
-        info.addSectionHeading("PRESSURE", factionColor, darkColor, Alignment.MID, 4f);
-        info.addPara(String.format("Your leverage toward them: %.0f", toThem), 2f);
-        info.addPara(String.format("Their leverage toward you: %.0f", toUs), 2f);
-        Map<PressureSource, Float> br = pm.getSources(playerFactionId, targetFactionId);
-        if (br != null && !br.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            for (Map.Entry<PressureSource, Float> e : br.entrySet()) {
-                if (e.getValue() == null || e.getValue() <= 0.5f) continue;
-                if (sb.length() > 0) sb.append("  ");
-                sb.append(e.getKey().displayName).append(": ").append(Math.round(e.getValue()));
-            }
-            if (sb.length() > 0) {
-                info.addPara("Sources (you->them): " + sb.toString(), Misc.getGrayColor(), 4f);
-            }
-        }
     }
 
     LeaderProfile proposerLeader() {
