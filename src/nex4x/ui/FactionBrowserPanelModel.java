@@ -577,11 +577,15 @@ public class FactionBrowserPanelModel implements Serializable {
             if (id.startsWith(BUTTON_CONTACT_LEADER_PREFIX)) {
                 final String fid = id.substring(BUTTON_CONTACT_LEADER_PREFIX.length());
                 if (LeaderAccessGate.isOpen(fid)) {
-                    Nex4xDeferredUi.runNextFrame(new Runnable() {
-                        public void run() {
-                            NegotiationPanel.openScaled(fid, false);
-                        }
-                    });
+                    if (intelUi != null) {
+                        Nex4xDeferredUi.runNextFrame(new Runnable() {
+                            public void run() {
+                                NegotiationPanel.openScaled(fid, false);
+                            }
+                        });
+                    } else {
+                        NegotiationPanel.openScaled(fid, false);
+                    }
                 } else {
                     final MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
                     if (m != null) {

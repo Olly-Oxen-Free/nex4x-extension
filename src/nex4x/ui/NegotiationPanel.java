@@ -33,14 +33,22 @@ import java.util.Set;
 public class NegotiationPanel extends BasePopUpDialog {
 
     private static final Logger log = Global.getLogger(NegotiationPanel.class);
+    private static NegotiationPanel activeInstance = null;
 
     /** Opens the negotiation popup with size derived from the current screen (reduces clipping). */
     public static void openScaled(String targetFactionId, boolean viceroyMode) {
+        if (activeInstance != null) return; // only one panel at a time
         float sw = Global.getSettings().getScreenWidth();
         float sh = Global.getSettings().getScreenHeight();
         int w = (int) Math.min(1100f, Math.max(640f, sw * 0.7f));
         int h = (int) Math.min(780f, Math.max(560f, sh * 0.72f));
         BasePopUpDialog.popUpDialog(new NegotiationPanel(targetFactionId, viceroyMode), w, h);
+    }
+
+    @Override
+    public void removeUI() {
+        activeInstance = null;
+        super.removeUI();
     }
 
     // ── Button ID prefixes ────────────────────────────────────
@@ -80,6 +88,7 @@ public class NegotiationPanel extends BasePopUpDialog {
 
     public NegotiationPanel(String targetFactionId, boolean viceroyMode) {
         super(negotiateTitle(targetFactionId));
+        activeInstance = this;
         this.targetFactionId = targetFactionId;
         this.playerFactionId = Global.getSector().getPlayerFaction().getId();
         this.viceroyMode = viceroyMode;
