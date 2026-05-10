@@ -234,6 +234,93 @@ public class Nex4xDebugCommand {
         return sb.toString();
     }
 
+    /** runcode nex4x.debug.Nex4xDebugCommand.auditNexSync() — CB coverage, coalition shadow, floor compliance, and sweepDiplomacyBrains. */
+    public static String auditNexSync() {
+        StringBuilder sb = new StringBuilder("[nex4x audit-nex-sync]\n");
+        nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getManager();
+        if (mgr == null) {
+            sb.append("  Nex4xManager: not initialized\n");
+            com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(sb.toString());
+            return sb.toString();
+        }
+
+        // 1. Active wars + CB coverage
+        try {
+            int cbCovered = 0, cbAbsent = 0;
+            java.util.List<com.fs.starfarer.api.campaign.FactionAPI> factions =
+                    com.fs.starfarer.api.Global.getSector().getAllFactions();
+            for (com.fs.starfarer.api.campaign.FactionAPI a : factions) {
+                if (a.isNeutralFaction()) continue;
+                for (com.fs.starfarer.api.campaign.FactionAPI b : factions) {
+                    if (b == a || b.isNeutralFaction()) continue;
+                    if (!a.isHostileTo(b)) continue;
+                    nex4x.casusbelli.CasusBelli cb =
+                            mgr.getCasusBelliManager().getActiveCasusBelliFor(a.getId(), b.getId());
+                    if (cb != null) cbCovered++; else cbAbsent++;
+                }
+            }
+            sb.append("  [1] Active wars CB coverage: covered=").append(cbCovered)
+              .append(" absent=").append(cbAbsent).append("\n");
+        } catch (Throwable t) {
+            sb.append("  [1] CB coverage audit failed: ").append(t.getMessage()).append("\n");
+        }
+
+        // 2. Coalition shadow coverage
+        try {
+            int total = 0, shadowed = 0;
+            for (nex4x.agreements.Agreement a : mgr.getAgreementManager().getAllAgreements()) {
+                if (!a.isActive()) continue;
+                if (a.getType() != nex4x.agreements.AgreementType.COALITION) continue;
+                total++;
+                exerelin.campaign.alliances.Alliance al =
+                        exerelin.campaign.AllianceManager.getFactionAlliance(a.getFactionIdA());
+                if (al != null) shadowed++;
+                sb.append("  COALITION ").append(a.getFactionIdA()).append("<->")
+                  .append(a.getFactionIdB())
+                  .append(" alliance=").append(al != null ? al.getName() : "<none>").append("\n");
+            }
+            sb.append("  [2] Coalition shadow: shadowed=").append(shadowed)
+              .append(" unshadowed=").append(total - shadowed).append("\n");
+        } catch (Throwable t) {
+            sb.append("  [2] Coalition shadow audit failed: ").append(t.getMessage()).append("\n");
+        }
+
+        // 3. NAP/DefPact/MilPartner/EconPartner floor compliance
+        try {
+            int met = 0, belowFloor = 0;
+            java.util.Map<nex4x.agreements.AgreementType, Float> floors =
+                    new java.util.EnumMap<>(nex4x.agreements.AgreementType.class);
+            floors.put(nex4x.agreements.AgreementType.NAP, 0.10f);
+            floors.put(nex4x.agreements.AgreementType.DEFENSIVE_PACT, 0.25f);
+            floors.put(nex4x.agreements.AgreementType.MILITARY_PARTNERSHIP, 0.50f);
+            floors.put(nex4x.agreements.AgreementType.ECONOMIC_PARTNERSHIP, 0.25f);
+            for (nex4x.agreements.Agreement a : mgr.getAgreementManager().getAllAgreements()) {
+                if (!a.isActive()) continue;
+                Float floor = floors.get(a.getType());
+                if (floor == null) continue;
+                float rel = com.fs.starfarer.api.Global.getSector()
+                        .getFaction(a.getFactionIdA()).getRelationship(a.getFactionIdB());
+                if (rel >= floor) met++; else belowFloor++;
+            }
+            sb.append("  [3] Floor compliance: met=").append(met)
+              .append(" belowFloor=").append(belowFloor).append("\n");
+        } catch (Throwable t) {
+            sb.append("  [3] Floor compliance audit failed: ").append(t.getMessage()).append("\n");
+        }
+
+        // 4. DiplomacyBrain sweep
+        try {
+            nex4x.integration.NexDiplomacyBridge.sweepDiplomacyBrains();
+            sb.append("  [4] sweepDiplomacyBrains: ran OK\n");
+        } catch (Throwable t) {
+            sb.append("  [4] sweepDiplomacyBrains failed: ").append(t.getMessage()).append("\n");
+        }
+
+        sb.append("[OK]");
+        com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(sb.toString());
+        return sb.toString();
+    }
+
     /** runcode nex4x.debug.Nex4xDebugCommand.auditRels() — prints relation diagnostics for all live factions vs player. */
     public static String auditRels() {
         StringBuilder sb = new StringBuilder("[nex4x audit-rels]\n");
