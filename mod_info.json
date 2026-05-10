@@ -9,7 +9,8 @@
     "modPlugin": "nex4x.Nex4xModPlugin",
     "dependencies": [
         {"id": "nexerelin", "name": "Nexerelin"},
-        {"id": "ashlib", "name": "Ashlib"}
+        {"id": "ashlib", "name": "Ashlib"},
+        {"id": "wfg_native_ui", "name": "WrapUI"}
     ],
     "softDependencies": [
         {"id": "lunalib", "name": "LunaLib"}

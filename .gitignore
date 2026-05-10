@@ -1,2 +1,5 @@
 .superpowers/
 .serena/
+
+# KARIMO worktrees
+.karimo/.worktrees/
