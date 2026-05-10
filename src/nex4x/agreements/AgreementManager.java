@@ -10,6 +10,7 @@ import org.apache.log4j.Logger;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -58,9 +59,22 @@ public class AgreementManager implements Serializable {
         Agreement agreement = new Agreement(factionA, factionB, type, viaViceroy);
         agreements.add(agreement);
 
+        if (type == AgreementType.COALITION) {
+            try {
+                nex4x.integration.NexDiplomacyBridge.ensureAlliance(factionA, factionB);
+            } catch (Throwable t) {
+                log.warn("[Nex4x] Coalition alliance bridge: " + t.getMessage());
+            }
+        }
+
         log.info("[Nex4x] Agreement created: " + type.displayName
                 + " between " + factionA + " and " + factionB);
         return agreement;
+    }
+
+    /** Returns an immutable view of all agreements (active and inactive). Used by save migration. */
+    public java.util.List<Agreement> getAllAgreements() {
+        return Collections.unmodifiableList(agreements);
     }
 
     /** Get the current alliance-track agreement between two factions, or null (= Cold War). */
@@ -115,10 +129,10 @@ public class AgreementManager implements Serializable {
 
     /** Check if proposing this agreement type is valid between two factions. */
     public boolean canPropose(String factionA, String factionB, AgreementType type) {
-        // Check relation threshold
-        float rel = Global.getSector().getFaction(factionA)
-                .getRelationship(factionB);
-        if (rel < type.relationThreshold) return false;
+        com.fs.starfarer.api.campaign.FactionAPI fa = Global.getSector().getFaction(factionA);
+        if (fa == null) return false;
+        float rel = fa.getRelationship(factionB);
+        if (!nex4x.util.Nex4xRelations.atLeastPct(rel, type.relationThreshold)) return false;
 
         // Check tier ladder
         if (type.isAllianceTrack()) {
