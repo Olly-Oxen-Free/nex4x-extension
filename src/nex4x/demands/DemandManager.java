@@ -24,13 +24,28 @@ public class DemandManager implements Serializable {
     private final List<Demand> active = new ArrayList<Demand>();
 
     private static float now() {
-        return Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 
-    /** Returns null if demander cannot afford costs. */
+    /** Returns null if demander cannot afford costs or if input is invalid. */
     public Demand issue(String demanderId, String targetId, Demand.DemandType type,
                         String payload, float pressureCost, float influenceCost) {
+        if (demanderId == null || targetId == null || type == null) {
+            log.warn("[Nex4x] Demand.issue: null arg rejected");
+            return null;
+        }
+        if (demanderId.equals(targetId)) {
+            log.warn("[Nex4x] Demand.issue: self-target rejected (" + demanderId + ")");
+            return null;
+        }
+        if (type == Demand.DemandType.CEDE_MARKET && (payload == null || payload.isEmpty())) {
+            log.warn("[Nex4x] Demand.issue: CEDE_MARKET requires non-empty payload (marketId)");
+            return null;
+        }
+        if (pressureCost < 0f || influenceCost < 0f) {
+            log.warn("[Nex4x] Demand.issue: negative cost rejected");
+            return null;
+        }
         InfluenceManager infl = InfluenceManager.getOrCreate();
         PressureManager press = PressureManager.getOrCreate();
         if (!infl.getLedger(demanderId).canAfford(influenceCost)) {
@@ -55,7 +70,91 @@ public class DemandManager implements Serializable {
     public void accept(Demand d) {
         if (d.getStatus() != Demand.DemandStatus.PENDING) return;
         d.setStatus(Demand.DemandStatus.ACCEPTED);
-        log.info("[Nex4x] Demand accepted: " + d.getDemanderId() + " -> " + d.getTargetId());
+        applyDemandEffect(d);
+        log.info("[Nex4x] Demand accepted: " + d.getDemanderId() + " -> " + d.getTargetId()
+                + " : " + d.getType());
+    }
+
+    /** Apply the in-world effect of an accepted demand. Conservative: log+status if effect not implemented. */
+    private void applyDemandEffect(Demand d) {
+        try {
+            switch (d.getType()) {
+                case TRIBUTE_CREDITS: {
+                    long amount = parseLongOr(d.getPayload(), 0L);
+                    if (amount > 0) {
+                        com.fs.starfarer.api.campaign.FactionAPI demander =
+                                Global.getSector().getFaction(d.getDemanderId());
+                        if (demander != null && demander.isPlayerFaction()) {
+                            Global.getSector().getPlayerFleet().getCargo().getCredits().add(amount);
+                        }
+                    }
+                    break;
+                }
+                case END_WAR: {
+                    com.fs.starfarer.api.campaign.FactionAPI a =
+                            Global.getSector().getFaction(d.getDemanderId());
+                    com.fs.starfarer.api.campaign.FactionAPI b =
+                            Global.getSector().getFaction(d.getTargetId());
+                    nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(a, b);
+                    break;
+                }
+                case BREAK_ALLIANCE: {
+                    // Nex owns alliances — call into its API.
+                    exerelin.campaign.AllianceManager am = null;
+                    try {
+                        am = exerelin.campaign.AllianceManager.getManager();
+                    } catch (Throwable nexMissing) {
+                        log.warn("[Nex4x] BREAK_ALLIANCE: Nex AllianceManager unavailable: "
+                                + nexMissing.getMessage());
+                    }
+                    if (am != null) {
+                        exerelin.campaign.alliances.Alliance alliance =
+                                exerelin.campaign.AllianceManager.getFactionAlliance(d.getTargetId());
+                        if (alliance != null) {
+                            am.leaveAlliance(d.getTargetId(), alliance);
+                            log.info("[Nex4x] BREAK_ALLIANCE: " + d.getTargetId()
+                                    + " left alliance " + alliance.getName());
+                        }
+                    }
+                    break;
+                }
+                case CEDE_MARKET: {
+                    // Nex owns market transfers; payload = marketId.
+                    com.fs.starfarer.api.campaign.econ.MarketAPI mkt =
+                            Global.getSector().getEconomy().getMarket(d.getPayload());
+                    com.fs.starfarer.api.campaign.FactionAPI giver =
+                            Global.getSector().getFaction(d.getTargetId());
+                    com.fs.starfarer.api.campaign.FactionAPI receiver =
+                            Global.getSector().getFaction(d.getDemanderId());
+                    if (mkt != null && giver != null && receiver != null
+                            && giver.getId().equals(mkt.getFactionId())) {
+                        try {
+                            exerelin.campaign.SectorManager.transferMarket(
+                                    mkt, receiver, giver, false, true,
+                                    new java.util.ArrayList<String>(), 0f);
+                            log.info("[Nex4x] CEDE_MARKET: " + mkt.getId() + " "
+                                    + giver.getId() + " -> " + receiver.getId());
+                        } catch (Throwable t) {
+                            log.warn("[Nex4x] CEDE_MARKET transfer failed: " + t.getMessage(), t);
+                        }
+                    } else {
+                        log.warn("[Nex4x] CEDE_MARKET: invalid marketId/payload '"
+                                + d.getPayload() + "' or ownership mismatch");
+                    }
+                    break;
+                }
+                default:
+                    log.info("[Nex4x] Demand effect not yet implemented for " + d.getType());
+                    break;
+            }
+        } catch (Throwable t) {
+            log.warn("[Nex4x] applyDemandEffect failed: " + t.getMessage(), t);
+        }
+    }
+
+    private static long parseLongOr(String s, long fallback) {
+        if (s == null) return fallback;
+        try { return Long.parseLong(s.trim()); } catch (NumberFormatException nfe) { return fallback; }
     }
 
     public void reject(Demand d) {
