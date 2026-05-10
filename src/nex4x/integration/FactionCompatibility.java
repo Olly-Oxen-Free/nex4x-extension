@@ -49,15 +49,27 @@ public class FactionCompatibility {
             exerelin.utilities.NexFactionConfig nfc) {
         TendencyProfile profile = new TendencyProfile();
 
-        // Map NexFactionConfig fields to tendencies
-        // Use reflection to avoid compile errors on varying NexFactionConfig versions
+        // NexFactionConfig (Nex 0.12.x) does not expose scalar militarism/diplomacyPositive
+        // fields. Aggregate the Map<String,Float> diplomacyPositiveChance/Negative entries
+        // via reflection — these are the canonical knobs Nex actually exposes.
         float militarism = 0.5f;
         float dipPositive = 0.5f;
         try {
-            militarism = nfc.getClass().getField("militarism").getFloat(nfc);
-            dipPositive = nfc.getClass().getField("diplomacyPositive").getFloat(nfc);
-        } catch (Exception e) {
-            // field not found in this version of Nex — use defaults
+            Object posMap = nfc.getClass().getField("diplomacyPositiveChance").get(nfc);
+            Object negMap = nfc.getClass().getField("diplomacyNegativeChance").get(nfc);
+            if (posMap instanceof java.util.Map && negMap instanceof java.util.Map) {
+                float posSum = sumFloats((java.util.Map<?, ?>) posMap);
+                float negSum = sumFloats((java.util.Map<?, ?>) negMap);
+                float total = posSum + negSum;
+                if (total > 0f) {
+                    dipPositive = posSum / total;
+                    militarism = negSum / total;
+                }
+            }
+        } catch (NoSuchFieldException nsf) {
+            log.info("[Nex4x] NexFactionConfig diplomacy*Chance fields not present; using defaults");
+        } catch (Throwable t) {
+            log.warn("[Nex4x] deriveFromNexConfig: " + t.getMessage(), t);
         }
 
         profile.set(TendencyId.MILITARISTS, militarism * 5f);
@@ -68,5 +80,13 @@ public class FactionCompatibility {
         profile.set(TendencyId.ECOLOGISTS, 1f);
 
         return profile;
+    }
+
+    private static float sumFloats(java.util.Map<?, ?> m) {
+        float total = 0f;
+        for (Object v : m.values()) {
+            if (v instanceof Number) total += ((Number) v).floatValue();
+        }
+        return total;
     }
 }

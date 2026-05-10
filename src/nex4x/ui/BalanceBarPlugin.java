@@ -43,6 +43,7 @@ public class BalanceBarPlugin implements CustomUIPanelPlugin {
         float y = pos.getY();
         float cx = x + w / 2f;
 
+        GL11.glPushAttrib(GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_ENABLE_BIT);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -67,8 +68,10 @@ public class BalanceBarPlugin implements CustomUIPanelPlugin {
         GL11.glColor4f(0.55f, 0.55f, 0.55f, 1.0f);
         drawRect(cx - 1f, y, 2f, h);
 
+        GL11.glColor4f(1f, 1f, 1f, 1f);
         GL11.glDisable(GL11.GL_BLEND);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glPopAttrib();
     }
 
     private void drawRect(float rx, float ry, float rw, float rh) {

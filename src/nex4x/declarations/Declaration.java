@@ -37,19 +37,22 @@ public class Declaration implements Serializable {
 
     /** Does this declaration involve the given faction (either side)? */
     public boolean involves(String factionId) {
-        return declarerFactionId.equals(factionId) || targetFactionId.equals(factionId);
+        if (factionId == null) return false;
+        return factionId.equals(declarerFactionId) || factionId.equals(targetFactionId);
     }
 
     /** Is this between exactly these two factions (in either direction)? */
     public boolean isBetween(String factionA, String factionB) {
-        return (declarerFactionId.equals(factionA) && targetFactionId.equals(factionB))
-                || (declarerFactionId.equals(factionB) && targetFactionId.equals(factionA));
+        if (factionA == null || factionB == null) return false;
+        return (factionA.equals(declarerFactionId) && factionB.equals(targetFactionId))
+                || (factionB.equals(declarerFactionId) && factionA.equals(targetFactionId));
     }
 
     /** Get the other faction in this declaration. */
     public String getOtherFaction(String factionId) {
-        if (declarerFactionId.equals(factionId)) return targetFactionId;
-        if (targetFactionId.equals(factionId)) return declarerFactionId;
+        if (factionId == null) return null;
+        if (factionId.equals(declarerFactionId)) return targetFactionId;
+        if (factionId.equals(targetFactionId)) return declarerFactionId;
         return null;
     }
 
@@ -60,7 +63,8 @@ public class Declaration implements Serializable {
     }
 
     public boolean isExpired() {
-        return expiryDay > 0 && getCurrentDay() >= expiryDay;
+        // -1 sentinel = permanent; any non-negative expiryDay (including 0) is a real value.
+        return expiryDay >= 0 && getCurrentDay() >= expiryDay;
     }
 
     /** Withdraw / cancel this declaration. */

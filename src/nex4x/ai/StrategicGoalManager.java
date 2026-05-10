@@ -39,8 +39,9 @@ public class StrategicGoalManager implements Serializable {
     private final StrategicFocus focus = new StrategicFocus();
     private final PostureMap postureMap = new PostureMap();
 
-    private float lastImportanceCalcDay = 0;
-    private static final float IMPORTANCE_RECALC_INTERVAL = 7f;
+    /** Timestamp (seconds, opaque) of last importance recalc. 0 = never. */
+    private long lastImportanceCalcTs = 0L;
+    private static final float IMPORTANCE_RECALC_INTERVAL_DAYS = 7f;
 
     public static void loadConfig(JSONObject config) {
         MAX_ACTIVE_GOALS = config.optInt("maxActiveGoals", 8);
@@ -55,7 +56,7 @@ public class StrategicGoalManager implements Serializable {
      * Daily update. Called by Nex4xManager.advance().
      */
     public void advanceDay(GrandStrategyManager grandStrategy) {
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long nowTs = nex4x.util.Nex4xClock.now();
         CommitmentLedger ledger = grandStrategy.getLedger(factionId);
         Archetype archetype = ledger.getCurrentArchetype();
 
@@ -75,8 +76,9 @@ public class StrategicGoalManager implements Serializable {
         }
 
         // 4. Score importance (weekly) and urgency (daily)
-        boolean recalcImportance = (currentDay - lastImportanceCalcDay) >= IMPORTANCE_RECALC_INTERVAL;
-        if (recalcImportance) lastImportanceCalcDay = currentDay;
+        boolean recalcImportance = lastImportanceCalcTs == 0L
+                || nex4x.util.Nex4xClock.daysSince(lastImportanceCalcTs) >= IMPORTANCE_RECALC_INTERVAL_DAYS;
+        if (recalcImportance) lastImportanceCalcTs = nowTs;
 
         Map<String, StrategicGoal> existingByKey = new HashMap<String, StrategicGoal>();
         for (StrategicGoal g : activeGoals) {

@@ -42,7 +42,15 @@ public class NegotiationPanel extends BasePopUpDialog {
         float sh = Global.getSettings().getScreenHeight();
         int w = (int) Math.min(1100f, Math.max(640f, sw * 0.7f));
         int h = (int) Math.min(780f, Math.max(560f, sh * 0.72f));
-        BasePopUpDialog.popUpDialog(new NegotiationPanel(targetFactionId, viceroyMode), w, h);
+        try {
+            BasePopUpDialog.popUpDialog(new NegotiationPanel(targetFactionId, viceroyMode), w, h);
+        } catch (Throwable t) {
+            // Ctor sets activeInstance = this before popUpDialog completes display; if display fails,
+            // clear the singleton so subsequent attempts aren't locked out.
+            activeInstance = null;
+            Global.getLogger(NegotiationPanel.class).warn(
+                    "[Nex4x] NegotiationPanel.openScaled failed: " + t.getMessage(), t);
+        }
     }
 
     @Override
@@ -273,7 +281,17 @@ public class NegotiationPanel extends BasePopUpDialog {
         super.advance(amount);
         if (needsRefresh && panelToInfluence != null) {
             needsRefresh = false;
-            removeUI();
+            // Clear children directly to keep panelToInfluence attached to its parent.
+            // Calling super.removeUI() detaches the popup root, which would render the
+            // subsequent createUI() onto a parent-less panel.
+            try {
+                java.util.List<Object> kids =
+                        nex4x.ui.IntelReflectionUtil.getChildrenNonCopy(panelToInfluence);
+                if (kids != null) kids.clear();
+            } catch (Throwable t) {
+                Global.getLogger(NegotiationPanel.class).warn(
+                        "[Nex4x] NegotiationPanel.advance refresh: " + t.getMessage(), t);
+            }
             createUI(panelToInfluence);
         }
     }
@@ -745,7 +763,7 @@ public class NegotiationPanel extends BasePopUpDialog {
         headerPanel.addComponent((UIComponentAPI) centerPanel).inTL(colW, 0);
         TooltipMakerAPI centerTip = centerPanel.createUIElement(colW - pad * 2f, headerH, false);
 
-        ReputationTier baseT = ReputationTier.fromRelation(
+        ReputationTier baseT = ReputationTier.fromRawRelation(
                 targetFaction.getRelationship(playerFactionId));
         String line = resolveDialogue(leader, Situation.GREETING, mood.effectiveTier(baseT));
         centerTip.addPara("\"" + line + "\"", Misc.getGrayColor(), 0f);
@@ -794,8 +812,8 @@ public class NegotiationPanel extends BasePopUpDialog {
     private String relationBadge(FactionAPI viewer, FactionAPI about) {
         if (viewer == null || about == null) return "-";
         float rel = viewer.getRelationship(about.getId());
-        ReputationTier t = ReputationTier.fromRelation(rel);
-        int displayed = Math.round(rel);
+        ReputationTier t = ReputationTier.fromRawRelation(rel);
+        int displayed = nex4x.util.Nex4xRelations.toPercentInt(rel);
         return tierLabel(t) + " (" + (displayed >= 0 ? "+" : "") + displayed + ")";
     }
 

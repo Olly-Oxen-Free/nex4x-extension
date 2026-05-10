@@ -34,9 +34,9 @@ public class WarScoreTracker implements Serializable {
     /** Create a war goal when war is declared. */
     public WarGoal createWarGoal(String holderFactionId, String targetFactionId,
                                   WarGoalType type, String targetMarketId) {
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        float declaredDay = nex4x.util.Nex4xClock.currentAbsoluteDay();
         WarGoal goal = new WarGoal(holderFactionId, targetFactionId, type,
-                targetMarketId, currentDay);
+                targetMarketId, declaredDay);
         warGoals.add(goal);
 
         // Initialize war score if not present
@@ -110,6 +110,17 @@ public class WarScoreTracker implements Serializable {
 
     /** Daily advance — prune inactive goals, reset scores for ended wars. */
     public void advanceDay() {
+        // Mark territorial-claim goals obsolete if their target market is gone/decivilized.
+        for (WarGoal g : warGoals) {
+            if (!g.isActive()) continue;
+            if (g.getType() == WarGoalType.TERRITORIAL_CLAIM && g.getTargetMarketId() != null) {
+                com.fs.starfarer.api.campaign.econ.MarketAPI mkt =
+                        Global.getSector().getEconomy().getMarket(g.getTargetMarketId());
+                if (mkt == null || mkt.isHidden()) {
+                    g.markObsolete();
+                }
+            }
+        }
         // Prune inactive war goals
         Iterator<WarGoal> it = warGoals.iterator();
         while (it.hasNext()) {

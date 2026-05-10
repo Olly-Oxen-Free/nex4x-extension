@@ -58,7 +58,25 @@ public class Nex4xEventListener extends BaseCampaignEventListener {
 
     @Override
     public void reportPlayerMarketTransaction(PlayerMarketTransaction transaction) {
-        // Trade-related memory events — placeholder for v1
+        // Large trade transactions register a "commercial_partner" memory weighted by value.
+        if (transaction == null) return;
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null) return;
+        try {
+            com.fs.starfarer.api.campaign.econ.MarketAPI mkt = transaction.getMarket();
+            if (mkt == null || mkt.getFactionId() == null) return;
+            String marketFid = mkt.getFactionId();
+            String playerFid = Global.getSector().getPlayerFaction().getId();
+            if (marketFid.equals(playerFid)) return; // own market — skip
+            float total = Math.abs(transaction.getCreditValue());
+            // Threshold tuned to avoid spam: only material transactions register.
+            if (total < 50000f) return;
+            String desc = "Commercial transaction at " + mkt.getName()
+                    + " (" + (int) total + " credits)";
+            mgr.getMemoryManager().createMemory("commercial_partner", marketFid, playerFid, desc);
+        } catch (Throwable t) {
+            log.warn("[Nex4x] reportPlayerMarketTransaction: " + t.getMessage(), t);
+        }
     }
 
     @Override

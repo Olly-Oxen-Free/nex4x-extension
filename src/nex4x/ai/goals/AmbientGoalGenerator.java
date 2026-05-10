@@ -23,7 +23,7 @@ public class AmbientGoalGenerator {
     public static void addAmbientGoals(String factionId, List<StrategicGoal> goals) {
         if (goals.size() >= MIN_GOALS_BEFORE_AMBIENT) return;
 
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long currentTs = nex4x.util.Nex4xClock.now();
         TendencyProfile profile = TendencyProfileLoader.getProfile(factionId);
         if (profile == null) return;
 
@@ -34,25 +34,25 @@ public class AmbientGoalGenerator {
         StrategicGoal ambient = null;
         switch (dominant) {
             case MILITARISTS:
-                ambient = new StrategicGoal(GoalType.CONTAIN_RIVAL, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.CONTAIN_RIVAL, null, null, currentTs);
                 break;
             case FEDERALISTS:
-                ambient = new StrategicGoal(GoalType.IMPROVE_RELATIONS, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.IMPROVE_RELATIONS, null, null, currentTs);
                 break;
             case CORPORATISTS:
-                ambient = new StrategicGoal(GoalType.ECONOMIC_DOMINANCE, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.ECONOMIC_DOMINANCE, null, null, currentTs);
                 break;
             case ZEALOTS:
-                ambient = new StrategicGoal(GoalType.SPREAD_IDEOLOGY, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.SPREAD_IDEOLOGY, null, null, currentTs);
                 break;
             case INDUSTRIALISTS:
-                ambient = new StrategicGoal(GoalType.DEFEND_TERRITORY, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.DEFEND_TERRITORY, null, null, currentTs);
                 break;
             case ECOLOGISTS:
-                ambient = new StrategicGoal(GoalType.MANAGE_PRESSURE, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.MANAGE_PRESSURE, null, null, currentTs);
                 break;
             default:
-                ambient = new StrategicGoal(GoalType.IMPROVE_RELATIONS, null, null, currentDay);
+                ambient = new StrategicGoal(GoalType.IMPROVE_RELATIONS, null, null, currentTs);
                 break;
         }
 

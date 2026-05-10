@@ -73,7 +73,34 @@ public class Nex4xAgentManager implements Serializable {
         return mgr;
     }
 
+    /**
+     * Aggregate diplomat-driven intel score for a target faction in [0, 1].
+     * Sums buildup level / max-level across DIPLOMAT-typed agents whose owner is
+     * the player faction (so the player's network determines what we know).
+     * Caps at 1.0 once the network is dense enough.
+     */
     public float getDiplomatIntelScore(String factionId) {
-        return 0f;
+        if (factionId == null) return 0f;
+        com.fs.starfarer.api.campaign.SectorAPI sector = Global.getSector();
+        if (sector == null) return 0f;
+        String playerFid = sector.getPlayerFaction() != null
+                ? sector.getPlayerFaction().getId() : null;
+        if (playerFid == null) return 0f;
+
+        AgentTypeConfig cfg = AgentTypeConfigLoader.getConfig(AgentType.DIPLOMAT);
+        int maxLevel = cfg != null && cfg.influenceOwner != null
+                ? Math.max(1, cfg.influenceOwner.length - 1) : 4;
+
+        float score = 0f;
+        for (Nex4xAgentData d : agentData.values()) {
+            if (d.getType() != AgentType.DIPLOMAT) continue;
+            if (!playerFid.equals(d.getOwnerFactionId())) continue;
+            if (d.isRetraining()) continue;
+            // Diplomats under cascade suspicion in this faction's space lose visibility.
+            if (d.hasCascadeSuspicion(factionId)) continue;
+            int level = d.getBuildupTracker().getLevel();
+            score += (float) level / (float) maxLevel;
+        }
+        return Math.max(0f, Math.min(1f, score));
     }
 }

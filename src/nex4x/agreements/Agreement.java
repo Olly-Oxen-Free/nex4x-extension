@@ -85,9 +85,12 @@ public class Agreement implements Serializable {
     public boolean isActive() { return active && !isExpired(); }
     public boolean isViaViceroy() { return viaViceroy; }
 
+    /**
+     * Absolute calendar-day index. Note: subtracts cycle 206 to keep the legacy
+     * field-value range; preserves save compatibility with existing Agreement timestamps.
+     */
     private static float getCurrentDay() {
-        return Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay()
+                - 206f * 365f;
     }
 }

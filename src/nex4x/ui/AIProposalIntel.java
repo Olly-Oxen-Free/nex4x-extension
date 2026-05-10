@@ -171,7 +171,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
         // Derive situation from deal content
         nex4x.leaders.Situation sit = deriveProposalSituation();
         float rel = faction.getRelationship(playerFaction.getId());
-        nex4x.leaders.ReputationTier tier = nex4x.leaders.ReputationTier.fromRelation(rel);
+        nex4x.leaders.ReputationTier tier = nex4x.leaders.ReputationTier.fromRawRelation(rel);
         java.util.Map<String,String> ctx = new java.util.HashMap<String,String>();
         ctx.put("player", playerFaction.getDisplayName());
         ctx.put("leader", leader.displayName());

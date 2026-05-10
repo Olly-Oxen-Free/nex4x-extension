@@ -84,16 +84,20 @@ public class ReactiveHandler implements Serializable {
     }
 
     private void processUrgentEvent(PendingEvent event, Nex4xManager mgr) {
-        // Force executor to re-evaluate immediately
+        // Force executor to re-evaluate immediately. Skip non-tracked factions (null managers).
         if (event.sourceFactionId != null) {
             StrategicGoalManager goalMgr = mgr.getGoalManager(event.sourceFactionId);
             DiplomaticExecutor executor = mgr.getExecutor(event.sourceFactionId);
-            executor.advanceDay(goalMgr, mgr.getGrandStrategy());
+            if (goalMgr != null && executor != null) {
+                executor.advanceDay(goalMgr, mgr.getGrandStrategy());
+            }
         }
         if (event.targetFactionId != null) {
             StrategicGoalManager goalMgr = mgr.getGoalManager(event.targetFactionId);
             DiplomaticExecutor executor = mgr.getExecutor(event.targetFactionId);
-            executor.advanceDay(goalMgr, mgr.getGrandStrategy());
+            if (goalMgr != null && executor != null) {
+                executor.advanceDay(goalMgr, mgr.getGrandStrategy());
+            }
         }
     }
 

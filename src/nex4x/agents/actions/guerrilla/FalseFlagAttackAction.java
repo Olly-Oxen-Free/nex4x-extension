@@ -2,44 +2,54 @@ package nex4x.agents.actions.guerrilla;
 
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import nex4x.agents.Nex4xAgentData;
-import nex4x.agents.actions.ActionConfig;
-import nex4x.agents.actions.BaseAgentAction;
+import nex4x.agents.actions.ActionDefIds;
+import nex4x.agents.actions.Nex4xCovertAction;
 import nex4x.pressure.PressureManager;
 import nex4x.pressure.PressureSource;
 
 /**
- * Frame a third-party faction. On success, grievance pressure from victim onto
- * framed — not actor. On detection, actor eats the full cost twice over.
+ * Stage an attack pretending to be a third faction. Success: stability hit on host
+ * + grievance pressure on the framed faction. Detection: double grievance lands on actor
+ * AND framed faction now resents the actor too.
+ *
+ * Framed faction id is read from {@link CovertActionIntel#thirdFaction} (set by Nex's
+ * AgentOrdersDialog via the params map; key {@code "thirdFaction"} expected).
  */
-public class FalseFlagAttackAction extends BaseAgentAction {
-    private static final long serialVersionUID = 1L;
+public class FalseFlagAttackAction extends Nex4xCovertAction {
 
-    private final String framedFactionId;
+    public FalseFlagAttackAction() {}
 
-    public FalseFlagAttackAction(String agentId, String actorFactionId, String marketId,
-                                 String framedFactionId,
-                                 ActionConfig config, int agentLevel) {
-        super(agentId, actorFactionId, marketId, config, agentLevel);
-        this.framedFactionId = framedFactionId;
+    @Override public String getDefId() { return ActionDefIds.GUERRILLA_FALSE_FLAG; }
+
+    private String framedFactionId() {
+        return thirdFaction != null ? thirdFaction.getId() : null;
     }
 
-    public String getFramedFactionId() { return framedFactionId; }
-
     @Override
-    protected void applyEffect(Nex4xAgentData data, MarketAPI market) {
-        // Stability hit + grievance pressure from victim onto framed faction
+    protected void applyNex4xEffect(Nex4xAgentData data, MarketAPI market) {
+        if (market == null) return;
         market.getStability().modifyFlat("nex4x_false_flag", -2, "Nex4x: False Flag Strike");
-        PressureManager.getOrCreate().applyEvent(
-                market.getFactionId(), framedFactionId, PressureSource.GRIEVANCE, 50f);
+        String host = getMarketFactionId();
+        String framed = framedFactionId();
+        if (host != null && framed != null) {
+            PressureManager.getOrCreate().applyEvent(host, framed,
+                    PressureSource.GRIEVANCE, 50f);
+        }
     }
 
     @Override
-    protected void applyDetectionFallout(Nex4xAgentData data, MarketAPI market) {
-        // Revealed: double grievance onto actor + framed faction dislikes actor too
-        PressureManager.getOrCreate().applyEvent(
-                market.getFactionId(), actorFactionId, PressureSource.GRIEVANCE, 100f);
-        PressureManager.getOrCreate().applyEvent(
-                framedFactionId, actorFactionId, PressureSource.GRIEVANCE, 60f);
-        data.getBuildupTracker().reset();
+    protected void applyNex4xFallout(Nex4xAgentData data, MarketAPI market) {
+        String host = getMarketFactionId();
+        String actor = getActorFactionId();
+        String framed = framedFactionId();
+        if (host != null && actor != null) {
+            PressureManager.getOrCreate().applyEvent(host, actor,
+                    PressureSource.GRIEVANCE, 100f);
+        }
+        if (framed != null && actor != null) {
+            PressureManager.getOrCreate().applyEvent(framed, actor,
+                    PressureSource.GRIEVANCE, 60f);
+        }
+        if (data != null) data.getBuildupTracker().reset();
     }
 }

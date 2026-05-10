@@ -22,7 +22,9 @@ public class TrustSensitivity {
     }
 
     public static Level getSensitivity(String factionId) {
+        if (factionId == null || com.fs.starfarer.api.Global.getSector() == null) return Level.MEDIUM;
         List<String> traits = DiplomacyTraits.getFactionTraits(factionId);
+        if (traits == null) return Level.MEDIUM;
 
         // Check for high sensitivity
         if (traits.contains(TraitIds.LAW_AND_ORDER) || traits.contains(TraitIds.HELPS_ALLIES)) {

@@ -37,7 +37,7 @@ public class BadgeReactionIntel extends BaseIntelPlugin {
         this.factionId = factionId;
         this.badgeType = badge;
         this.badgeDisplayName = badge.displayName;
-        this.positive = isPositiveBadge(badge);
+        this.positive = badge.positive;
         this.createdTimestamp = Global.getSector().getClock().getTimestamp();
         LeaderProfile leader = Nex4xManager.getOrCreateManager()
                 .getLeaderRegistry().getProfile(factionId);
@@ -49,12 +49,7 @@ public class BadgeReactionIntel extends BaseIntelPlugin {
         ctx.put("faction", Global.getSector().getFaction(factionId).getDisplayName());
         this.line = DialogueSystem.get().resolve(leader,
                 positive ? Situation.BADGE_EARNED_POSITIVE : Situation.BADGE_EARNED_NEGATIVE,
-                ReputationTier.fromRelation(rel), ctx);
-    }
-
-    /** Hardcoded polarity. TODO(v5.1): faction-specific badge polarity */
-    private static boolean isPositiveBadge(BadgeType badge) {
-        return badge == BadgeType.PEACEMAKER || badge == BadgeType.RELIABLE_PARTNER;
+                ReputationTier.fromRawRelation(rel), ctx);
     }
 
     @Override public boolean hasSmallDescription() { return true; }

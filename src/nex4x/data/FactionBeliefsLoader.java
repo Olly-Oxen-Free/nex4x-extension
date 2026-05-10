@@ -45,17 +45,29 @@ public class FactionBeliefsLoader {
             "hostile_organic"
     ));
 
+    /** Vanilla factions whose belief JSONs ship with this mod. */
     private static final String[] VANILLA_FACTIONS = {
         "hegemony", "tritachyon", "luddic_church", "luddic_path",
         "persean", "sindrian_diktat", "pirates", "independent",
         "knights_of_ludd", "lions_guard"
     };
 
+    /** onApplicationLoad-safe: only loads vanilla; Sector does not yet exist. */
     public static void load() throws Exception {
         factionBeliefs.clear();
-
         for (String factionId : VANILLA_FACTIONS) {
             loadFactionBeliefs(factionId);
+        }
+    }
+
+    /** onGameLoad/onNewGameAfterEconomyLoad: load belief JSONs for live modded factions. */
+    public static void loadForLiveFactions() {
+        if (Global.getSector() == null) return;
+        for (com.fs.starfarer.api.campaign.FactionAPI f : Global.getSector().getAllFactions()) {
+            String fid = f.getId();
+            if (factionBeliefs.containsKey(fid)) continue; // already loaded
+            if (f.isNeutralFaction()) continue;
+            loadFactionBeliefs(fid);
         }
     }
 
@@ -90,7 +102,8 @@ public class FactionBeliefsLoader {
             log.info("[Nex4x] Loaded " + entries.size() + " beliefs for " + factionId);
 
         } catch (Exception e) {
-            log.info("[Nex4x] No belief file for " + factionId + " — will have empty beliefs");
+            log.info("[Nex4x] No belief file for " + factionId + " — will have empty beliefs ("
+                    + e.getClass().getSimpleName() + ")");
         }
     }
 

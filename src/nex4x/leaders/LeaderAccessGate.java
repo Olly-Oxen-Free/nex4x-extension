@@ -15,9 +15,16 @@ public class LeaderAccessGate {
 
     public enum Gate { RAPPORT, COMMISSION, OWN_FACTION, OTHER_MEANS, NONE }
 
+    /**
+     * Resolve which gate (if any) unlocks audience with target faction's leader.
+     * NOTE: rapportThreshold from leader_access.json is in RAW scale (-1..+1), matching
+     * FactionAPI.getRelationship(). DeclarationConfig elsewhere uses percent (-100..+100) —
+     * see Nex4xRelations for conversion helpers if porting JSON values.
+     */
     public static Gate resolve(String targetFactionId) {
         float rapportNeed = LeaderAccessConfig.getRapportThreshold(targetFactionId);
-        FactionAPI player = Global.getSector().getPlayerFaction();
+        FactionAPI player = Global.getSector() == null ? null : Global.getSector().getPlayerFaction();
+        if (player == null) return Gate.NONE;
         if (player.getRelationship(targetFactionId) >= rapportNeed) return Gate.RAPPORT;
 
         FactionCommissionIntel commission = findActiveCommission();
@@ -58,8 +65,12 @@ public class LeaderAccessGate {
         return null;
     }
 
+    /**
+     * Forward-looking hook for unlock conditions that aren't reputation, commission, or
+     * own-faction. Intended for future plot tokens, diplomat-network unlocks, story-mission
+     * gates, etc. Always false in v5; expand here when those systems land.
+     */
     static boolean checkOtherMeans(String targetFactionId) {
-        // Stub — future hook. Always false in v5.
         return false;
     }
 }

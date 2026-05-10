@@ -54,10 +54,8 @@ public class AIProposalManager implements Serializable {
             return;
         }
 
-        // Use sector day count for simpler math
-        float dayNum = Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getCycle() - 206) * 365f
-                + Global.getSector().getClock().getMonth() * 30f;
+        // Sector day count (cycle relative to 206 to keep legacy field-value range).
+        float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f;
 
         for (FactionAPI faction : Global.getSector().getAllFactions()) {
             String fid = faction.getId();

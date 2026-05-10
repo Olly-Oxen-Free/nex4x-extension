@@ -27,6 +27,8 @@ public class DiplomatPassiveManager {
         for (Nex4xAgentData d : mgr.getAllData()) {
             if (d.getType() != AgentType.DIPLOMAT) continue;
             if (d.isRetraining()) continue;
+            // Filter by owner; legacy null-owner agents skipped rather than miscredited.
+            if (!ownerFactionId.equals(d.getOwnerFactionId())) continue;
             int level = d.getBuildupTracker().getLevel();
             if (level >= cfg.influenceOwner.length) level = cfg.influenceOwner.length - 1;
             float drip = cfg.influenceOwner[level] * days / 30f;

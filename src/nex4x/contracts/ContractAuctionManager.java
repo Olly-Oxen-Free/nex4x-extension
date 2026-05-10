@@ -20,8 +20,7 @@ public class ContractAuctionManager implements Serializable {
     private int nextId = 1;
 
     private static float now() {
-        return Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 
     public Contract post(String issuerFactionId, String targetFactionId, ContractType type, long reservePrice) {

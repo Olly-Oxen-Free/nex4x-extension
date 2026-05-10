@@ -21,20 +21,34 @@ public class CoalitionGovernance implements Serializable {
     private final List<CoalitionTension> tensions = new ArrayList<CoalitionTension>();
     private final List<CoalitionVote> pendingVotes = new ArrayList<CoalitionVote>();
 
-    public CoalitionTension getTension(String factionA, String factionB) {
+    /** Read-only lookup; returns null if no tension entry exists. Does not mutate state. */
+    public CoalitionTension findTension(String factionA, String factionB) {
         for (CoalitionTension t : tensions) {
             if ((t.getFactionA().equals(factionA) && t.getFactionB().equals(factionB))
                     || (t.getFactionA().equals(factionB) && t.getFactionB().equals(factionA))) {
                 return t;
             }
         }
+        return null;
+    }
+
+    /** Returns existing tension entry or creates one. Mutates state. Use only on write paths. */
+    public CoalitionTension getOrCreateTension(String factionA, String factionB) {
+        CoalitionTension existing = findTension(factionA, factionB);
+        if (existing != null) return existing;
         CoalitionTension t = new CoalitionTension(factionA, factionB);
         tensions.add(t);
         return t;
     }
 
+    /** @deprecated use {@link #findTension} (read-only) or {@link #getOrCreateTension} (write). */
+    @Deprecated
+    public CoalitionTension getTension(String factionA, String factionB) {
+        return getOrCreateTension(factionA, factionB);
+    }
+
     public void addTension(String factionA, String factionB, float amount, String reason) {
-        getTension(factionA, factionB).addTension(amount);
+        getOrCreateTension(factionA, factionB).addTension(amount);
         log.info("[Nex4x] Coalition tension: " + factionA + " / " + factionB + " +" + amount + " (" + reason + ")");
     }
 
@@ -44,7 +58,8 @@ public class CoalitionGovernance implements Serializable {
         int pairs = 0;
         for (int i = 0; i < memberIds.size(); i++) {
             for (int j = i + 1; j < memberIds.size(); j++) {
-                total += getTension(memberIds.get(i), memberIds.get(j)).getTension();
+                CoalitionTension t = findTension(memberIds.get(i), memberIds.get(j));
+                if (t != null) total += t.getTension();
                 pairs++;
             }
         }
@@ -57,7 +72,7 @@ public class CoalitionGovernance implements Serializable {
         for (String fid : memberIds) {
             int markets = 0;
             for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
-                if (m.getFactionId().equals(fid) && !m.isHidden()) markets++;
+                if (fid.equals(m.getFactionId()) && !m.isHidden()) markets++;
             }
             if (markets > maxMarkets) {
                 maxMarkets = markets;

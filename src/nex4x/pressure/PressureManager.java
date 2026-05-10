@@ -56,6 +56,18 @@ public class PressureManager implements Serializable {
         getLedger(fromFaction, toFaction).add(source, amount);
     }
 
+    /**
+     * Default per-day accumulation rate for a source, from {@code pressure_sources.json}.
+     * Callers that want passive accrual ({@link #applyEvent} with elapsed-days scaling) reference this.
+     * Not auto-applied to all pairs (avoids N² growth across the sector).
+     */
+    public float getAccumulationPerDay(PressureSource source) {
+        Config cfg = getConfig();
+        if (cfg == null || cfg.accumulationPerDay == null) return 0f;
+        Float v = cfg.accumulationPerDay.get(source);
+        return v != null ? v : 0f;
+    }
+
     public void spend(String fromFaction, String toFaction, float amount) {
         getLedger(fromFaction, toFaction).spend(amount);
     }

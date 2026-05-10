@@ -10,6 +10,8 @@ public class Nex4xAgentData implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private AgentType type;
+    /** Faction id of the agent's owner (faction that deployed the agent). May be null on legacy entries. */
+    private String ownerFactionId;
     private final BuildupTracker buildupTracker;
 
     // Retraining state
@@ -41,6 +43,9 @@ public class Nex4xAgentData implements Serializable {
     public AgentType getType() { return type; }
     public void setType(AgentType type) { this.type = type; }
 
+    public String getOwnerFactionId() { return ownerFactionId; }
+    public void setOwnerFactionId(String id) { this.ownerFactionId = id; }
+
     // Buildup
     public BuildupTracker getBuildupTracker() { return buildupTracker; }
 
@@ -51,6 +56,7 @@ public class Nex4xAgentData implements Serializable {
 
     public void startRetrain(AgentType targetType, int agentLevel) {
         AgentTypeConfig config = AgentTypeConfigLoader.getConfig(type);
+        if (config == null) return;
         this.isRetraining = true;
         this.retrainTargetType = targetType;
         this.retrainDaysRemaining = config.retrainBaseDays + config.retrainDaysPerLevel * agentLevel;

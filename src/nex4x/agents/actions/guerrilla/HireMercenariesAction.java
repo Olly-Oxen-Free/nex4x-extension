@@ -2,31 +2,39 @@ package nex4x.agents.actions.guerrilla;
 
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import nex4x.agents.Nex4xAgentData;
-import nex4x.agents.actions.ActionConfig;
-import nex4x.agents.actions.BaseAgentAction;
+import nex4x.agents.actions.ActionDefIds;
+import nex4x.agents.actions.Nex4xCovertAction;
 import nex4x.pressure.PressureManager;
 import nex4x.pressure.PressureSource;
 
-/** High-tier: sustained mercenary harassment applies ongoing military pressure. */
-public class HireMercenariesAction extends BaseAgentAction {
-    private static final long serialVersionUID = 1L;
+/** Hire mercenaries to harass host: stability dip + military pressure. Detection backfire. */
+public class HireMercenariesAction extends Nex4xCovertAction {
 
-    public HireMercenariesAction(String agentId, String actorFactionId, String marketId,
-                                 ActionConfig config, int agentLevel) {
-        super(agentId, actorFactionId, marketId, config, agentLevel);
+    public HireMercenariesAction() {}
+
+    @Override public String getDefId() { return ActionDefIds.GUERRILLA_HIRE_MERCS; }
+
+    @Override
+    protected void applyNex4xEffect(Nex4xAgentData data, MarketAPI market) {
+        String actor = getActorFactionId();
+        String host = getMarketFactionId();
+        if (actor != null && host != null) {
+            PressureManager.getOrCreate().applyEvent(actor, host,
+                    PressureSource.MILITARY, 25f);
+        }
+        if (market != null) {
+            market.getStability().modifyFlat("nex4x_merc_pressure", -1, "Nex4x: Merc Pressure");
+        }
     }
 
     @Override
-    protected void applyEffect(Nex4xAgentData data, MarketAPI market) {
-        PressureManager.getOrCreate().applyEvent(
-                actorFactionId, market.getFactionId(), PressureSource.MILITARY, 25f);
-        market.getStability().modifyFlat("nex4x_merc_pressure", -1, "Nex4x: Merc Pressure");
-    }
-
-    @Override
-    protected void applyDetectionFallout(Nex4xAgentData data, MarketAPI market) {
-        PressureManager.getOrCreate().applyEvent(
-                market.getFactionId(), actorFactionId, PressureSource.GRIEVANCE, 40f);
-        data.getBuildupTracker().damageByOneLevel();
+    protected void applyNex4xFallout(Nex4xAgentData data, MarketAPI market) {
+        String actor = getActorFactionId();
+        String host = getMarketFactionId();
+        if (actor != null && host != null) {
+            PressureManager.getOrCreate().applyEvent(host, actor,
+                    PressureSource.GRIEVANCE, 40f);
+        }
+        if (data != null) data.getBuildupTracker().damageByOneLevel();
     }
 }

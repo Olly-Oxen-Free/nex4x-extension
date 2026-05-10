@@ -19,6 +19,10 @@ public class LeaderConfigRegistry {
     }
 
     public static LeaderConfig get(String factionId) {
+        if (defaults == null) {
+            // Lazy autoload — protects against UI access before onApplicationLoad-time init.
+            load();
+        }
         LeaderConfig c = cache.get(factionId);
         if (c == null) {
             String path = "data/config/nex4x/leaders/" + factionId + ".json";

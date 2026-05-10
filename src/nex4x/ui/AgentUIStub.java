@@ -7,9 +7,9 @@ import nex4x.agents.Nex4xAgentManager;
 import org.apache.log4j.Logger;
 
 /**
- * Stub for v3 agent UI surfaces. Real UI is planned via InteractionDialogPlugin;
- * this stub exposes a console-loggable text summary to aid debugging without
- * requiring a full dialog implementation.
+ * Read-only debug helper that logs nex4x agent companion data alongside Nex's AgentIntel UI.
+ * Intentionally minimal — Nex's AgentIntel owns the canonical UI; this just dumps text
+ * summaries through the console logger for diagnostic use.
  */
 public class AgentUIStub {
     private static final Logger log = Global.getLogger(AgentUIStub.class);

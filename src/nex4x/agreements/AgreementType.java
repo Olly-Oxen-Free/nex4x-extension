@@ -34,8 +34,9 @@ public enum AgreementType {
     /** Default duration in days. -1 = permanent until dissolved. */
     public final float defaultDurationDays;
     /**
-     * Minimum {@link com.fs.starfarer.api.campaign.FactionAPI#getRelationship(String)} value
-     * (roughly -100..+100) for AI tier-upgrade proposals; compared directly, not divided.
+     * Minimum relation in PERCENT (-100..+100) for AI tier-upgrade proposals.
+     * Compare via {@code Nex4xRelations.atLeastPct(rawRel, relationThreshold)}; do NOT
+     * compare directly against FactionAPI.getRelationship() which returns -1..+1.
      */
     public final float relationThreshold;
 

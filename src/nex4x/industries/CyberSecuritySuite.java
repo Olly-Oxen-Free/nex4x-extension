@@ -11,6 +11,11 @@ import org.json.JSONObject;
 
 public class CyberSecuritySuite extends BaseIndustry {
 
+    /**
+     * Counter-espionage bonus is read by DetectionEngine via the JSON
+     * {@code cyberSecurityBonus} value when a market has this industry — no
+     * per-tick effect hook needed here.
+     */
     @Override
     public void apply() { super.apply(true); }
 

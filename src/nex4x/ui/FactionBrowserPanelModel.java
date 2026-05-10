@@ -175,7 +175,7 @@ public class FactionBrowserPanelModel implements Serializable {
 
     // Layer 2 — detail pane
 
-    private void addDetailPane(TooltipMakerAPI info, float width) {
+    void addDetailPane(TooltipMakerAPI info, float width) {
         if (selectedFactionId == null) {
             info.addPara("Select a faction on the left to view details.",
                     Misc.getGrayColor(), 10f);
@@ -541,7 +541,7 @@ public class FactionBrowserPanelModel implements Serializable {
         }
     }
 
-    private static String repBarAscii(float relationship) {
+    static String repBarAscii(float relationship) {
         float t = (relationship + 100f) / 200f;
         if (t < 0f) t = 0f;
         if (t > 1f) t = 1f;
@@ -577,7 +577,15 @@ public class FactionBrowserPanelModel implements Serializable {
             if (id.startsWith(BUTTON_CONTACT_LEADER_PREFIX)) {
                 final String fid = id.substring(BUTTON_CONTACT_LEADER_PREFIX.length());
                 if (LeaderAccessGate.isOpen(fid)) {
-                    NegotiationPanel.openScaled(fid, false);
+                    if (intelUi != null) {
+                        Nex4xDeferredUi.runNextFrame(new Runnable() {
+                            public void run() {
+                                NegotiationPanel.openScaled(fid, false);
+                            }
+                        });
+                    } else {
+                        NegotiationPanel.openScaled(fid, false);
+                    }
                 } else {
                     final MarketAPI m = FactionMarketUtil.firstMarketOfFaction(fid);
                     if (m != null) {
@@ -601,7 +609,17 @@ public class FactionBrowserPanelModel implements Serializable {
         }
         if (BUTTON_NEGOTIATE == buttonId && selectedFactionId != null) {
             boolean viceroy = !LeaderAccessGate.isOpen(selectedFactionId);
-            NegotiationPanel.openScaled(selectedFactionId, viceroy);
+            if (intelUi != null) {
+                final String fid = selectedFactionId;
+                final boolean v = viceroy;
+                Nex4xDeferredUi.runNextFrame(new Runnable() {
+                    public void run() {
+                        NegotiationPanel.openScaled(fid, v);
+                    }
+                });
+            } else {
+                NegotiationPanel.openScaled(selectedFactionId, viceroy);
+            }
         }
     }
 

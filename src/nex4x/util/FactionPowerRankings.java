@@ -13,6 +13,11 @@ import java.util.*;
  */
 public final class FactionPowerRankings {
 
+    /**
+     * Caches are static but explicitly invalidated by Nex4xModPlugin.beforeGameSave()
+     * and rebuilt on demand by callers. Treat them as transient — never trust without
+     * a fresh rebuild() in the current session.
+     */
     private static final Map<String, Float> economic = new HashMap<String, Float>();
     private static final Map<String, Float> military = new HashMap<String, Float>();
     private static final Map<String, Float> expansion = new HashMap<String, Float>();
@@ -20,6 +25,15 @@ public final class FactionPowerRankings {
     private static int denom = 1;
 
     private FactionPowerRankings() {}
+
+    /** Clear all cached scores. Called from beforeGameSave to prevent cross-session pollution. */
+    public static void invalidate() {
+        economic.clear();
+        military.clear();
+        expansion.clear();
+        rank.clear();
+        denom = 1;
+    }
 
     public static void rebuild() {
         economic.clear();
@@ -85,12 +99,7 @@ public final class FactionPowerRankings {
         for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
             if (!factionId.equals(m.getFactionId())) continue;
             float sz = m.getSize();
-            float mult = 1f;
-            try {
-                if (m.getNetIncome() <= 0f) mult = 0.5f;
-            } catch (Exception ignore) {
-                mult = 0.5f;
-            }
+            float mult = m.getNetIncome() <= 0f ? 0.5f : 1f;
             sum += sz * mult;
         }
         return sum;

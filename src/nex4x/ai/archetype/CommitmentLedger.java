@@ -30,8 +30,12 @@ public class CommitmentLedger implements Serializable {
     private final String factionId;
     private final Map<Archetype, Float> scores = new EnumMap<Archetype, Float>(Archetype.class);
     private Archetype currentArchetype;
-    private float archetypeSince;
-    private float lockedUntil;
+    /** Timestamp (game-seconds) when current archetype was set. */
+    private long archetypeSinceTs;
+    /** Timestamp (game-seconds) when crisis lock expires; 0 = no lock. */
+    private long lockExpiryTs;
+    /** One-day in game-seconds; matches engine convention used by getElapsedDaysSince. */
+    private static final long SECONDS_PER_DAY = 86400L;
 
     // Config values (loaded from grand_strategy.json)
     private static float TRANSITION_THRESHOLD = 0.20f;
@@ -90,14 +94,14 @@ public class CommitmentLedger implements Serializable {
         Archetype resolved = resolveArchetype();
         Archetype forced = ArchetypeOverrideRegistry.getForced(factionId);
         currentArchetype = forced != null ? forced : resolved;
-        archetypeSince = Global.getSector().getClock().getTimestamp();
+        archetypeSinceTs = nex4x.util.Nex4xClock.now();
         log.info("[Nex4x] " + factionId + " initialized archetype: " + currentArchetype.displayName);
     }
 
     /** Daily update — feed from goals, apply decay, check transition. */
     public void advanceDay(List<StrategicGoal> activeGoals, StrategicGoal strategicObjective,
                            float greatestThreatSeverity, Archetype threatArchetype) {
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long nowTs = nex4x.util.Nex4xClock.now();
 
         // 1. Goal contributions
         for (StrategicGoal goal : activeGoals) {
@@ -142,13 +146,13 @@ public class CommitmentLedger implements Serializable {
             scores.put(a, scores.get(a) * decay);
         }
 
-        // 5. Check transition
-        if (currentDay >= lockedUntil) {
-            checkTransition(currentDay);
+        // 5. Check transition (skip if crisis-locked)
+        if (lockExpiryTs == 0L || nowTs >= lockExpiryTs) {
+            checkTransition(nowTs);
         }
     }
 
-    private void checkTransition(float currentDay) {
+    private void checkTransition(long nowTs) {
         Archetype challenger = null;
         float challengerScore = 0;
         for (Archetype a : Archetype.values()) {
@@ -165,27 +169,27 @@ public class CommitmentLedger implements Serializable {
         if (margin <= 0) return;
 
         float threshold = currentScore * TRANSITION_THRESHOLD;
-        float trendDays = currentDay - archetypeSince;
+        float trendDays = nex4x.util.Nex4xClock.daysSince(archetypeSinceTs);
 
         if (margin > threshold && trendDays >= MIN_TREND_DAYS) {
-            transitionTo(challenger, currentDay);
+            transitionTo(challenger, nowTs);
         }
     }
 
-    private void transitionTo(Archetype newArchetype, float currentDay) {
+    private void transitionTo(Archetype newArchetype, long nowTs) {
         log.info("[Nex4x] " + factionId + " archetype transition: "
                 + currentArchetype.displayName + " -> " + newArchetype.displayName);
         currentArchetype = newArchetype;
-        archetypeSince = currentDay;
+        archetypeSinceTs = nowTs;
         scores.put(newArchetype, scores.get(newArchetype) * TRANSITION_BOOST);
     }
 
     /** Force transition for crisis events. Bypasses hysteresis. */
     public void forceTransition(Archetype archetype, int lockDays) {
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long nowTs = nex4x.util.Nex4xClock.now();
         currentArchetype = archetype;
-        archetypeSince = currentDay;
-        lockedUntil = currentDay + lockDays;
+        archetypeSinceTs = nowTs;
+        lockExpiryTs = nowTs + (long) lockDays * SECONDS_PER_DAY;
         log.info("[Nex4x] " + factionId + " CRISIS transition -> "
                 + archetype.displayName + " (locked " + lockDays + " days)");
     }
@@ -263,6 +267,6 @@ public class CommitmentLedger implements Serializable {
     public float getScore(Archetype a) { return scores.containsKey(a) ? scores.get(a) : 0; }
     public String getFactionId() { return factionId; }
     public boolean isLocked() {
-        return Global.getSector().getClock().getTimestamp() < lockedUntil;
+        return lockExpiryTs > 0L && nex4x.util.Nex4xClock.now() < lockExpiryTs;
     }
 }

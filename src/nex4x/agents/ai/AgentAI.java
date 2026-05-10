@@ -1,7 +1,6 @@
 package nex4x.agents.ai;
 
 import com.fs.starfarer.api.Global;
-import com.fs.starfarer.api.campaign.FactionAPI;
 import nex4x.agents.AgentType;
 import nex4x.data.TendencyId;
 import nex4x.data.TendencyProfile;
@@ -29,8 +28,4 @@ public class AgentAI {
         return AgentType.COVERT;
     }
 
-    public static void advanceFaction(FactionAPI faction) {
-        if (faction == null || faction.isNeutralFaction() || faction.isPlayerFaction()) return;
-        // Placeholder for per-faction AI routine — wired by Nex4xAgentManager daily sweep.
-    }
 }

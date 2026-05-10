@@ -58,6 +58,7 @@ public class FeasibilityChecker {
         if (goal.targetFactionId == null) return 0.5f;
 
         FactionAPI us = Global.getSector().getFaction(factionId);
+        if (us == null) return 0.5f;
         float rel = us.getRelationship(goal.targetFactionId);
 
         if (rel < -0.5f) return 0.1f;

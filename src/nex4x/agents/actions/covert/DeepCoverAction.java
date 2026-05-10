@@ -2,31 +2,26 @@ package nex4x.agents.actions.covert;
 
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import nex4x.agents.Nex4xAgentData;
-import nex4x.agents.actions.ActionConfig;
-import nex4x.agents.actions.BaseAgentAction;
+import nex4x.agents.actions.ActionDefIds;
+import nex4x.agents.actions.Nex4xCovertAction;
 
-/**
- * Tier-3 action: reduces detection vulnerability for an extended period.
- * Applied via a synergy flag; detection fallout is catastrophic.
- */
-public class DeepCoverAction extends BaseAgentAction {
-    private static final long serialVersionUID = 1L;
+/** Saboteur burrows for a temporary detection-immunity window; failure burns the cover. */
+public class DeepCoverAction extends Nex4xCovertAction {
+    public static final float PROTECTION_DAYS = 60f;
 
-    public static final float PROTECTION_DAYS = 120f;
+    public DeepCoverAction() {}
 
-    public DeepCoverAction(String agentId, String actorFactionId, String marketId,
-                           ActionConfig config, int agentLevel) {
-        super(agentId, actorFactionId, marketId, config, agentLevel);
-    }
+    @Override public String getDefId() { return ActionDefIds.DEEP_COVER; }
 
     @Override
-    protected void applyEffect(Nex4xAgentData data, MarketAPI market) {
+    protected void applyNex4xEffect(Nex4xAgentData data, MarketAPI market) {
+        if (data == null) return;
         data.activateSynergy(PROTECTION_DAYS);
         data.getBuildupTracker().addBoost(20f);
     }
 
     @Override
-    protected void applyDetectionFallout(Nex4xAgentData data, MarketAPI market) {
-        data.getBuildupTracker().reset();
+    protected void applyNex4xFallout(Nex4xAgentData data, MarketAPI market) {
+        if (data != null) data.getBuildupTracker().reset();
     }
 }

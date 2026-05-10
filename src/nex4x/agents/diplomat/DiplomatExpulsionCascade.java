@@ -20,6 +20,8 @@ public class DiplomatExpulsionCascade {
         int affected = 0;
         for (Nex4xAgentData d : mgr.getAllData()) {
             if (d.getType() != AgentType.DIPLOMAT) continue;
+            // Filter by owner faction; null owner == legacy data, skip rather than mass-cascade.
+            if (!actorFactionId.equals(d.getOwnerFactionId())) continue;
             d.setCascadeSuspicion(victimFactionId, suspicionDays);
             d.getBuildupTracker().damageByOneLevel();
             affected++;

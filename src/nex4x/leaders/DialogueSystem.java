@@ -21,6 +21,10 @@ public class DialogueSystem {
     }
 
     public static DialogueSystem get() {
+        if (instance == null) {
+            // Lazy autoload — guards against UI accessing before onApplicationLoad init.
+            load();
+        }
         return instance;
     }
 

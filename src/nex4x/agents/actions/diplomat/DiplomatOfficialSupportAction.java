@@ -2,32 +2,31 @@ package nex4x.agents.actions.diplomat;
 
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import nex4x.agents.Nex4xAgentData;
-import nex4x.agents.actions.ActionConfig;
-import nex4x.agents.actions.BaseAgentAction;
+import nex4x.agents.actions.ActionDefIds;
+import nex4x.agents.actions.Nex4xCovertAction;
 import nex4x.influence.InfluenceManager;
 import nex4x.influence.InfluenceSource;
 
-/**
- * Official diplomat action — public support gesture. No detection penalty
- * (it's official); buildup tracker becomes "standing" with host market.
- */
-public class DiplomatOfficialSupportAction extends BaseAgentAction {
-    private static final long serialVersionUID = 1L;
+/** Negotiator publicly assists host; gains influence for actor faction. Low-detection by design. */
+public class DiplomatOfficialSupportAction extends Nex4xCovertAction {
 
-    public DiplomatOfficialSupportAction(String agentId, String actorFactionId, String marketId,
-                                         ActionConfig config, int agentLevel) {
-        super(agentId, actorFactionId, marketId, config, agentLevel);
+    public DiplomatOfficialSupportAction() {}
+
+    @Override public String getDefId() { return ActionDefIds.DIPLOMAT_OFFICIAL; }
+
+    @Override
+    protected void applyNex4xEffect(Nex4xAgentData data, MarketAPI market) {
+        String actor = getActorFactionId();
+        int level = data != null ? data.getBuildupTracker().getLevel() : 0;
+        if (data != null) data.getBuildupTracker().addBoost(15f);
+        if (actor != null) {
+            float infGain = 3f + 2f * level;
+            InfluenceManager.getOrCreate().addLump(actor, infGain, InfluenceSource.AGENT_ACTION);
+        }
     }
 
     @Override
-    protected void applyEffect(Nex4xAgentData data, MarketAPI market) {
-        data.getBuildupTracker().addBoost(15f);
-        float infGain = 3f + 2f * data.getBuildupTracker().getLevel();
-        InfluenceManager.getOrCreate().addLump(actorFactionId, infGain, InfluenceSource.AGENT_ACTION);
-    }
-
-    @Override
-    protected void applyDetectionFallout(Nex4xAgentData data, MarketAPI market) {
-        // Official actions don't suffer "detection" in the covert sense.
+    protected void applyNex4xFallout(Nex4xAgentData data, MarketAPI market) {
+        // Official actions don't suffer "detection" — Nex still records the failure roll.
     }
 }

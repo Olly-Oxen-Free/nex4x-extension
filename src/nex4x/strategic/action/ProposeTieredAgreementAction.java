@@ -42,7 +42,9 @@ public class ProposeTieredAgreementAction extends BaseStrategicAction {
         if (us == null || them == null) return false;
         if (us.isHostileTo(them)) return false;
 
-        log.info("[Nex4x] " + myId + " proposes " + next.displayName + " to " + targetId
+        // Create the agreement so AI doesn't re-propose every tick.
+        am.createAgreement(myId, targetId, next);
+        log.info("[Nex4x] " + myId + " established " + next.displayName + " with " + targetId
                 + " via StrategicAction");
         return true;
     }

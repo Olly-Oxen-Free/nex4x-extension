@@ -36,10 +36,16 @@ public class Nex4xAgentActionReportListener implements AgentActionListener {
             if (ai != null) {
                 PersonAPI person = ai.getAgent();
                 if (person != null) {
-                    Nex4xAgentManager.getOrCreate()
-                            .getOrCreate(person.getId(), AgentType.COVERT)
-                            .getBuildupTracker()
-                            .addBoost(5f);
+                    // Read the canonical type from Nex; do not force COVERT.
+                    AgentType type = AgentTypeMap.fromAgent(ai);
+                    Nex4xAgentData data = Nex4xAgentManager.getOrCreate()
+                            .getOrCreate(person.getId(), type);
+                    // Keep type in sync with Nex if it changed.
+                    if (data.getType() != type) data.setType(type);
+                    if (data.getOwnerFactionId() == null && af != null) {
+                        data.setOwnerFactionId(af.getId());
+                    }
+                    data.getBuildupTracker().addBoost(5f);
                 }
             }
         } catch (Exception e) {

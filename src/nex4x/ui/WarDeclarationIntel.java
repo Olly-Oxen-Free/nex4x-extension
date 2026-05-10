@@ -36,7 +36,7 @@ public class WarDeclarationIntel extends BaseIntelPlugin {
         LeaderProfile leader = Nex4xManager.getOrCreateManager()
                 .getLeaderRegistry().getProfile(declarer);
         float rel = Global.getSector().getFaction(declarer).getRelationship(target);
-        ReputationTier tier = ReputationTier.fromRelation(rel);
+        ReputationTier tier = ReputationTier.fromRawRelation(rel);
         Map<String,String> ctx = new HashMap<String,String>();
         ctx.put("player", Global.getSector().getPlayerFaction().getDisplayName());
         ctx.put("leader", leader.displayName());

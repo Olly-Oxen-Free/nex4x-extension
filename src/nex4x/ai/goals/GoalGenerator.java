@@ -30,25 +30,25 @@ public class GoalGenerator {
      */
     public static List<StrategicGoal> generateGoals(String factionId) {
         List<StrategicGoal> goals = new ArrayList<StrategicGoal>();
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long currentTs = nex4x.util.Nex4xClock.now();
         Nex4xManager mgr = Nex4xManager.getManager();
         if (mgr == null) return goals;
 
         FactionAPI faction = Global.getSector().getFaction(factionId);
         if (faction == null) return goals;
 
-        generateBeliefGoals(factionId, goals, currentDay);
-        generateGrievanceGoals(factionId, mgr.getCasusBelliManager(), goals, currentDay);
-        generateMaintenanceGoals(factionId, mgr, goals, currentDay);
-        generateSecurityGoals(factionId, goals, currentDay);
-        generateOpportunisticGoals(factionId, goals, currentDay);
-        generateDiplomacyGoals(factionId, goals, currentDay);
+        generateBeliefGoals(factionId, goals, currentTs);
+        generateGrievanceGoals(factionId, mgr.getCasusBelliManager(), goals, currentTs);
+        generateMaintenanceGoals(factionId, mgr, goals, currentTs);
+        generateSecurityGoals(factionId, goals, currentTs);
+        generateOpportunisticGoals(factionId, goals, currentTs);
+        generateDiplomacyGoals(factionId, goals, currentTs);
 
         return goals;
     }
 
     private static void generateBeliefGoals(String factionId, List<StrategicGoal> goals,
-                                             float currentDay) {
+                                             long currentTs) {
         FactionBeliefs beliefs = FactionBeliefsLoader.getBeliefs(factionId);
         if (beliefs == null) return;
 
@@ -57,39 +57,39 @@ public class GoalGenerator {
             if (def == null) continue;
 
             if (def.category == BeliefDef.Category.TERRITORIAL && entry.strength >= 2) {
-                goals.add(new StrategicGoal(GoalType.CLAIM_TERRITORY, null, null, currentDay));
+                goals.add(new StrategicGoal(GoalType.CLAIM_TERRITORY, null, null, currentTs));
             }
             if (def.category == BeliefDef.Category.IDEOLOGICAL && entry.strength >= 3) {
-                goals.add(new StrategicGoal(GoalType.SPREAD_IDEOLOGY, null, null, currentDay));
+                goals.add(new StrategicGoal(GoalType.SPREAD_IDEOLOGY, null, null, currentTs));
             }
             if (def.category == BeliefDef.Category.ECONOMIC && entry.strength >= 2) {
-                goals.add(new StrategicGoal(GoalType.ECONOMIC_DOMINANCE, null, null, currentDay));
+                goals.add(new StrategicGoal(GoalType.ECONOMIC_DOMINANCE, null, null, currentTs));
             }
         }
     }
 
     private static void generateGrievanceGoals(String factionId, CasusBelliManager cbMgr,
-                                                List<StrategicGoal> goals, float currentDay) {
+                                                List<StrategicGoal> goals, long currentTs) {
         List<CasusBelli> cbs = cbMgr.getAllCBsFor(factionId);
         for (CasusBelli cb : cbs) {
             goals.add(new StrategicGoal(GoalType.PRESS_GRIEVANCE,
-                    cb.getTargetFactionId(), null, currentDay));
+                    cb.getTargetFactionId(), null, currentTs));
         }
     }
 
     private static void generateMaintenanceGoals(String factionId, Nex4xManager mgr,
-                                                  List<StrategicGoal> goals, float currentDay) {
+                                                  List<StrategicGoal> goals, long currentTs) {
         for (nex4x.agreements.Agreement a : mgr.getAgreementManager().getAgreementsFor(factionId)) {
             float remaining = a.getDaysRemaining();
             if (remaining > 0 && remaining <= 30) {
                 goals.add(new StrategicGoal(GoalType.RENEW_AGREEMENT,
-                        a.getOtherFaction(factionId), null, currentDay));
+                        a.getOtherFaction(factionId), null, currentTs));
             }
         }
     }
 
     private static void generateSecurityGoals(String factionId, List<StrategicGoal> goals,
-                                               float currentDay) {
+                                               long currentTs) {
         FactionAPI faction = Global.getSector().getFaction(factionId);
 
         try {
@@ -101,7 +101,7 @@ public class GoalGenerator {
                     for (FactionAPI other : Global.getSector().getAllFactions()) {
                         if (faction.isHostileTo(other) && !other.isNeutralFaction()) {
                             goals.add(new StrategicGoal(GoalType.END_WAR,
-                                    other.getId(), null, currentDay));
+                                    other.getId(), null, currentTs));
                         }
                     }
                 }
@@ -110,11 +110,11 @@ public class GoalGenerator {
             // Nex not available
         }
 
-        goals.add(new StrategicGoal(GoalType.DEFEND_TERRITORY, null, null, currentDay));
+        goals.add(new StrategicGoal(GoalType.DEFEND_TERRITORY, null, null, currentTs));
     }
 
     private static void generateOpportunisticGoals(String factionId, List<StrategicGoal> goals,
-                                                    float currentDay) {
+                                                    long currentTs) {
         FactionAPI faction = Global.getSector().getFaction(factionId);
 
         for (FactionAPI other : Global.getSector().getAllFactions()) {
@@ -128,13 +128,13 @@ public class GoalGenerator {
 
             if (warCount >= 2 && !faction.isHostileTo(other)) {
                 goals.add(new StrategicGoal(GoalType.EXPLOIT_WEAKNESS,
-                        other.getId(), null, currentDay));
+                        other.getId(), null, currentTs));
             }
         }
     }
 
     private static void generateDiplomacyGoals(String factionId, List<StrategicGoal> goals,
-                                                float currentDay) {
+                                                long currentTs) {
         FactionAPI faction = Global.getSector().getFaction(factionId);
 
         for (FactionAPI other : Global.getSector().getAllFactions()) {
@@ -152,7 +152,7 @@ public class GoalGenerator {
                 }
                 if (sharedEnemy) {
                     goals.add(new StrategicGoal(GoalType.BUILD_ALLIANCE,
-                            other.getId(), null, currentDay));
+                            other.getId(), null, currentTs));
                 }
             }
         }

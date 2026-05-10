@@ -18,6 +18,8 @@ public class WarGoal implements Serializable {
     private float scopeProgress;  // 0-1, how close to achieving the war goal
     private boolean achieved;
     private boolean abandoned;
+    /** Target market destroyed/decivilized → goal can never complete. Treated as inactive. */
+    private boolean obsolete;
 
     public WarGoal(String holderFactionId, String targetFactionId,
                    WarGoalType type, String targetMarketId, float declaredDay) {
@@ -39,7 +41,9 @@ public class WarGoal implements Serializable {
     public float getScopeProgress() { return scopeProgress; }
     public boolean isAchieved() { return achieved; }
     public boolean isAbandoned() { return abandoned; }
-    public boolean isActive() { return !achieved && !abandoned; }
+    public boolean isObsolete() { return obsolete; }
+    public boolean isActive() { return !achieved && !abandoned && !obsolete; }
+    public void markObsolete() { this.obsolete = true; }
 
     public void setScopeProgress(float progress) {
         this.scopeProgress = Math.max(0, Math.min(1, progress));

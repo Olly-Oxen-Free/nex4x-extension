@@ -1,5 +1,8 @@
 package nex4x.leaders;
 
+import com.fs.starfarer.api.campaign.FactionAPI;
+import nex4x.util.Nex4xRelations;
+
 public enum ReputationTier {
     HOSTILE(-100f, -50f),
     SUSPICIOUS(-50f, -25f),
@@ -15,12 +18,33 @@ public enum ReputationTier {
         this.maxRelation = max;
     }
 
-    public static ReputationTier fromRelation(float r) {
-        if (r <= -50f) return HOSTILE;
-        if (r < -25f)  return SUSPICIOUS;
-        if (r < 10f)   return NEUTRAL;
-        if (r < 50f)   return FAVORABLE;
+    /** Classify by percent-scale relation (-100..100). */
+    public static ReputationTier fromPercent(float pct) {
+        if (pct <= -50f) return HOSTILE;
+        if (pct < -25f)  return SUSPICIOUS;
+        if (pct < 10f)   return NEUTRAL;
+        if (pct < 50f)   return FAVORABLE;
         return COOPERATIVE;
+    }
+
+    /** Classify by raw FactionAPI relation [-1..1]. Preferred entry point. */
+    public static ReputationTier fromRawRelation(float rawRel) {
+        return fromPercent(Nex4xRelations.toPercent(rawRel));
+    }
+
+    /** Convenience: classify between two factions (null-safe; null returns NEUTRAL). */
+    public static ReputationTier between(FactionAPI a, FactionAPI b) {
+        if (a == null || b == null) return NEUTRAL;
+        return fromRawRelation(a.getRelationship(b.getId()));
+    }
+
+    /**
+     * @deprecated misnamed: thresholds are percent. Callers passing raw [-1..1] always got HOSTILE.
+     * Use {@link #fromPercent(float)} or {@link #fromRawRelation(float)}.
+     */
+    @Deprecated
+    public static ReputationTier fromRelation(float r) {
+        return fromPercent(r);
     }
 
     public static ReputationTier shift(ReputationTier base, int delta) {
