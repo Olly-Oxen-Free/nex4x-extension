@@ -15,7 +15,6 @@ import nex4x.ai.ReactiveHandler;
 import nex4x.ai.StrategicGoalManager;
 import nex4x.ai.archetype.GrandStrategyManager;
 import nex4x.casusbelli.CasusBelliManager;
-import nex4x.agents.Nex4xAgentActionProposer;
 import nex4x.agents.Nex4xAgentManager;
 import nex4x.agents.diplomat.DiplomatPassiveManager;
 import nex4x.coalitions.CoalitionGovernance;
@@ -74,6 +73,7 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
 
     /** Not persisted — re-learned each session / load. */
     private transient String lastKnownCommissionFactionId;
+    private transient int diploBrainSweepCounter = 0;
 
     public MemoryManager getMemoryManager() { return memoryManager; }
     public BadgeManager getBadgeManager() { return badgeManager; }
@@ -138,13 +138,13 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
             badgeManager.advanceAllDecay(elapsed);
             agreementManager.advanceDay();
             casusBelliManager.advanceDay();
-            declarationManager.advanceDay();
+            declarationManager.advanceDay(elapsed);
             warScoreTracker.advanceDay();
             proposalManager.advanceDay();
 
             // v2 — influence, pressure, policies, demands, mediation, contracts, vassals, coalitions, modifiers
             try {
-                InfluenceManager.getOrCreate().advanceDay();
+                InfluenceManager.getOrCreate().advanceDay(elapsed);
                 PressureManager.getOrCreate().advanceDay();
                 DynamicModifierManager.getOrCreate().advanceDay();
                 PolicyManager.getOrCreate().advanceDay();
@@ -160,13 +160,25 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
             // v3 — agent companion data + passive diplomat drip
             try {
                 Nex4xAgentManager.getOrCreate().advanceAll(elapsed, 1);
-                Nex4xAgentActionProposer.tick();
+                // Nex's CovertOpsManager handles agent action selection; nex4x reacts via
+                // Nex4xAgentActionReportListener (registered transient in onGameLoad).
                 for (FactionAPI f : Global.getSector().getAllFactions()) {
                     if (f.isNeutralFaction()) continue;
                     DiplomatPassiveManager.advanceDay(elapsed, f.getId());
                 }
             } catch (Exception e) {
                 log.error("[Nex4x] v3 daily tick failed: " + e.getMessage());
+            }
+
+            // Periodic DiplomacyBrain sweep (every 10 ticks ~= 10 days) — idempotent.
+            diploBrainSweepCounter++;
+            if (diploBrainSweepCounter >= 10) {
+                diploBrainSweepCounter = 0;
+                try {
+                    nex4x.integration.NexDiplomacyBridge.sweepDiplomacyBrains();
+                } catch (Throwable t) {
+                    log.warn("[Nex4x] DiplomacyBrain sweep: " + t.getMessage());
+                }
             }
 
             // v5 — leader registry daily tick
