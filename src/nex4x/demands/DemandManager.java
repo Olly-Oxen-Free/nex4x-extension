@@ -88,6 +88,10 @@ public class DemandManager implements Serializable {
                             Global.getSector().getPlayerFleet().getCargo().getCredits().add(amount);
                         }
                     }
+                    int marketsAffected = nex4x.integration.NexDiplomacyBridge.applyTributeToFaction(
+                            d.getTargetId(), d.getDemanderId());
+                    log.info("[Nex4x] TRIBUTE_CREDITS persistent — applied to "
+                            + marketsAffected + " market(s) of " + d.getTargetId());
                     break;
                 }
                 case END_WAR: {
@@ -192,6 +196,14 @@ public class DemandManager implements Serializable {
                         + " -> " + d.getTargetId());
             }
             if (d.getStatus() != Demand.DemandStatus.PENDING && t > d.getExpiryDay() + 60f) {
+                if (d.getStatus() == Demand.DemandStatus.ACCEPTED
+                        && d.getType() == Demand.DemandType.TRIBUTE_CREDITS) {
+                    int removed = nex4x.integration.NexDiplomacyBridge.removeTributeForFaction(d.getTargetId());
+                    if (removed > 0) {
+                        log.info("[Nex4x] TRIBUTE_CREDITS expired — removed condition from "
+                                + removed + " market(s) of " + d.getTargetId());
+                    }
+                }
                 it.remove();
             }
         }
