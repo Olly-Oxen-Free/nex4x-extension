@@ -5,6 +5,9 @@ import com.fs.starfarer.api.campaign.FactionAPI;
 import exerelin.campaign.DiplomacyManager;
 import exerelin.campaign.ai.action.BaseStrategicAction;
 import exerelin.campaign.ai.concern.StrategicConcern;
+import nex4x.casusbelli.CasusBelli;
+import nex4x.integration.NexDiplomacyBridge;
+import nex4x.managers.Nex4xManager;
 import nex4x.strategic.concern.BadgeProvocationConcern;
 import nex4x.strategic.concern.GoalWrapConcern;
 import org.apache.log4j.Logger;
@@ -31,9 +34,17 @@ public class DeclareWarFromDesireAction extends BaseStrategicAction {
         if (us.isHostileTo(them)) return false;
 
         try {
-            DiplomacyManager.createDiplomacyEvent(us, them, "declare_war", null);
+            Nex4xManager mgr = Nex4xManager.getManager();
+            CasusBelli cb = (mgr != null)
+                    ? mgr.getCasusBelliManager().getActiveCasusBelliFor(us.getId(), targetId)
+                    : null;
+            if (cb != null) {
+                NexDiplomacyBridge.fireJustifiedWar(us, them, cb.getType().name());
+            } else {
+                DiplomacyManager.createDiplomacyEvent(us, them, "declare_war", null);
+            }
             log.info("[Nex4x] " + us.getId() + " DECLARES WAR on " + targetId
-                    + " via StrategicAction");
+                    + " via StrategicAction" + (cb != null ? " [CB: " + cb.getType().name() + "]" : ""));
             return true;
         } catch (Exception e) {
             log.error("[Nex4x] Failed to declare war: " + e.getMessage());

@@ -178,10 +178,15 @@ public class DiplomaticExecutor implements Serializable {
                 + " (goal: " + goal.type.displayName + ")");
 
         try {
-            exerelin.campaign.DiplomacyManager.createDiplomacyEvent(
-                    Global.getSector().getFaction(factionId),
-                    Global.getSector().getFaction(targetFactionId),
-                    "declare_war", null);
+            FactionAPI us = Global.getSector().getFaction(factionId);
+            FactionAPI them = Global.getSector().getFaction(targetFactionId);
+            nex4x.casusbelli.CasusBelli cb = mgr.getCasusBelliManager()
+                    .getActiveCasusBelliFor(factionId, targetFactionId);
+            if (cb != null) {
+                nex4x.integration.NexDiplomacyBridge.fireJustifiedWar(us, them, cb.getType().name());
+            } else {
+                exerelin.campaign.DiplomacyManager.createDiplomacyEvent(us, them, "declare_war", null);
+            }
         } catch (Exception e) {
             log.error("[Nex4x] Failed to declare war: " + e.getMessage());
         }
