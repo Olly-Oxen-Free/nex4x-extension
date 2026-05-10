@@ -2,11 +2,15 @@ package nex4x.integration;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FactionAPI;
+import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import com.fs.starfarer.api.campaign.econ.MarketConditionAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import exerelin.campaign.AllianceManager;
 import exerelin.campaign.DiplomacyManager;
 import exerelin.campaign.ai.StrategicAI;
 import exerelin.campaign.alliances.Alliance;
+import exerelin.campaign.econ.TributeCondition;
+import exerelin.campaign.intel.diplomacy.TributeIntel;
 import org.apache.log4j.Logger;
 
 import java.util.List;
@@ -225,6 +229,157 @@ public final class NexDiplomacyBridge {
         } catch (Throwable t) {
             log.warn("[Nex4x] syncCoalitionToAlliance: error for coalition " + coalitionId
                     + ": " + t.getMessage(), t);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // TributeCondition helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Applies {@link TributeCondition} to {@code market} on behalf of {@code receiver}, wiring
+     * up a {@link TributeIntel} instance so the condition displays correctly in the UI.
+     *
+     * <p>Idempotent: if the condition already exists on the market this method returns
+     * immediately without creating a duplicate. The condition's income-penalty logic
+     * ({@link TributeCondition#getIncomePenalty()}) is applied by the condition itself via
+     * its {@code apply()} callback and does not require a wired intel to function.
+     *
+     * @param market   the market that will carry the tribute burden
+     * @param receiver the faction receiving the tribute payments
+     */
+    public static void applyTributeCondition(MarketAPI market, FactionAPI receiver) {
+        if (market == null || receiver == null) {
+            log.debug("[Nex4x] applyTributeCondition: null market or receiver — skipping");
+            return;
+        }
+        try {
+            if (market.hasCondition(TributeCondition.CONDITION_ID)) {
+                return; // idempotent
+            }
+            market.addCondition(TributeCondition.CONDITION_ID);
+            MarketConditionAPI mc = market.getSpecificCondition(TributeCondition.CONDITION_ID);
+            if (mc == null) {
+                log.warn("[Nex4x] applyTributeCondition: addCondition returned no condition on "
+                        + market.getId());
+                return;
+            }
+            Object plugin = mc.getPlugin();
+            if (plugin instanceof TributeCondition) {
+                TributeIntel intel = getOrCreateTributeIntel(market, receiver);
+                ((TributeCondition) plugin).setup(receiver, intel);
+            }
+            log.info("[Nex4x] applyTributeCondition: applied to " + market.getId()
+                    + " for receiver " + receiver.getId());
+        } catch (Throwable t) {
+            log.warn("[Nex4x] applyTributeCondition: error on market " + market.getId()
+                    + ": " + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Removes the {@link TributeCondition} from {@code market} if present.
+     *
+     * @param market the market from which the tribute burden is lifted
+     */
+    public static void removeTributeCondition(MarketAPI market) {
+        if (market == null) {
+            log.debug("[Nex4x] removeTributeCondition: null market — skipping");
+            return;
+        }
+        try {
+            if (market.hasCondition(TributeCondition.CONDITION_ID)) {
+                market.removeCondition(TributeCondition.CONDITION_ID);
+                log.info("[Nex4x] removeTributeCondition: removed from " + market.getId());
+            }
+        } catch (Throwable t) {
+            log.warn("[Nex4x] removeTributeCondition: error on market " + market.getId()
+                    + ": " + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Applies {@link TributeCondition} to all non-hidden markets owned by {@code giverFid}.
+     *
+     * @param giverFid    faction id of the tribute payer
+     * @param receiverFid faction id of the tribute recipient
+     * @return number of markets the condition was newly applied to
+     */
+    public static int applyTributeToFaction(String giverFid, String receiverFid) {
+        if (giverFid == null || receiverFid == null) {
+            log.debug("[Nex4x] applyTributeToFaction: null faction id — skipping");
+            return 0;
+        }
+        FactionAPI receiver = Global.getSector().getFaction(receiverFid);
+        if (receiver == null) {
+            log.debug("[Nex4x] applyTributeToFaction: receiver faction not found: " + receiverFid);
+            return 0;
+        }
+        int count = 0;
+        for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (giverFid.equals(m.getFactionId()) && !m.isHidden()) {
+                if (!m.hasCondition(TributeCondition.CONDITION_ID)) {
+                    applyTributeCondition(m, receiver);
+                    count++;
+                }
+            }
+        }
+        if (count > 0) {
+            log.info("[Nex4x] applyTributeToFaction: applied to " + count
+                    + " markets for " + giverFid + " -> " + receiverFid);
+        }
+        return count;
+    }
+
+    /**
+     * Removes {@link TributeCondition} from all markets owned by {@code giverFid}.
+     *
+     * @param giverFid faction id of the tribute payer being freed
+     * @return number of markets the condition was removed from
+     */
+    public static int removeTributeForFaction(String giverFid) {
+        if (giverFid == null) {
+            log.debug("[Nex4x] removeTributeForFaction: null faction id — skipping");
+            return 0;
+        }
+        int count = 0;
+        for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (giverFid.equals(m.getFactionId()) && m.hasCondition(TributeCondition.CONDITION_ID)) {
+                removeTributeCondition(m);
+                count++;
+            }
+        }
+        if (count > 0) {
+            log.info("[Nex4x] removeTributeForFaction: removed from " + count
+                    + " markets for " + giverFid);
+        }
+        return count;
+    }
+
+    /**
+     * Finds or creates a {@link TributeIntel} for the given (market, receiver) pair.
+     *
+     * <p>Note: {@link TributeIntel}'s constructor accepts {@code (String factionId, MarketAPI)}
+     * where {@code factionId} is the <em>receiver's</em> faction id (as revealed by javap).
+     * The intel is added to the sector intel manager when newly created.
+     *
+     * @param market   the tribute-bearing market (used both as the key and ctor arg)
+     * @param receiver the faction receiving tribute payments
+     * @return an existing or freshly-created {@link TributeIntel}, or {@code null} on error
+     */
+    private static TributeIntel getOrCreateTributeIntel(MarketAPI market, FactionAPI receiver) {
+        try {
+            TributeIntel existing = TributeIntel.getOngoingIntel(market);
+            if (existing != null) {
+                return existing;
+            }
+            TributeIntel intel = new TributeIntel(receiver.getId(), market);
+            Global.getSector().getIntelManager().addIntel(intel);
+            return intel;
+        } catch (Throwable t) {
+            log.warn("[Nex4x] getOrCreateTributeIntel: failed for market " + market.getId()
+                    + ": " + t.getMessage(), t);
+            return null;
         }
     }
 
