@@ -321,6 +321,42 @@ public class Nex4xDebugCommand {
         return sb.toString();
     }
 
+    /** runcode nex4x.debug.Nex4xDebugCommand.auditTribute() — walks economy and lists every market carrying TributeCondition. */
+    public static String auditTribute() {
+        StringBuilder sb = new StringBuilder("[nex4x audit-tribute]\n");
+        try {
+            int total = 0;
+            for (com.fs.starfarer.api.campaign.econ.MarketAPI market :
+                    com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
+                if (!market.hasCondition(exerelin.campaign.econ.TributeCondition.CONDITION_ID)) continue;
+                total++;
+                String receiver = "<unknown>";
+                try {
+                    com.fs.starfarer.api.campaign.econ.MarketConditionPlugin plugin =
+                            market.getSpecificCondition(exerelin.campaign.econ.TributeCondition.CONDITION_ID).getPlugin();
+                    if (plugin instanceof exerelin.campaign.econ.TributeCondition) {
+                        java.lang.reflect.Field f =
+                                exerelin.campaign.econ.TributeCondition.class.getDeclaredField("faction");
+                        f.setAccessible(true);
+                        com.fs.starfarer.api.campaign.FactionAPI factionApi =
+                                (com.fs.starfarer.api.campaign.FactionAPI) f.get(plugin);
+                        receiver = (factionApi != null) ? factionApi.getId() : "<null>";
+                    }
+                } catch (Throwable t2) {
+                    receiver = "<reflect-err: " + t2.getMessage() + ">";
+                }
+                sb.append("  ").append(market.getId())
+                  .append(" | owner=").append(market.getFactionId())
+                  .append(" | -> ").append(receiver).append("\n");
+            }
+            sb.append("  Total tributed markets: ").append(total).append("\n");
+        } catch (Throwable t) {
+            sb.append("  auditTribute failed: ").append(t.getMessage()).append("\n");
+        }
+        com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(sb.toString());
+        return sb.toString();
+    }
+
     /** runcode nex4x.debug.Nex4xDebugCommand.auditRels() — prints relation diagnostics for all live factions vs player. */
     public static String auditRels() {
         StringBuilder sb = new StringBuilder("[nex4x audit-rels]\n");
