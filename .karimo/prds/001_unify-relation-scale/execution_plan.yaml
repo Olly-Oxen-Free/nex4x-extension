@@ -1,0 +1,12 @@
+prd: unify-relation-scale
+waves:
+  - wave: 1
+    tasks: [1a]
+  - wave: 2
+    tasks: [1b, 1d, 1e, 1f, 1g, 1h, 1i]   # all depend only on 1a; safe parallel
+  - wave: 3
+    tasks: [1c]                            # depends on 1b
+  - wave: 4
+    tasks: [1j]                            # smoke + verify gates everything
+longest_chain: [1a, 1b, 1c, 1j]
+total_complexity: 15

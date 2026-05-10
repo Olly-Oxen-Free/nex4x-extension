@@ -1,0 +1,93 @@
+prd: tribute-condition-wiring
+version: 1
+tasks:
+  - id: 11a
+    title: Extend NexDiplomacyBridge with TributeCondition helpers
+    description: |
+      Add to src/nex4x/integration/NexDiplomacyBridge.java:
+        - static void applyTributeCondition(MarketAPI market, FactionAPI receiver)
+            Idempotent: skip if market already has TributeCondition.CONDITION_ID.
+            Use market.addCondition(...) then look up the plugin and call setup(receiver, intel).
+            For TributeIntel: try to fetch existing via IntelManager;
+            if missing, instantiate new TributeIntel(...) — verify ctor signature via javap.
+            Wrap in try/catch; log warn on failure (do not throw).
+
+        - static void removeTributeCondition(MarketAPI market)
+            If condition present: market.removeCondition(TributeCondition.CONDITION_ID).
+            No-op otherwise.
+
+        - static int applyTributeToFaction(String giverFid, String receiverFid)
+            Walks Global.getSector().getEconomy().getMarketsCopy(); for each market owned
+            by giverFid (and !isHidden()), calls applyTributeCondition(market, receiverFaction).
+            Returns count of markets affected.
+
+        - static int removeTributeForFaction(String giverFid)
+            Walks markets; removes any TributeCondition with the receiver still matching giverFid's
+            current owner OR removes regardless (callers manage scope). Returns count.
+
+      Verify Nex APIs via javap:
+        javap exerelin.campaign.econ.TributeCondition
+        javap exerelin.campaign.intel.diplomacy.TributeIntel
+      Note CONDITION_ID is static final — read its value (likely "nex_tribute" or similar)
+      via reflection at runtime if not directly accessible.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 4
+    priority: must
+    depends_on: []
+
+  - id: 11b
+    title: TRIBUTE_CREDITS demand applies persistent TributeCondition
+    description: |
+      In src/nex4x/demands/DemandManager.applyDemandEffect, the TRIBUTE_CREDITS branch
+      currently grants a one-shot credit lump. Extend it:
+
+      After the credit grant, ALSO call NexDiplomacyBridge.applyTributeToFaction(
+          d.getTargetId(), d.getDemanderId());
+
+      Document in the case-comment that this is "persistent until the demand record is
+      pruned" (DemandManager.advanceDay removes finished demands after 60d; on prune,
+      call NexDiplomacyBridge.removeTributeForFaction).
+
+      Update advanceDay to call removeTributeForFaction when an ACCEPTED+old TRIBUTE_CREDITS
+      demand is pruned (it.remove() path).
+    files:
+      - src/nex4x/demands/DemandManager.java
+    complexity: 2
+    priority: must
+    depends_on: [11a]
+
+  - id: 11c
+    title: VassalManager applies TributeCondition on vassalize/freeVassal
+    description: |
+      In src/nex4x/vassals/VassalManager.java:
+
+      - vassalize(overlordId, vassalId, tier): after creating VassalRelation, call
+        NexDiplomacyBridge.applyTributeToFaction(vassalId, overlordId).
+
+      - freeVassal(vassalId): before removing the relation, remember its overlordId,
+        then call NexDiplomacyBridge.removeTributeForFaction(vassalId).
+
+      - advanceDay: at the end of the existing rebellion check loop, walk relations and
+        for each non-rebelling vassal, call applyTributeToFaction(vassalId, overlordId)
+        again — idempotent helper handles existing conditions; this catches newly-conquered
+        vassal markets.
+    files:
+      - src/nex4x/vassals/VassalManager.java
+    complexity: 2
+    priority: must
+    depends_on: [11a]
+
+  - id: 11d
+    title: auditTribute() smoke + build verify
+    description: |
+      Add to src/nex4x/debug/Nex4xDebugCommand.java a runcode method auditTribute()
+      that walks Global.getSector().getEconomy().getMarketsCopy() and for each market
+      with TributeCondition, prints (marketId, owner, receiver). Returns the formatted
+      string.
+      ./build.sh clean. Manual: vassalize → run auditTribute → verify conditions.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [11b, 11c]

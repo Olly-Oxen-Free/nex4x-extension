@@ -1,0 +1,11 @@
+{
+  "status": "ready",
+  "created_date": "2026-05-10",
+  "source": "audit/AUDIT_REPORT.md (P2/P3 residue)",
+  "severity": "P2/P3",
+  "research_included": true,
+  "tasks_total": 6,
+  "complexity_total": 19,
+  "depends_on_prds": ["001", "002", "003", "004", "005", "006"],
+  "note": "Defer until PRDs 001-006 land; many findings dissolve after systemic fixes."
+}

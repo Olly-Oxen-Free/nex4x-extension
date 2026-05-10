@@ -1,0 +1,110 @@
+prd: standardize-time-units
+version: 1
+tasks:
+  - id: 2a
+    title: Add Nex4xClock helper
+    description: |
+      Create src/nex4x/util/Nex4xClock.java:
+      - static long now()                      // Global.getSector().getClock().getTimestamp()
+      - static float daysSince(long ts)        // clock.getElapsedDaysSince(ts)
+      - static float currentAbsoluteDay()      // cycle*365 + (month-1)*30 + day
+      - static boolean isLegacyDayValue(double v)  // |v| > 1e6 => looks like a raw timestamp
+      JavaDoc each method describing exact semantics and unit.
+    files:
+      - src/nex4x/util/Nex4xClock.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 2b
+    title: Migrate StrategicGoalManager
+    description: |
+      Replace currentDay = clock.getTimestamp() at line 58 with stored long ts on each goal/manager
+      and compute deltas via Nex4xClock.daysSince(ts). IMPORTANCE_RECALC_INTERVAL stays 7f (days now).
+    files:
+      - src/nex4x/ai/StrategicGoalManager.java
+    complexity: 3
+    priority: must
+    depends_on: [2a]
+
+  - id: 2c
+    title: Migrate CommitmentLedger archetype hysteresis
+    description: |
+      Lines 100, 185, 266: convert archetypeSince and lockedUntil to long timestamps
+      computed via Nex4xClock.now()/daysSince. MIN_TREND_DAYS=30 and forceTransition lockDays
+      now correctly express days. Add field-type migration on load (see 2h).
+    files:
+      - src/nex4x/ai/archetype/CommitmentLedger.java
+    complexity: 3
+    priority: must
+    depends_on: [2a]
+
+  - id: 2d
+    title: Migrate GoalScorer historical-weight
+    description: |
+      Lines 71, 213: ageDays via Nex4xClock.daysSince(goal.createdTimestamp).
+      Update Goal.createdDay field to createdTimestamp (long).
+    files:
+      - src/nex4x/ai/goals/GoalScorer.java
+      - src/nex4x/ai/goals/Goal.java
+    complexity: 2
+    priority: must
+    depends_on: [2a]
+
+  - id: 2e
+    title: Migrate WarScoreTracker
+    description: Line 37: declaredDay -> declaredTimestamp (long); compute via Nex4xClock.
+    files:
+      - src/nex4x/wargoals/WarScoreTracker.java
+    complexity: 2
+    priority: must
+    depends_on: [2a]
+
+  - id: 2f
+    title: Replace custom now() in ContractAuctionManager + DemandManager
+    description: |
+      ContractAuctionManager.java:22 and DemandManager.java:26 — delete custom now() formula
+      and call Nex4xClock.currentAbsoluteDay() (which respects months).
+      Verify expiry math callers continue to work in absolute-day units.
+    files:
+      - src/nex4x/contracts/ContractAuctionManager.java
+      - src/nex4x/demands/DemandManager.java
+    complexity: 2
+    priority: must
+    depends_on: [2a]
+
+  - id: 2g
+    title: Reconcile Agreement calendar math
+    description: |
+      Agreement.java:88-92 — replace inline (cycle-206)*365 with Nex4xClock.currentAbsoluteDay().
+      Field semantics unchanged.
+    files:
+      - src/nex4x/agreements/Agreement.java
+    complexity: 1
+    priority: must
+    depends_on: [2a]
+
+  - id: 2h
+    title: Add legacy save migration in onGameLoad
+    description: |
+      In Nex4xModPlugin.onGameLoad, after manager init, walk persisted goals/archetypes/war scores.
+      For each timestamp-typed field, if Nex4xClock.isLegacyDayValue(v) is true (means it holds
+      raw seconds), reset to Nex4xClock.now(). Log "Migrated N legacy time fields".
+      No destructive rewrites — just sentinel reset.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 3
+    priority: must
+    depends_on: [2b, 2c, 2d, 2e]
+
+  - id: 2i
+    title: Smoke + verify
+    description: |
+      Add `nex4x audit-clock` to Nex4xDebugCommand: prints now-ts, sample goal age, archetype
+      remaining-lock-days, agreement remaining-days. Build green. Manual: load existing save,
+      confirm migration log line, confirm archetypes do not flap.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [2b, 2c, 2d, 2e, 2f, 2g, 2h]

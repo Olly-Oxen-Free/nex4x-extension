@@ -1,0 +1,10 @@
+prd: diplomacy-logic-fixes
+waves:
+  - wave: 1
+    tasks: [6a, 6b, 6d, 6e, 6g, 6h, 6i, 6j, 6k, 6l, 6m, 6n, 6o, 6p, 6q]
+  - wave: 2
+    tasks: [6c, 6f]   # depend on 6b and 6e respectively
+  - wave: 3
+    tasks: [6r]
+longest_chain: [6e, 6f, 6r]
+total_complexity: 33

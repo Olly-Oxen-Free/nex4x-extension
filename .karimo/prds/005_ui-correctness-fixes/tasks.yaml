@@ -1,0 +1,137 @@
+prd: ui-correctness-fixes
+version: 1
+tasks:
+  - id: 5a
+    title: Fix NegotiationPanel singleton race
+    description: |
+      Wrap BasePopUpDialog.popUpDialog(...) in try/catch in the ctor. On throw,
+      null activeInstance and rethrow. Verify counter-proposal ctor inheriting
+      via this(...) is also covered (single try/catch in shared init helper).
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 5b
+    title: Fix overlay leak in CoreUITabInjectorListener
+    description: |
+      Track previous overlay component in field; on subsequent open, call
+      intelPanel.removeComponent(prev) before adding the new one. Null-guard
+      first-open case. Test by opening/closing DiplomacyIntel 5x.
+    files:
+      - src/nex4x/ui/CoreUITabInjectorListener.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 5c
+    title: Disambiguate DiplomacyIntel class import
+    description: |
+      In ui/DiplomacyTabOverlayModel.java line 469, replace the imported
+      DiplomacyIntel reference at the IntelManagerAPI.getIntel(Class) call site
+      with the FQN exerelin.campaign.intel.diplomacy.DiplomacyIntel. Leave the
+      import statement (other call sites may rely on it) but remove ambiguity
+      at the critical site.
+    files:
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 5d
+    title: Fix detached-panel rebuild in NegotiationPanel.advance
+    description: |
+      Replace removeUI(); createUI(panelToInfluence) at line 276 with the pattern
+      used in CoreUITabInjectorListener.refresh: clear children of panelToInfluence
+      directly via IntelReflectionUtil.getChildrenNonCopy(panelToInfluence).clear(),
+      then re-call createUI. Verify panelToInfluence ref still attached after
+      rebuild via debug log.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 5e
+    title: Restore GL color in BalanceBarPlugin
+    description: |
+      At BalanceBarPlugin.java:71, append GL11.glColor4f(1f, 1f, 1f, 1f) before
+      the renderer returns. Also wrap the entire render block in
+      glPushAttrib(GL_COLOR_BUFFER_BIT | GL_CURRENT_BIT) / glPopAttrib for safety.
+    files:
+      - src/nex4x/ui/BalanceBarPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 5f
+    title: Restore GL state in DiplomacyOverlayPlugin
+    description: |
+      At DiplomacyOverlayPlugin.java:75, restore glColor to white and pop blend
+      state. Use glPushAttrib(GL_CURRENT_BIT | GL_COLOR_BUFFER_BIT) at entry,
+      glPopAttrib at exit.
+    files:
+      - src/nex4x/ui/DiplomacyOverlayPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 5g
+    title: Demote per-click LMB log
+    description: |
+      DiplomacyOverlayPlugin.java:88: remove or downgrade to log.debug behind
+      a static DEBUG_INPUT flag (default false).
+    files:
+      - src/nex4x/ui/DiplomacyOverlayPlugin.java
+    complexity: 1
+    priority: should
+    depends_on: []
+
+  - id: 5h
+    title: Remove double-advance addSpacer calls
+    description: |
+      DiplomacyTabOverlayModel.java lines 299 and 456: delete the addSpacer(rowH+...)
+      calls; addCustom already advances. Verify visually that vertical layout is now
+      tight (no blank band).
+    files:
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 5i
+    title: Replace DiplomacyIntel sort-string hack
+    description: |
+      Override getSortTier() to return IntelSortTier.TIER_1. Remove the
+      "AAA_..." sort-string trick.
+    files:
+      - src/nex4x/ui/DiplomacyIntel.java
+    complexity: 1
+    priority: should
+    depends_on: []
+
+  - id: 5j
+    title: Demote render() info-log spam
+    description: |
+      DiplomacyTabOverlayModel.java:81 — change log.info to log.debug.
+    files:
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+    complexity: 1
+    priority: should
+    depends_on: []
+
+  - id: 5k
+    title: Smoke + verify
+    description: |
+      ./build.sh clean. Manual checklist:
+      - Open/close DiplomacyIntel 5x; tail starsector.log for "DiplomacyOverlayPlugin"
+        info lines (should be absent except on debug).
+      - Trigger negotiation cancel mid-popup; verify activeInstance == null after.
+      - Visually compare faction-list layout before/after to confirm no blank band.
+      - Watch for color tinting on adjacent UI elements after overlay closes.
+      Remove all // TODO(audit-P*) markers in scoped files.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [5a, 5b, 5c, 5d, 5e, 5f, 5g, 5h, 5i, 5j]
