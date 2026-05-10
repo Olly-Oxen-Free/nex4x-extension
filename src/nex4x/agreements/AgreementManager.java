@@ -2,8 +2,11 @@ package nex4x.agreements;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
+import exerelin.campaign.AllianceManager;
+import exerelin.campaign.alliances.Alliance;
 import nex4x.casusbelli.CasusBelliManager;
 import nex4x.casusbelli.CasusBelliType;
+import nex4x.integration.NexDiplomacyBridge;
 import nex4x.managers.Nex4xManager;
 import nex4x.ui.AgreementExpiryIntel;
 import org.apache.log4j.Logger;
@@ -13,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -61,9 +65,21 @@ public class AgreementManager implements Serializable {
 
         if (type == AgreementType.COALITION) {
             try {
-                nex4x.integration.NexDiplomacyBridge.ensureAlliance(factionA, factionB);
+                // Collect all coalition members (existing + the two new parties) and sync.
+                List<String> members = getCoalitionMembers(factionA, factionB);
+                String coalitionId = buildCoalitionId(members);
+                NexDiplomacyBridge.syncCoalitionToAlliance(coalitionId, members);
             } catch (Throwable t) {
-                log.warn("[Nex4x] Coalition alliance bridge: " + t.getMessage());
+                log.warn("[Nex4x] Coalition alliance sync (add): " + t.getMessage(), t);
+            }
+        }
+
+        float floor = relationFloorFor(type);
+        if (floor >= 0f) {
+            try {
+                nex4x.integration.NexDiplomacyBridge.enforceNonAggression(factionA, factionB, floor);
+            } catch (Throwable t) {
+                log.warn("[Nex4x] Relation floor bridge: " + t.getMessage());
             }
         }
 
@@ -145,6 +161,76 @@ public class AgreementManager implements Serializable {
     }
 
     /**
+     * Returns the set of all faction ids currently in a coalition that includes both
+     * {@code factionA} and {@code factionB}. The result always contains at least both
+     * arguments. Uses active COALITION agreements to discover transitive members.
+     */
+    public List<String> getCoalitionMembers(String factionA, String factionB) {
+        Set<String> members = new LinkedHashSet<String>();
+        members.add(factionA);
+        members.add(factionB);
+        // Expand: for each member already found, collect their active COALITION partners
+        Set<String> toProcess = new LinkedHashSet<String>(members);
+        while (!toProcess.isEmpty()) {
+            String next = toProcess.iterator().next();
+            toProcess.remove(next);
+            for (Agreement a : agreements) {
+                if (!a.isActive() || a.getType() != AgreementType.COALITION) continue;
+                if (!a.involves(next)) continue;
+                String partner = a.getOtherFaction(next);
+                if (partner != null && members.add(partner)) {
+                    toProcess.add(partner);
+                }
+            }
+        }
+        return new ArrayList<String>(members);
+    }
+
+    /** Derive a stable coalition id string from a sorted member list (for logging). */
+    private static String buildCoalitionId(List<String> members) {
+        List<String> sorted = new ArrayList<String>(members);
+        java.util.Collections.sort(sorted);
+        StringBuilder sb = new StringBuilder("coalition");
+        for (String m : sorted) sb.append('_').append(m);
+        return sb.toString();
+    }
+
+    /**
+     * If the given agreement is a COALITION that just became inactive, remove the
+     * departing faction from its Nex Alliance shadow if it has no remaining COALITION
+     * agreements. Called after {@link Agreement#cancel()} or expiry pruning.
+     */
+    private void maybeSyncCoalitionLeave(Agreement agreement) {
+        if (agreement.getType() != AgreementType.COALITION) return;
+        String fidA = agreement.getFactionIdA();
+        String fidB = agreement.getFactionIdB();
+        // For each side: if they have no remaining active COALITION agreements, leave alliance.
+        for (String fid : new String[]{fidA, fidB}) {
+            boolean hasOtherCoalition = false;
+            for (Agreement a : agreements) {
+                if (a == agreement) continue;
+                if (a.isActive() && a.getType() == AgreementType.COALITION && a.involves(fid)) {
+                    hasOtherCoalition = true;
+                    break;
+                }
+            }
+            if (!hasOtherCoalition) {
+                try {
+                    Alliance alliance = AllianceManager.getFactionAlliance(fid);
+                    if (alliance != null) {
+                        AllianceManager.getManager().leaveAlliance(fid, alliance, false, false);
+                        log.info("[Nex4x] Coalition leave: " + fid
+                                + " left Nex alliance " + alliance.getName());
+                    }
+                } catch (Throwable t) {
+                    log.warn("[Nex4x] Coalition alliance sync (remove) for " + fid
+                            + ": " + t.getMessage(), t);
+                }
+            }
+        }
+    }
+
+    /**
      * Cancel an agreement and generate diplomatic consequences:
      * - Treaty Violation CB for the other faction
      * - (Future: Oathbreaker badge, memory events)
@@ -155,6 +241,7 @@ public class AgreementManager implements Serializable {
 
         String otherFaction = agreement.getOtherFaction(canceller);
         agreement.cancel();
+        maybeSyncCoalitionLeave(agreement);
 
         // Generate Treaty Violation CB for the aggrieved party
         if (otherFaction != null) {
@@ -210,11 +297,27 @@ public class AgreementManager implements Serializable {
             }
         }
 
+        // Re-apply relation floors to active alliance-track agreements (catches Nex daily flux)
+        for (Agreement a : agreements) {
+            if (!a.isActive()) continue;
+            float floor = relationFloorFor(a.getType());
+            if (floor >= 0f) {
+                try {
+                    nex4x.integration.NexDiplomacyBridge.enforceNonAggression(
+                            a.getFactionIdA(), a.getFactionIdB(), floor);
+                } catch (Throwable t) {
+                    log.warn("[Nex4x] Daily relation floor: " + t.getMessage());
+                }
+            }
+        }
+
         // Prune expired/cancelled agreements
         Iterator<Agreement> it = agreements.iterator();
         while (it.hasNext()) {
             Agreement a = it.next();
             if (!a.isActive()) {
+                // Sync coalition leave before removal so we can still check remaining agreements
+                maybeSyncCoalitionLeave(a);
                 // Clean up warned key so future agreements can trigger fresh warnings
                 String otherFid = a.getOtherFaction(playerFactionId);
                 if (otherFid != null) {
@@ -222,6 +325,16 @@ public class AgreementManager implements Serializable {
                 }
                 it.remove();
             }
+        }
+    }
+
+    private static float relationFloorFor(AgreementType type) {
+        switch (type) {
+            case NAP: return 0.10f;
+            case DEFENSIVE_PACT: return 0.25f;
+            case MILITARY_PARTNERSHIP: return 0.50f;
+            case ECONOMIC_PARTNERSHIP: return 0.25f;
+            default: return -1f;
         }
     }
 
