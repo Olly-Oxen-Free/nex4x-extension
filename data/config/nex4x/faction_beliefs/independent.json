@@ -1,0 +1,12 @@
+{
+    "beliefs": [
+        {"id": "self_governance", "strength": 2, "visibility": "public"},
+        {"id": "trade_cooperation", "strength": 1, "visibility": "public"},
+        {"id": "prefers_neutrality", "strength": 1, "visibility": "public"},
+        {"id": "values_diplomatic_reliability", "strength": 1, "visibility": "public"},
+        {"id": "values_trade_revenue", "strength": 1, "visibility": "public"},
+        {"id": "values_respects_autonomy", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_expansionist_near", "strength": 1, "visibility": "public"},
+        {"id": "distrusts_pressures_independents", "strength": 1, "visibility": "public"}
+    ]
+}

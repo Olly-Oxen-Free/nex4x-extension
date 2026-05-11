@@ -1,0 +1,70 @@
+# KARIMO Configuration — nex4x (Starsector mod)
+# Generated 2026-05-10 from audit pipeline kickoff.
+# This is a Java Starsector mod; standard web-stack auto-detection N/A.
+
+config_version: "2.0"
+mode: fast-track  # No GitHub Projects/Issues integration; commit-only workflow
+
+project:
+  name: "nex4x-extension"
+  runtime: "java"
+  framework: "starsector-mod"
+  package_manager: "manual-classpath"
+  description: "Nexerelin 4X Expansion — diplomacy/agreement/leader subsystems for Starsector"
+
+commands:
+  build: "./build.sh"
+  lint: "none"
+  test: "none"
+  typecheck: "none"  # Compilation via build.sh acts as typecheck
+
+boundaries:
+  never_touch:
+    - "jars/**"                    # Compiled .class output + final .jar
+    - "starfarer.api.jar"
+    - ".attach_pid*"
+    - "audit/**"                   # Audit findings — separate workflow
+  require_review:
+    - "src/nex4x/Nex4xModPlugin.java"  # Mod lifecycle — wrong hook = save corruption
+    - "src/nex4x/managers/Nex4xManager.java"  # Central manager wiring
+    - "src/nex4x/listeners/**"     # Listener registration affects save format
+    - "build.sh"
+    - "mod_info.json"
+    - "data/**"                    # JSON/CSV game data — ID changes break saves
+
+github:
+  owner_type: "user"
+  owner: "Olly-Oxen-Free"
+  repository: "nex4x-extension"
+  merge_strategy: "squash"
+
+execution:
+  default_model: "sonnet"
+  max_parallel: 2
+  pre_pr_checks:
+    - "build"  # ./build.sh must succeed; that's the only gate available
+
+cost:
+  escalate_after_failures: 1
+  max_attempts: 3
+
+review:
+  enabled: false
+  provider: none
+  none_behavior: manual
+  pre_execution_prompt: true
+
+cd:
+  provider: none
+  status: skipped
+
+# Audit context — referenced by all generated PRDs
+audit:
+  source: "audit/AUDIT_REPORT.md"
+  date: "2026-05-10"
+  findings_total: 110
+  by_severity:
+    P0: 7
+    P1: 34
+    P2: 48
+    P3: 21

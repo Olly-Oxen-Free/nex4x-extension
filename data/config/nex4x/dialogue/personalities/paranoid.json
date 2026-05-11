@@ -1,0 +1,17 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Why now? What are you after?"],
+    "SUSPICIOUS":  ["Choose your words. We are listening."],
+    "NEUTRAL":     ["State your business. Plainly."],
+    "FAVORABLE":   ["You haven't betrayed us yet. Speak."],
+    "COOPERATIVE": ["We trust you -- provisionally. Continue."]
+  },
+  "alliance_proposed": {
+    "HOSTILE":     ["An alliance? From you? Insulting and telling."],
+    "NEUTRAL":     ["Alliances are invitations to betrayal. We decline -- for now."],
+    "FAVORABLE":   ["Once more: alliances are snares. We will think. We will not decide today."]
+  },
+  "intel_discussed": {
+    "NEUTRAL":     ["Intelligence doesn't come cheap. Nor should it."]
+  }
+}

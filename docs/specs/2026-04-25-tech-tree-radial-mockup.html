@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tech Tree — Radial Design Mockup</title>
+<style>
+  body { background:#0b0e14; color:#cfd8e3; font-family:-apple-system,Segoe UI,sans-serif; margin:0; padding:20px; }
+  h1 { font-weight:300; letter-spacing:2px; text-align:center; color:#e6c068; }
+  p.sub { text-align:center; color:#8a96a8; font-size:13px; max-width:900px; margin:6px auto 18px; }
+  .wrap { display:flex; gap:20px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+  svg { background:radial-gradient(circle at center,#101622 0%,#070910 70%); border-radius:50%; box-shadow:0 0 60px rgba(230,192,104,0.08); }
+  .ring { fill:none; stroke:#1d2738; stroke-width:1; stroke-dasharray:3,4; }
+  .qboundary { stroke:#3a4660; stroke-width:1.5; opacity:0.55; stroke-dasharray:6,5; }
+  .subpath-divider { stroke:#5a6680; stroke-width:1; opacity:0.35; stroke-dasharray:2,4; }
+  .node { cursor:pointer; transition:all 0.15s; }
+  .node .shape { stroke:#0b0e14; stroke-width:1.5; }
+  .node text { fill:#e8edf5; font-size:7.5px; text-anchor:middle; pointer-events:none; font-weight:600; }
+  .node:hover .shape { stroke:#fff; stroke-width:2.5; filter:brightness(1.45); }
+  .n-base { fill:#e6c068; }
+  .q-mil-1 { fill:#5a1f1f; } .q-mil-2 { fill:#7a2828; } .q-mil-3 { fill:#a83838; } .q-mil-4 { fill:#cc4848; }
+  .q-ind-1 { fill:#5e3416; } .q-ind-2 { fill:#7a481f; } .q-ind-3 { fill:#a8682c; } .q-ind-4 { fill:#d0863a; }
+  .q-sci-1 { fill:#163d5e; } .q-sci-2 { fill:#1f5078; } .q-sci-3 { fill:#2c70a8; } .q-sci-4 { fill:#3a8fce; }
+  .q-cul-1 { fill:#3f1c5e; } .q-cul-2 { fill:#5a2880; } .q-cul-3 { fill:#7e3aa8; } .q-cul-4 { fill:#a050d0; }
+  .cap-mil { fill:#e85a5a; } .cap-ind { fill:#e8a040; } .cap-sci { fill:#e8a040; } .cap-cul { fill:#c97ae8; }
+  .cap-ne  { fill:#e88860; } .cap-se  { fill:#88c0a0; } .cap-sw  { fill:#a880d0; } .cap-nw  { fill:#d088a0; }
+  .gov-card { fill:#403520; stroke:#e6c068 !important; stroke-width:2 !important; }
+  .gov-corn { fill:#3a2a3a; stroke:#d088c8 !important; stroke-width:2 !important; }
+  .q-hyb    { fill:#666870; stroke:#aaa !important; stroke-width:2 !important; }
+
+  .quadrant-label { font-size:14px; font-weight:700; letter-spacing:3px; opacity:0.85; pointer-events:none; }
+  .ql-mil { fill:#e85a5a; } .ql-ind { fill:#e8a040; } .ql-sci { fill:#5ab0e8; } .ql-cul { fill:#c97ae8; }
+  .subpath-label { font-size:9px; font-weight:600; letter-spacing:1.5px; opacity:0.65; pointer-events:none; fill:#aaa; }
+
+  .legend { background:#11161f; padding:14px 18px; border-radius:8px; min-width:300px; max-width:340px; font-size:12.5px; line-height:1.5; }
+  .legend h3 { margin:14px 0 6px; color:#e6c068; font-weight:500; letter-spacing:1px; font-size:12px; }
+  .legend h3:first-child { margin-top:0; }
+  .legend .row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .swatch { width:14px; height:14px; flex:0 0 14px; }
+  .swatch.diamond { transform:rotate(45deg); }
+  .swatch.sq-card { background:#403520; border:2px solid #e6c068; }
+  .swatch.sq-corn { background:#3a2a3a; border:2px solid #d088c8; }
+  #info { background:#11161f; padding:14px 18px; border-radius:8px; min-width:320px; max-width:360px; min-height:240px; font-size:13px; line-height:1.55; }
+  #info h3 { margin:0 0 6px; color:#e6c068; font-weight:500; }
+  #info .tier { color:#8a96a8; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+  .link { stroke:#2a3548; stroke-width:1; opacity:0.35; }
+  .link.cap { stroke:#5a4828; opacity:0.55; }
+</style>
+</head>
+<body>
+<h1>TECH TREE — RADIAL DOCTRINE MOCKUP</h1>
+<p class="sub">Four pillars: <b style="color:#e85a5a">Military (N)</b>, <b style="color:#e8a040">Industry (E)</b>, <b style="color:#5ab0e8">Science (S)</b>, <b style="color:#c97ae8">Culture (W)</b>. Each pillar's 90° cone splits into 2 sub-paths. Skill density grows R1→R4: 2/4/6/8 per cone (80 skills). Govt squares on R2 cardinals (4) + R4 advanced clusters (12). 4 hybrid skills at R4 corners. 8 capstone diamonds (4 cardinal + 4 corner hybrid).</p>
+
+<div class="wrap">
+  <div class="legend">
+    <h3>SHAPES</h3>
+    <div class="row"><div class="swatch" style="background:#e8a040;border-radius:50%"></div>● Skill — invest SP</div>
+    <div class="row"><div class="swatch" style="background:#888;border-radius:50%"></div>● Hybrid skill (R4 corner)</div>
+    <div class="row"><div class="swatch sq-card"></div>■ Government (R2)</div>
+    <div class="row"><div class="swatch sq-corn"></div>■ Government (R4)</div>
+    <div class="row"><div class="swatch diamond" style="background:#e6c068"></div>◆ Capstone</div>
+
+    <h3>PILLARS &amp; SUB-PATHS</h3>
+    <div class="row"><div class="swatch" style="background:#e85a5a;border-radius:50%"></div>MILITARY (N)</div>
+    <div style="padding-left:22px;color:#8a96a8;font-size:11.5px">NW half: Strategy / Doctrine<br>NE half: Hardware / Weapons R&amp;D</div>
+    <div class="row"><div class="swatch" style="background:#e8a040;border-radius:50%"></div>INDUSTRY (E)</div>
+    <div style="padding-left:22px;color:#8a96a8;font-size:11.5px">NE half: Mercantilism<br>SE half: Production / Extraction</div>
+    <div class="row"><div class="swatch" style="background:#5ab0e8;border-radius:50%"></div>SCIENCE (S)</div>
+    <div style="padding-left:22px;color:#8a96a8;font-size:11.5px">SE half: Terraforming<br>SW half: Ecological Production</div>
+    <div class="row"><div class="swatch" style="background:#c97ae8;border-radius:50%"></div>CULTURE (W)</div>
+    <div style="padding-left:22px;color:#8a96a8;font-size:11.5px">SW half: Cultural / Diplomacy<br>NW half: Stability / Civic Defense</div>
+
+    <h3>SKILL DENSITY (per cone)</h3>
+    <div>R1: 2 · R2: 4 · R3: 6 · R4: 8 (split evenly per sub-path)</div>
+
+    <h3>CAPSTONES (8)</h3>
+    <div>4 cardinal: Military · Industry · Science · Culture<br>4 corner hybrids: NE Arms Trade · SE Geo-Forge · SW Verdant Republic · NW Defense Compact</div>
+
+    <h3>RULES</h3>
+    <div>Skills = SP. Govts = slot, max 2 active. Capstones = pick 1, locks others.</div>
+  </div>
+
+  <svg width="940" height="940" viewBox="-470 -470 940 940" id="svg">
+    <circle class="ring" r="90"/>
+    <circle class="ring" r="170"/>
+    <circle class="ring" r="250"/>
+    <circle class="ring" r="330"/>
+    <circle class="ring" r="400"/>
+    <g id="qbounds"></g>
+    <g id="subpaths"></g>
+    <text class="quadrant-label ql-mil" x="0"   y="-440" text-anchor="middle">MILITARY</text>
+    <text class="quadrant-label ql-ind" x="440" y="5"   text-anchor="start">INDUSTRY</text>
+    <text class="quadrant-label ql-sci" x="0"   y="450" text-anchor="middle">SCIENCE</text>
+    <text class="quadrant-label ql-cul" x="-440" y="5"  text-anchor="end">CULTURE</text>
+
+    <g id="links"></g>
+    <g id="nodes"></g>
+  </svg>
+
+  <div id="info">
+    <h3>Click or hover a node</h3>
+    <p style="color:#8a96a8">Center = base. Corner capstones gate behind a hybrid R4 skill + 1 R4 skill from each adjacent pillar.</p>
+  </div>
+</div>
+
+<script>
+const P = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [r * Math.cos(a), r * Math.sin(a)]; };
+
+const RING_R = [90, 170, 250, 330];
+const R4_OUTER = 370;
+const CAP_R = 415;
+
+const Q = {
+  mil: { center:0,   color:'mil', label:'Military', subA:'Strategy/Doctrine', subB:'Hardware/Weapons R&D' },
+  ind: { center:90,  color:'ind', label:'Industry', subA:'Mercantilism',     subB:'Production/Extraction' },
+  sci: { center:180, color:'sci', label:'Science',  subA:'Terraforming',     subB:'Ecological Production' },
+  cul: { center:270, color:'cul', label:'Culture',  subA:'Cultural/Diplomacy', subB:'Stability/Civic Defense' },
+};
+
+function skillAngles(centerDeg, count) {
+  const arcWidth = 90 / count;
+  const start = centerDeg - 45 + arcWidth/2;
+  return Array.from({length:count}, (_,i) => start + i*arcWidth);
+}
+
+const SKILL_FLAVOR = {
+  mil: {
+    1: ['Recon Drones','Weapon Forge'],
+    2: ['EW Doctrine','Tac. AI','Armor Lab','Ballistic R&D'],
+    3: ['Battle Net','Fleet Comm','Intel Net','Energy Weap','Missile R&D','Hullmod Lab'],
+    4: ['Command Net','War Cabinet','Strat. Reserve','Dread Doctr.','Capital Forge','Phase Tech','Auto-Forge Mil','Battlestation R&D'],
+  },
+  ind: {
+    1: ['Trade Routes','Mining Drones'],
+    2: ['Tariff Net','Stock Mkt','Heavy Mach.','Asteroid Tap'],
+    3: ['Banking','Free Port','Insurance','Auto-Forge','Strip Mining','Bulk Smelter'],
+    4: ['Bourse','Reserve Curr.','Cartel Auth.','Trade Bloc','Conglom.','Fusion React.','Mass Driver','Rsrc Empire'],
+  },
+  sci: {
+    1: ['Atmos Probe','Algae Farms'],
+    2: ['Climate Tune','Hydrology','Hydroponics','Bio-Reactor'],
+    3: ['Cont. Eng.','Magneto Field','Polar Melt','Genetic Lib','Synth Organics','Bio-Foundry'],
+    4: ['Planet-Forge','Star Shade','Ocean Eng.','Mantle Tap','Bio-Sov.','Living Cities','Bloom Cycle','Eden Output'],
+  },
+  cul: {
+    1: ['Embassy Net','Garrison'],
+    2: ['Soft Power','Pilgrim Routes','Standing Army','Walls'],
+    3: ['Concert','Diplo Immun.','Treaty Auth.','Marine Doctr.','Patrol Net','Bastion Walls'],
+    4: ['Sect. Concert','Pan-Sect Pact','Cult. Hegem.','Lingua Fran.','Imp. Guard','Bulwark Fleet','Iron Curtain','Citadel'],
+  },
+};
+
+const SKILL_DETAIL = {
+  'mil-1-0': 'Strategy · Recon Drones: passive sensor range +50% in your owned systems. Free recon wing on every Patrol HQ.',
+  'mil-2-0': 'Strategy · EW Doctrine: ECM rating +25 fleet-wide. Enemy missiles -15% effective HP.',
+  'mil-3-0': 'Strategy · Battle Net: officers share Elite skill effects across same-fleet ships within 1500su.',
+  'mil-4-0': 'Strategy · Command Net: Admiral Insight passive (always-on full enemy fleet readout). Sustained Burn +1 in friendly systems.',
+  'mil-1-1': 'Hardware · Weapon Forge: Heavy Industry colonies passively generate weapon blueprints (random tier).',
+  'mil-2-1': 'Hardware · Armor Lab: armor mod yields +5 effective armor on all ships at HI colonies\' production.',
+  'mil-3-1': 'Hardware · Hullmod Lab: research lab industry generates 1 hullmod blueprint per cycle (random S-mod tier).',
+  'mil-4-1': 'Hardware · Battlestation R&D: orbital battlestations buildable at all colonies; -50% upkeep on existing.',
+  'ind-1-0': 'Mercantilism · +25% accessibility on export routes; trade convoys auto-route immune to small raids.',
+  'ind-2-0': 'Mercantilism · Each export commodity past target generates passive credits.',
+  'ind-3-0': 'Mercantilism · Loans available from any market (Nex). Interest 50% normal.',
+  'ind-4-0': 'Mercantilism · Your faction\'s currency adopted galactic standard: passive +5% income from all NPC trade.',
+  'ind-1-1': 'Production · Mining/Refining +1 production tier. Free Mining Drone Wing on every Mining colony.',
+  'ind-2-1': 'Production · Asteroid belts in your systems passively generate Ore + Rare Ore monthly.',
+  'ind-3-1': 'Production · Heavy Industry +1 ship/month. AI-core quality bonus +1 tier.',
+  'ind-4-1': 'Production · +1 industry slot on size 5+ colonies.',
+  'sci-1-0': 'Terraforming · Atmospheric Probe industry free at any colony with hostile atmosphere; -1 hazard tier over 2 cycles.',
+  'sci-2-0': 'Terraforming · Climate Tuning: TASC terraforming projects progress 2x.',
+  'sci-3-0': 'Terraforming · Continental Engineering: hazard floor lowered to −50% on vanilla planets.',
+  'sci-4-0': 'Terraforming · Planet-Forge: convert one barren world per cycle into habitable terran world (3-cycle project).',
+  'sci-1-1': 'Ecological · Algae Farms: feeds organics demand for 2 colonies. Free on aquatic worlds.',
+  'sci-2-1': 'Ecological · Hydroponics: bio-commodities count as luxury demand fulfilled.',
+  'sci-3-1': 'Ecological · Bio-Foundry: Genetic Library generates rare bio-commodity exports.',
+  'sci-4-1': 'Ecological · Bloom Cycle: trigger bloom on one colony per cycle; +1 growth tier permanent + bio-mass exports.',
+  'cul-1-0': 'Diplomacy · Embassy Network: passive +rep gain over time at any envoyed faction.',
+  'cul-2-0': 'Diplomacy · Soft Power: cultural exports generate +rep (Nex faction relations).',
+  'cul-3-0': 'Diplomacy · Concert of Powers: convene sector council, lock in one sector-wide pact.',
+  'cul-4-0': 'Diplomacy · Sector Concert capstone-tier: war declarations require pact-majority vote.',
+  'cul-1-1': 'Stability · Garrison: stab cap +1 all colonies; ground defenses 2x effective.',
+  'cul-2-1': 'Stability · Standing Army: free Heavy Industry stockpile of marines/HW at every Patrol HQ colony.',
+  'cul-3-1': 'Stability · Marine Doctrine: officer XP 2x. Saboteurs caught at 3x rate.',
+  'cul-4-1': 'Stability · Imperial Guard: each colony spawns elite garrison fleet on raid. Stab never below 3.',
+};
+
+const GOVS_R2 = [
+  { id:'g-r2-mil', deg:0,   label:'GENERAL\nSTAFF',  gov:'card',
+    body:'GOV (R2, Military foundation): General Staff. Officer XP 2x. Fleet doctrine +1 point. Combat win restores +1 morale empire-wide.' },
+  { id:'g-r2-ind', deg:90,  label:'CORP\nCHARTER',   gov:'card',
+    body:'GOV (R2, Industry foundation): Corporate Charter. +20% income from exports. Own-faction tariffs at 50%. Stocks generate passive income.' },
+  { id:'g-r2-sci', deg:180, label:'TECHNO-\nCRACY',  gov:'card',
+    body:'GOV (R2, Science foundation): Technocracy. AI core admin slots count 1.5x effective. Tech-heavy industries +1 tier. Pather cell rate doubled.' },
+  { id:'g-r2-cul', deg:270, label:'CIVIC\nREPUBLIC', gov:'card',
+    body:'GOV (R2, Culture foundation): Civic Republic. +2 stability empire-wide. Diplomatic actions +25%. Garrison upkeep -25%.' },
+];
+
+const GOVS_R4 = [
+  { id:'g-r4-mil-l', deg:-12, label:'WAR\nCOLLEGE',  gov:'corn',
+    body:'GOV (R4, Mil left — Strategy flavor): War College. Officer skill rerolls free. Battle Net (Strategy) effect doubled.' },
+  { id:'g-r4-mil-c', deg:0,   label:'JUNTA',         gov:'corn',
+    body:'GOV (R4, Mil center): Military Junta. +1 stab per active war. Total fleet doctrine +2. Civilian commodity tolerance -10%.' },
+  { id:'g-r4-mil-r', deg:12,  label:'ARMS\nINDUSTRY',gov:'corn',
+    body:'GOV (R4, Mil right — Hardware flavor): Arms Industry State. Heavy Industry produces capital ships at -1 hull-size requirement. Weapon blueprints unlock 25% faster.' },
+  { id:'g-r4-ind-l', deg:78,  label:'TRADE\nLEAGUE',     gov:'corn',
+    body:'GOV (R4, Ind upper — Mercantilism flavor): Trade League. NPC tariffs apply at -50% to your trade. Diplomatic tension w/ majors -25%.' },
+  { id:'g-r4-ind-c', deg:90,  label:'MEGACORP',          gov:'corn',
+    body:'GOV (R4, Ind center): Megacorporation. Megastructures cost 30% less. Stock-based: monthly income variance ±20%.' },
+  { id:'g-r4-ind-r', deg:102, label:'INDUS.\nSTATE',     gov:'corn',
+    body:'GOV (R4, Ind lower — Production flavor): Industrial State. Heavy Industry +1 ship/month free. Resource exports double during war.' },
+  { id:'g-r4-sci-l', deg:168, label:'TERRA\nAUTHORITY',  gov:'corn',
+    body:'GOV (R4, Sci upper — Terraforming flavor): Terra Authority. TASC terraforming 3x. Hazard floor -75%.' },
+  { id:'g-r4-sci-c', deg:180, label:'TECHNATE',          gov:'corn',
+    body:'GOV (R4, Sci center): Technate. Faction-leader skills require active Research expenditure. Tech Singularity capstone -1 prereq.' },
+  { id:'g-r4-sci-r', deg:192, label:'BIOCRACY',          gov:'corn',
+    body:'GOV (R4, Sci lower — Ecological flavor): Biocracy. Pop growth 2x on Garden/Sanctuary worlds. Bio-commodities = luxury demand fulfilled.' },
+  { id:'g-r4-cul-l', deg:258, label:'DIPLO\nLEAGUE',     gov:'corn',
+    body:'GOV (R4, Cul lower — Diplomacy flavor): Diplomatic League. NPC bloc members defend your colonies. Treaties auto-renew. Locks Stratocracy.' },
+  { id:'g-r4-cul-c', deg:270, label:'CULTURAL\nHEGEM',   gov:'corn',
+    body:'GOV (R4, Cul center): Cultural Hegemon. Soft power doubled. NPC factions adopt your laws/tech over time (passive influence).' },
+  { id:'g-r4-cul-r', deg:282, label:'STRATO-\nCRACY',    gov:'corn',
+    body:'GOV (R4, Cul upper — Stability flavor): Stratocracy. Officer XP 2x. Marines count toward stability cap. Defense 2x cheaper.' },
+];
+
+const HYB_R4 = [
+  { id:'h-r4-ne', deg:45,  label:'ARMS\nMARKET',
+    body:'HYBRID SKILL (R4, NE — Military-Hardware × Industry-Mercantilism): Weapon/hullmod blueprints sellable on open market for credits. Free Port + Arms-dealer status: enemy faction commissions buy your weapons. Gates NE corner capstone.' },
+  { id:'h-r4-se', deg:135, label:'GEO-\nENGINEER',
+    body:'HYBRID SKILL (R4, SE — Industry-Production × Science-Terraforming): Megafarming + Mantle Tap industries unlocked. Industrial extraction does not damage hazard reduction. Gates SE corner capstone.' },
+  { id:'h-r4-sw', deg:225, label:'VERDANT\nFEDER.',
+    body:'HYBRID SKILL (R4, SW — Science-Ecological × Culture-Diplomacy): Garden Worlds become diplomatic neutral grounds; +rep with every visiting faction. Influence resource generated. Gates SW corner capstone.' },
+  { id:'h-r4-nw', deg:315, label:'DEFENSE\nCOMPACT',
+    body:'HYBRID SKILL (R4, NW — Culture-Stability × Military-Strategy): Patrol HQ + Bastion defenses on every colony. Defensive treaties with NPC factions auto-trigger reinforcements when raided. Gates NW corner capstone.' },
+];
+
+const CAPSTONES = [
+  { id:'cap-mil', deg:0,   cls:'cap-mil', label:'NAVAL\nHEGEMONY',
+    info:{ tier:'CAPSTONE · Military', title:'Naval Hegemony',
+      body:'Fleet doctrine +3 empire-wide. Every Heavy Industry colony produces 1 free combat capital ship per cycle. War declarations auto-generate intel on enemy fleet compositions. Player flagship: command range +50%.' } },
+  { id:'cap-ne', deg:45,  cls:'cap-ne',  label:'ARMS\nTRADE',
+    info:{ tier:'CAPSTONE · NE corner (Mil-Hardware × Ind-Mercantilism)', title:'Arms Trade Empire',
+      body:'Sell military blueprints + ship hulls to ALL factions including hostiles for credits + Influence. Designated Arms Bourse colony exports weapons sector-wide. Permanent +10% tension with all majors but +50% credits from arms trade.' } },
+  { id:'cap-ind', deg:90, cls:'cap-ind', label:'INDUST.\nEMPIRE',
+    info:{ tier:'CAPSTONE · Industry', title:'Industrial Empire',
+      body:'+1 industry slot per colony. Megastructures unlocked (orbital ring / mass driver / planetary forge). Heavy Industry produces ships at +1 quality tier without AI cores.' } },
+  { id:'cap-se', deg:135, cls:'cap-se', label:'GEO\nFORGE',
+    info:{ tier:'CAPSTONE · SE corner (Production×Terraform)', title:'Geo-Forge Combine',
+      body:'Industries that exploit a planet (Mining, Refining, HI) ALSO terraform it: hazard reduction passive while industry runs. Mantle-tier industries unlocked.' } },
+  { id:'cap-sci', deg:180,cls:'cap-sci', label:'TECH\nSINGULARITY',
+    info:{ tier:'CAPSTONE · Science', title:'Tech Singularity',
+      body:'Research lab industry unlocked (passive blueprint discovery). Garden-class terraforming permitted on any planet. Singularity Drive: tech beacon colony grants +1 industry slot system-wide.' } },
+  { id:'cap-sw', deg:225, cls:'cap-sw', label:'VERDANT\nREPUBLIC',
+    info:{ tier:'CAPSTONE · SW corner (Ecological×Diplomacy)', title:'Verdant Republic',
+      body:'Garden Worlds become diplomatic capitals: each Garden grants permanent +5 rep with all majors. Sector Pact: Bio-Sphere Protection Treaty (no bombardment ever; breaking = sector war).' } },
+  { id:'cap-cul', deg:270,cls:'cap-cul', label:'CULTURAL\nHEGEMONY',
+    info:{ tier:'CAPSTONE · Culture', title:'Cultural Hegemony',
+      body:'Lingua franca: NPC factions slowly adopt your faction\'s laws/customs (passive +rep, +trade, defection events). Sector Council seat granted. Pirates cannot recruit from your population.' } },
+  { id:'cap-nw', deg:315, cls:'cap-nw', label:'DEFENSE\nCOMPACT',
+    info:{ tier:'CAPSTONE · NW corner (Cul-Stability × Mil-Strategy)', title:'Defense Compact',
+      body:'All colonies become Bastion-class: stab never below 5, ground defenses tripled, garrisons upkeep-free. Treaty Web: defensive pacts with up to 3 NPC factions auto-trigger reinforcement fleets when any signatory is raided. Player cannot declare offensive war (defensive only).' } },
+];
+
+const ALL = [
+  { id:'base', type:'circle', cls:'n-base', r:0, deg:0, label:'TECH', size:30,
+    info:{ tier:'BASE — FREE', title:'Foundation Tech',
+      body:'Unlocks the technology tree. All other skills require this base. Pillars at the cardinals (Industry E, Science S, Culture W); pick a direction and build outward toward your endgame doctrine. North cone is intentionally empty — the tree is tri-pillar.' } },
+];
+
+const skillById = {};
+Object.entries(Q).forEach(([qkey, qdef]) => {
+  for (let ring=1; ring<=4; ring++) {
+    const count = ring*2;
+    const angles = skillAngles(qdef.center, count);
+    angles.forEach((deg, i) => {
+      const id = `s-${qkey}-${ring}-${i}`;
+      const flavor = SKILL_FLAVOR[qkey][ring][i] || `${qkey.toUpperCase()} R${ring}.${i+1}`;
+      const subPath = i < count/2 ? qdef.subA : qdef.subB;
+      const detailKey = (i < count/2) ? `${qkey}-${ring}-0` : `${qkey}-${ring}-1`;
+      const body = SKILL_DETAIL[detailKey] || `${qdef.label} · ${subPath} · T${ring} skill: ${flavor}. (Detailed flavor TBD in spec.)`;
+      const node = {
+        id, type:'circle', cls:`q-${qkey}-${ring}`, r:RING_R[ring-1], deg, label:flavor, size:13,
+        ring, qkey, subPath,
+        info:{ tier:`T${ring} · ${qdef.label} / ${subPath}`, title:flavor, body }
+      };
+      ALL.push(node);
+      skillById[id] = node;
+    });
+  }
+});
+
+GOVS_R2.forEach(g => ALL.push({
+  id:g.id, type:'square', cls:`gov-${g.gov}`, r:RING_R[1], deg:g.deg, label:g.label, size:18,
+  info:{ tier:'GOV · R2 (cardinal foundation)', title:g.label.replace('\n',' '), body:g.body }
+}));
+GOVS_R4.forEach(g => ALL.push({
+  id:g.id, type:'square', cls:`gov-${g.gov}`, r:R4_OUTER, deg:g.deg, label:g.label, size:16,
+  info:{ tier:'GOV · R4 (advanced cluster)', title:g.label.replace('\n',' '), body:g.body }
+}));
+HYB_R4.forEach(h => ALL.push({
+  id:h.id, type:'circle', cls:'q-hyb', r:R4_OUTER, deg:h.deg, label:h.label, size:15,
+  info:{ tier:'HYBRID SKILL · R4 corner', title:h.label.replace('\n',' '), body:h.body }
+}));
+CAPSTONES.forEach(c => ALL.push({
+  id:c.id, type:'diamond', cls:c.cls, r:CAP_R, deg:c.deg, label:c.label, size:23,
+  info:c.info
+}));
+
+const LINKS = [];
+Object.keys(Q).forEach(qkey => {
+  for (let i=0; i<2; i++) LINKS.push(['base', `s-${qkey}-1-${i}`]);
+});
+
+Object.keys(Q).forEach(qkey => {
+  for (let ring=1; ring<4; ring++) {
+    const cur = Array.from({length:ring*2}, (_,i)=>`s-${qkey}-${ring}-${i}`);
+    const nxt = Array.from({length:(ring+1)*2}, (_,i)=>`s-${qkey}-${ring+1}-${i}`);
+    cur.forEach((cid) => {
+      const cAngle = skillById[cid].deg;
+      const sorted = nxt.map(nid => ({nid, da: angDiff(skillById[nid].deg, cAngle)}))
+                        .sort((a,b)=>a.da-b.da);
+      LINKS.push([cid, sorted[0].nid]);
+      LINKS.push([cid, sorted[1].nid]);
+    });
+  }
+});
+
+GOVS_R2.forEach(g => {
+  const qkey = qkeyForCardinalDeg(g.deg);
+  if (!qkey) return;
+  const r2 = Array.from({length:4},(_,i)=>`s-${qkey}-2-${i}`);
+  const r1 = Array.from({length:2},(_,i)=>`s-${qkey}-1-${i}`);
+  r2.map(id=>({id, da:angDiff(skillById[id].deg, g.deg)})).sort((a,b)=>a.da-b.da)
+    .slice(0,2).forEach(s => LINKS.push([g.id, s.id]));
+  r1.forEach(id => LINKS.push([g.id, id]));
+});
+
+GOVS_R4.forEach(g => {
+  const qkey = qkeyForNearestCardinal(g.deg);
+  const r4 = Array.from({length:8},(_,i)=>`s-${qkey}-4-${i}`);
+  const sorted = r4.map(id=>({id, da:angDiff(skillById[id].deg, g.deg)})).sort((a,b)=>a.da-b.da);
+  LINKS.push([g.id, sorted[0].id]);
+  LINKS.push([g.id, sorted[1].id]);
+});
+
+HYB_R4.forEach(h => {
+  const adj = pillarsAdjacentToCorner(h.deg);
+  adj.forEach(qkey => {
+    const r4 = Array.from({length:8},(_,i)=>`s-${qkey}-4-${i}`);
+    const sorted = r4.map(id=>({id, da:angDiff(skillById[id].deg, h.deg)})).sort((a,b)=>a.da-b.da);
+    LINKS.push([h.id, sorted[0].id]);
+  });
+});
+
+CAPSTONES.forEach(c => {
+  if (c.deg === 0 || c.deg === 90 || c.deg === 180 || c.deg === 270) {
+    const qkey = qkeyForCardinalDeg(c.deg);
+    const r4 = Array.from({length:8},(_,i)=>`s-${qkey}-4-${i}`);
+    const sorted = r4.map(id=>({id, da:angDiff(skillById[id].deg, c.deg)})).sort((a,b)=>a.da-b.da);
+    LINKS.push([sorted[0].id, c.id, 'cap']);
+    LINKS.push([sorted[1].id, c.id, 'cap']);
+  } else {
+    const hybId = `h-r4-${cornerKey(c.deg)}`;
+    LINKS.push([hybId, c.id, 'cap']);
+    const adj = pillarsAdjacentToCorner(c.deg);
+    adj.forEach(qkey => {
+      const r4 = Array.from({length:8},(_,i)=>`s-${qkey}-4-${i}`);
+      const sorted = r4.map(id=>({id, da:angDiff(skillById[id].deg, c.deg)})).sort((a,b)=>a.da-b.da);
+      LINKS.push([sorted[0].id, c.id, 'cap']);
+    });
+  }
+});
+
+function angDiff(a,b) { return Math.abs(((a-b)%360+540)%360 - 180); }
+function qkeyForCardinalDeg(d) {
+  const n = ((d%360)+360)%360;
+  return {0:'mil',90:'ind',180:'sci',270:'cul'}[n] || null;
+}
+function qkeyForNearestCardinal(d) {
+  const n = ((d%360)+360)%360;
+  const cards = [0,90,180,270];
+  let best=cards[0], dmin=999;
+  cards.forEach(c=>{ const dd = Math.min(Math.abs(n-c), 360-Math.abs(n-c)); if (dd<dmin){dmin=dd; best=c;} });
+  return qkeyForCardinalDeg(best);
+}
+function pillarsAdjacentToCorner(d) {
+  if (d===45)  return ['mil','ind'];
+  if (d===135) return ['ind','sci'];
+  if (d===225) return ['sci','cul'];
+  if (d===315) return ['cul','mil'];
+  return [];
+}
+function cornerKey(d) { return {45:'ne',135:'se',225:'sw',315:'nw'}[d]; }
+
+const idMap = Object.fromEntries(ALL.map(n=>[n.id,n]));
+const nodesG = document.getElementById('nodes');
+const linksG = document.getElementById('links');
+const qboundsG = document.getElementById('qbounds');
+const subpathsG = document.getElementById('subpaths');
+
+[45,135,225,315].forEach(deg=>{
+  const [x,y] = P(440, deg);
+  const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ln.setAttribute('class','qboundary');
+  ln.setAttribute('x1',0); ln.setAttribute('y1',0);
+  ln.setAttribute('x2',x); ln.setAttribute('y2',y);
+  qboundsG.appendChild(ln);
+});
+
+[0,90,180,270].forEach(deg=>{
+  const [x,y] = P(420, deg);
+  const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ln.setAttribute('class','subpath-divider');
+  ln.setAttribute('x1',0); ln.setAttribute('y1',0);
+  ln.setAttribute('x2',x); ln.setAttribute('y2',y);
+  subpathsG.appendChild(ln);
+});
+
+const subLabels = [
+  { deg:337.5, text:'STRATEGY' },
+  { deg:22.5,  text:'HARDWARE' },
+  { deg:67.5,  text:'MERCANTILISM' },
+  { deg:112.5, text:'PRODUCTION' },
+  { deg:157.5, text:'TERRAFORMING' },
+  { deg:202.5, text:'ECOLOGICAL' },
+  { deg:247.5, text:'DIPLOMACY' },
+  { deg:292.5, text:'STAB / DEFENSE' },
+];
+subLabels.forEach(({deg,text})=>{
+  const [x,y] = P(425, deg);
+  const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.setAttribute('class','subpath-label');
+  t.setAttribute('x', x);
+  t.setAttribute('y', y);
+  t.setAttribute('text-anchor','middle');
+  const rot = deg < 180 ? deg-90 : deg-270;
+  t.setAttribute('transform',`rotate(${rot},${x},${y})`);
+  t.textContent = text;
+  subpathsG.appendChild(t);
+});
+
+LINKS.forEach(([a,b,kind])=>{
+  const A = idMap[a], B = idMap[b];
+  if (!A || !B) return;
+  const [ax,ay] = P(A.r, A.deg);
+  const [bx,by] = P(B.r, B.deg);
+  const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ln.setAttribute('class', 'link' + (kind==='cap' ? ' cap' : ''));
+  ln.setAttribute('x1',ax); ln.setAttribute('y1',ay);
+  ln.setAttribute('x2',bx); ln.setAttribute('y2',by);
+  linksG.appendChild(ln);
+});
+
+ALL.forEach(n=>{
+  const [x,y] = P(n.r, n.deg);
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','node');
+  g.setAttribute('transform',`translate(${x},${y})`);
+  let shape;
+  const sz = n.size || 13;
+  if (n.type === 'square') {
+    shape = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    shape.setAttribute('x', -sz); shape.setAttribute('y', -sz);
+    shape.setAttribute('width', sz*2); shape.setAttribute('height', sz*2);
+  } else if (n.type === 'diamond') {
+    shape = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    shape.setAttribute('x', -sz); shape.setAttribute('y', -sz);
+    shape.setAttribute('width', sz*2); shape.setAttribute('height', sz*2);
+    shape.setAttribute('transform','rotate(45)');
+  } else {
+    shape = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    shape.setAttribute('r', sz);
+  }
+  shape.setAttribute('class','shape ' + (n.cls || 'n-base'));
+  g.appendChild(shape);
+  const lines = (n.label||'').split('\n');
+  lines.forEach((ln,i)=>{
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('dy', (i - (lines.length-1)/2) * 9 + 3);
+    t.textContent = ln;
+    g.appendChild(t);
+  });
+  g.addEventListener('click', ()=> showInfo(n));
+  g.addEventListener('mouseenter', ()=> showInfo(n));
+  nodesG.appendChild(g);
+});
+
+function showInfo(n){
+  const i = n.info;
+  document.getElementById('info').innerHTML =
+    `<div class="tier">${i.tier}</div><h3>${i.title}</h3><p>${i.body}</p>`;
+}
+showInfo(idMap['base']);
+</script>
+</body>
+</html>

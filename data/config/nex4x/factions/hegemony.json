@@ -1,0 +1,18 @@
+{
+    "factionId": "hegemony",
+    "startingArchetype": "MILITARY_SUPREMACY",
+    "tendencyOverrides": {
+        "mil": 4.0,
+        "zea": 3.0,
+        "ind": 2.0,
+        "fed": 1.0,
+        "cor": 1.5,
+        "eco": 0.5
+    },
+    "goalPriorityOverrides": {
+        "CONTAIN_RIVAL": 1.3,
+        "DEFEND_TERRITORY": 1.4,
+        "PRESS_GRIEVANCE": 1.2
+    },
+    "negotiationStyle": "STUBBORN"
+}

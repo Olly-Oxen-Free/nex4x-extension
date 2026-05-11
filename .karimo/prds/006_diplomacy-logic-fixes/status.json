@@ -1,0 +1,10 @@
+{
+  "status": "ready",
+  "created_date": "2026-05-10",
+  "source": "audit/AUDIT_REPORT.md THEME-E + THEME-F + standalone P1s",
+  "severity": "P1",
+  "research_included": true,
+  "tasks_total": 18,
+  "complexity_total": 33,
+  "depends_on_prds": ["001_unify-relation-scale", "002_standardize-time-units", "004_modplugin-lifecycle"]
+}

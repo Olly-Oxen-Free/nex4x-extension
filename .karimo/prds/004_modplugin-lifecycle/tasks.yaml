@@ -1,0 +1,81 @@
+prd: modplugin-lifecycle
+version: 1
+tasks:
+  - id: 4a
+    title: Add onNewGame + onNewGameAfterEconomyLoad
+    description: |
+      Override both. onNewGame: log entry; no work yet (sector not finalized).
+      onNewGameAfterEconomyLoad: run the bootstrap currently in onGameLoad that
+      seeds Nex4xManager + sub-managers. Move only the seed-on-fresh-start logic;
+      keep listener registration in onGameLoad (it must run on every load).
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 4b
+    title: Respect onGameLoad newGame flag
+    description: |
+      Change onGameLoad to onGameLoad(boolean newGame). If newGame is true,
+      skip seed-on-fresh-start (handled by onNewGameAfterEconomyLoad). Always
+      run listener registration + transient-cache hydration.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 2
+    priority: must
+    depends_on: [4a]
+
+  - id: 4c
+    title: Add beforeGameSave / afterGameSave / onGameSaveFailed
+    description: |
+      beforeGameSave: clear FactionPowerRankings cache; null any transient field
+      on @Saved managers that should not persist.
+      afterGameSave: rehydrate the same caches.
+      onGameSaveFailed: log.warn with full stack so we don't lose visibility.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 4d
+    title: De-static FactionPowerRankings
+    description: |
+      Convert class-static maps to instance fields. Store the singleton on
+      Global.getSector().getPersistentData() under "$nex4xPowerRankings"
+      OR mark caches as transient + refill-on-demand. Pick the simpler path
+      (transient + lazy-refill) unless the data is expensive to recompute.
+      Update every caller to go through a getInstance() accessor.
+    files:
+      - src/nex4x/util/FactionPowerRankings.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 4e
+    title: Harden onNewGameAfterTimePass fallback
+    description: |
+      The 8-second wall-clock fallback at line ~286 can apply default doctrine
+      before the player picks. Add a guard: if the doctrine-selection dialog has
+      not yet been opened by the player, defer the fallback. If acceptable, drop
+      the timer entirely and rely on the dialog flow.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 2
+    priority: should
+    depends_on: []
+
+  - id: 4f
+    title: Smoke + verify
+    description: |
+      Add `nex4x audit-init` to Nex4xDebugCommand: prints every manager's init flag,
+      whether persistent vs transient state seeded.
+      Build green. New-campaign smoke: tail starsector.log; no NPEs in first 30s.
+      Save → reload smoke: confirm beforeGameSave/afterGameSave logs fire and no
+      stale FactionPowerRankings entries leak across reloads.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [4a, 4b, 4c, 4d, 4e]

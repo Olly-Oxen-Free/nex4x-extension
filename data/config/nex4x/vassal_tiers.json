@@ -1,0 +1,5 @@
+{
+    "TRIBUTARY": { "incomeShare": 0.10, "autonomy": 0.8, "joinsWars": false, "controlledDiplomacy": false, "independenceGrowthBase": 0.05 },
+    "VASSAL":    { "incomeShare": 0.25, "autonomy": 0.5, "joinsWars": true,  "controlledDiplomacy": false, "independenceGrowthBase": 0.10 },
+    "PUPPET":    { "incomeShare": 0.40, "autonomy": 0.2, "joinsWars": true,  "controlledDiplomacy": true,  "independenceGrowthBase": 0.15 }
+}

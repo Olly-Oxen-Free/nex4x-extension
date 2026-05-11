@@ -1,0 +1,7 @@
+{
+  "diplomaticVoiceRank": "commander",
+  "viceroyTitle": "Magistrate",
+  "leaderTitle": "Supreme Executor",
+  "canSellAiCores": false,
+  "canSellWetwork": true
+}

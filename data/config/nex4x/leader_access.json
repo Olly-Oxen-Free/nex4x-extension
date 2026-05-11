@@ -1,0 +1,8 @@
+{
+  "rapportThreshold": 0.50,
+  "ownMarketCount": 1,
+  "commissionMustMatchTarget": true,
+  "overrides": {
+    "hegemony": { "rapportThreshold": 0.55 }
+  }
+}

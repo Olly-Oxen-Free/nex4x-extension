@@ -1,0 +1,25 @@
+{
+    "_comment": "Per-day pressure accumulation and decay rates by source.",
+    "accumulationPerDay": {
+        "MILITARY": 0.2,
+        "ECONOMIC_EXPORT": 0.1,
+        "ECONOMIC_IMPORT": 0.1,
+        "GRIEVANCE": 0.15,
+        "COALITION": 0.1,
+        "CLAIMS": 0.12,
+        "DECLARATION": 0.2,
+        "EVENT": 0,
+        "AGENT_ACTION": 0
+    },
+    "decayPerDay": {
+        "MILITARY": 0.05,
+        "ECONOMIC_EXPORT": 0.02,
+        "ECONOMIC_IMPORT": 0.02,
+        "GRIEVANCE": 0.02,
+        "COALITION": 0.05,
+        "CLAIMS": 0.03,
+        "DECLARATION": 0.05,
+        "EVENT": 0.1,
+        "AGENT_ACTION": 0.1
+    }
+}

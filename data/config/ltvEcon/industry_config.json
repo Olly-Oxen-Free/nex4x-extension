@@ -1,0 +1,44 @@
+{
+	"modVersion": "0.1.0",
+	"industryList": [
+		{
+			"industryId": "nex4x_diplomatic_embassy",
+			"occTag": "service",
+			"workerAssignable": false,
+			"outputList": {
+				"abstract": {
+					"baseProd": 1,
+					"isAbstract": true,
+					"InputsPerUnitOutput": { "abstract": 1.0 },
+					"scaleWithMarketSize": true
+				}
+			}
+		},
+		{
+			"industryId": "nex4x_intelligence_bureau",
+			"occTag": "service",
+			"workerAssignable": false,
+			"outputList": {
+				"abstract": {
+					"baseProd": 1,
+					"isAbstract": true,
+					"InputsPerUnitOutput": { "abstract": 1.0 },
+					"scaleWithMarketSize": true
+				}
+			}
+		},
+		{
+			"industryId": "nex4x_cyber_security_suite",
+			"occTag": "service",
+			"workerAssignable": false,
+			"outputList": {
+				"abstract": {
+					"baseProd": 1,
+					"isAbstract": true,
+					"InputsPerUnitOutput": { "abstract": 1.0 },
+					"scaleWithMarketSize": true
+				}
+			}
+		}
+	]
+}

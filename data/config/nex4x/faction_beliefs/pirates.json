@@ -1,0 +1,12 @@
+{
+    "beliefs": [
+        {"id": "profit_any_means", "strength": 2, "visibility": "public"},
+        {"id": "reject_authority", "strength": 2, "visibility": "public"},
+        {"id": "respects_strength", "strength": 2, "visibility": "public"},
+        {"id": "targets_poorly_defended", "strength": 1, "visibility": "secret"},
+        {"id": "values_no_questions_trade", "strength": 1, "visibility": "public"},
+        {"id": "values_military_strength", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_law_order", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_restricted_markets", "strength": 1, "visibility": "public"}
+    ]
+}

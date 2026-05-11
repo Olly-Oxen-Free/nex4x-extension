@@ -1,0 +1,7 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["Independents deal straight. Talk.",
+                    "No flags here. Just the deal."],
+    "FAVORABLE":   ["Always good to work with familiar faces."]
+  }
+}

@@ -1,0 +1,25 @@
+id,name,base_impact,base_decay_days,amplifying_categories,fs
+territorial_loss,"Territorial Loss",-20,720,TERRITORIAL,#
+territorial_gain,"Territorial Gain",10,360,TERRITORIAL,#
+broken_agreement,"Broken Agreement",-15,360,POLITICAL,#
+honored_pact,"Honored Pact",12,360,POLITICAL|MILITARY,#
+trade_success,"Trade Success",5,180,ECONOMIC,#
+trade_betrayal,"Trade Betrayal",-10,270,ECONOMIC,#
+military_victory,"Military Victory",3,180,MILITARY,#
+military_defeat,"Military Defeat",-3,180,MILITARY,#
+espionage_discovered,"Espionage Discovered",-12,270,POLITICAL,#
+aid_given,"Aid Given",8,360,POLITICAL,#
+convoy_raided,"Convoy Raided",-8,180,ECONOMIC,#
+sat_bombardment,"Sat Bombardment",-25,720,TERRITORIAL|IDEOLOGICAL,#
+contract_betrayal,"Contract Betrayal",-18,360,ECONOMIC|POLITICAL,#
+war_profiteering,"War Profiteering",-8,180,POLITICAL,#
+market_capture,"Market Captured",-12,360,TERRITORIAL|MILITARY,#
+market_transfer,"Market Transferred",-6,240,TERRITORIAL,#
+raid_valuables,"Raid for Valuables",-8,180,MILITARY|ECONOMIC,#
+raid_stability,"Raid (Stability)",-5,120,MILITARY,#
+blockade_impact,"Blockade Strain",-6,180,ECONOMIC,#
+rep_loss,"Reputation Lost",-4,90,POLITICAL,#
+rep_gain,"Reputation Improved",3,90,POLITICAL,#
+bounty_completed,"Bounty Completed",2,60,MILITARY,#
+commission_change,"Commission Change",-5,180,POLITICAL,#
+covert_operation,"Covert Operation",-6,120,MILITARY|POLITICAL,#

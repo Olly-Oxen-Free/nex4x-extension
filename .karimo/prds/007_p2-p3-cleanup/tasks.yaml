@@ -1,0 +1,165 @@
+prd: p2-p3-cleanup
+version: 1
+tasks:
+  - id: 7a
+    title: Null-guard & chain-safety batch
+    description: |
+      Apply consistent null-guard pattern to all sites in research Group 1.
+      For each: read site, mirror sibling guard pattern in the file (or use
+      Objects.requireNonNullElse / explicit null-check returning safe default).
+      Cite each fix in commit message with file:line.
+      Sites: AgreementManager:119-121, FeasibilityChecker:60-61, Nex4xAgentData:53,
+      CoalitionGovernance:60, CasusBelliManager:257+271, LeaderRegistry:60,
+      LeaderProfile:27, LeaderAccessGate:51, Declaration.java:39 ctor.
+    files:
+      - src/nex4x/agreements/AgreementManager.java
+      - src/nex4x/ai/goals/FeasibilityChecker.java
+      - src/nex4x/agents/Nex4xAgentData.java
+      - src/nex4x/coalitions/CoalitionGovernance.java
+      - src/nex4x/casusbelli/CasusBelliManager.java
+      - src/nex4x/leaders/LeaderRegistry.java
+      - src/nex4x/leaders/LeaderProfile.java
+      - src/nex4x/leaders/LeaderAccessGate.java
+      - src/nex4x/declarations/Declaration.java
+    complexity: 3
+    priority: should
+    depends_on: []
+
+  - id: 7b
+    title: Logic edge-case batch
+    description: |
+      Apply per-site fixes from research Group 2:
+      - CoalitionVote: add timestamp + auto-discard + reject zero-vote resolve.
+      - CoalitionGovernance.getTension: split read/create.
+      - CasusBelliManager IDEOLOGICAL_CONFLICT: set difference.
+      - CasusBelli.java:72: use Nex4xClock (depends on PRD-B).
+      - FactionBadges.java:31: reset progress on earn.
+      - WarScoreTracker.java:128: prune null FactionAPI from score map.
+      - WarGoal.java:42: add OBSOLETE state for destroyed-target claims.
+      - PeaceConference.java:35: add explicit state machine.
+      - VoteOutcome.java:35: model abstentions; distinguish empty vs tie.
+      - PressureManager.java:26: consume accumulationPerDay; retry config load.
+      - VassalManager.java:70: tribute via MarketAPI.getNetIncome().
+      - CyberSecuritySuite/DiplomaticEmbassy/IntelligenceBureau apply(): add demand/supply
+        hooks where applicable; if industries are placeholders, document and defer.
+      - TendencyProfileLoader.java:87: separate explicit vs auto-derived caches.
+      - PolicyEffect.java:43: add MISSIONARY_CAMPAIGN, CONSERVATION_MANDATE branches
+        OR remove enum values if unused.
+      - PolicyManager.java:92: snapshot keys before iteration to avoid CME.
+    files:
+      - src/nex4x/coalitions/CoalitionVote.java
+      - src/nex4x/coalitions/CoalitionGovernance.java
+      - src/nex4x/casusbelli/CasusBelliManager.java
+      - src/nex4x/casusbelli/CasusBelli.java
+      - src/nex4x/badges/FactionBadges.java
+      - src/nex4x/wargoals/WarScoreTracker.java
+      - src/nex4x/wargoals/WarGoal.java
+      - src/nex4x/peace/PeaceConference.java
+      - src/nex4x/votes/VoteOutcome.java
+      - src/nex4x/pressure/PressureManager.java
+      - src/nex4x/vassals/VassalManager.java
+      - src/nex4x/industries/CyberSecuritySuite.java
+      - src/nex4x/industries/DiplomaticEmbassy.java
+      - src/nex4x/industries/IntelligenceBureau.java
+      - src/nex4x/data/TendencyProfileLoader.java
+      - src/nex4x/policies/PolicyEffect.java
+      - src/nex4x/policies/PolicyManager.java
+    complexity: 5
+    priority: should
+    depends_on: []
+
+  - id: 7c
+    title: Listener / lifecycle hardening
+    description: |
+      Group 3 fixes:
+      - Nex4xEventListener.java:65,76 — make PersonAPI override no-op or dedupe via
+        one-shot guard.
+      - MediationManager.java:31 — input validation in propose.
+      - InfluenceManager.java:61 — pass elapsed to advanceDay; accumulate fractional.
+      - Delete Nex4xDiplomacyBrainListener (dead).
+      - Nex4xManager.java:144 — per-manager try/catch in v2 block; pass elapsed.
+      - FactionBeliefsLoader.java:54 — log JSON errors with stack at log.warn.
+      - DeclarationConfig:48, DialoguePool:66, LeaderAccessConfig:43 — log with stack.
+    files:
+      - src/nex4x/listeners/Nex4xEventListener.java
+      - src/nex4x/mediation/MediationManager.java
+      - src/nex4x/influence/InfluenceManager.java
+      - src/nex4x/integration/Nex4xDiplomacyBrainListener.java
+      - src/nex4x/managers/Nex4xManager.java
+      - src/nex4x/data/FactionBeliefsLoader.java
+      - src/nex4x/declarations/DeclarationConfig.java
+      - src/nex4x/leaders/DialoguePool.java
+      - src/nex4x/leaders/LeaderAccessConfig.java
+    complexity: 4
+    priority: should
+    depends_on: []
+
+  - id: 7d
+    title: UI minor fixes
+    description: |
+      Group 4 fixes (anything not in PRD-E):
+      - FactionBrowserPanelModel.java:60 — validate selectedFactionId on first render.
+      - BalanceBarPlugin.java:48 — save/restore glBlendFunc via glPushAttrib(GL_COLOR_BUFFER_BIT).
+      - DiplomacyTabOverlayModel.java:248 — javadoc the scale convention.
+      - NegotiationPanel.java:329, 334 — replace hardcoded label colors with
+        Misc.getBasePlayerColor() and targetFaction.getBaseUIColor().
+    files:
+      - src/nex4x/ui/FactionBrowserPanelModel.java
+      - src/nex4x/ui/BalanceBarPlugin.java
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: should
+    depends_on: []
+
+  - id: 7e
+    title: P3 dead-code & cosmetic batch
+    description: |
+      Group 5 — small fixes; one commit per coherent set:
+      - Delete Nex4xAgentActionProposer (empty).
+      - Delete Nex4xAgentManager:76-78 stub OR implement.
+      - MemoryManager:20 — remove dead lastAdvanceDay.
+      - AIProposalManager:58 — month*30f -> (month-1)*30f.
+      - InfluenceManager:159 — null guard + per-decl cap.
+      - LeaderRegistry:35,78 — Ranks.POST_FACTION_LEADER constant.
+      - DialogueSystem:37 — Factions.* constants for hardcoded ids.
+      - Nex4xSettings:68 — javadoc reload semantics.
+      - TendencyProfile:48 — fix getDominant for all-zero profiles.
+      - PressureLedger:30 — fix or update comment to match impl.
+      - FactionPowerRankings:90 — drop dead try/catch.
+      - CasusBelliManager:35 — leave or move logger init lazy.
+      - BeliefAlignmentConcern:59 — note O(n*m) acceptable; defer.
+      - Nex4xDebugCommand:10 — register via BaseCommand if Console Commands present.
+      - Contract:21 — Collections.unmodifiableList.
+      - DeclarationType:45 — pick int or float for duration; doc.
+    files:
+      - src/nex4x/agents/Nex4xAgentActionProposer.java
+      - src/nex4x/agents/Nex4xAgentManager.java
+      - src/nex4x/managers/MemoryManager.java
+      - src/nex4x/managers/AIProposalManager.java
+      - src/nex4x/influence/InfluenceManager.java
+      - src/nex4x/leaders/LeaderRegistry.java
+      - src/nex4x/leaders/DialogueSystem.java
+      - src/nex4x/data/Nex4xSettings.java
+      - src/nex4x/data/TendencyProfile.java
+      - src/nex4x/pressure/PressureLedger.java
+      - src/nex4x/util/FactionPowerRankings.java
+      - src/nex4x/casusbelli/CasusBelliManager.java
+      - src/nex4x/strategic/concern/BeliefAlignmentConcern.java
+      - src/nex4x/debug/Nex4xDebugCommand.java
+      - src/nex4x/contracts/Contract.java
+      - src/nex4x/declarations/DeclarationType.java
+    complexity: 4
+    priority: could
+    depends_on: []
+
+  - id: 7f
+    title: Final TODO sweep + build verify
+    description: |
+      grep -rn "TODO(audit-" src/nex4x — should be zero post-execution OR each
+      remaining instance must have a ticket reference.
+      ./build.sh clean.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [7a, 7b, 7c, 7d, 7e]

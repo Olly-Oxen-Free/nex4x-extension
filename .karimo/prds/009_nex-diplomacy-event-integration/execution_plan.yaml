@@ -1,0 +1,12 @@
+prd: nex-diplomacy-event-integration
+waves:
+  - wave: 1
+    tasks: [9a]
+  - wave: 2
+    tasks: [9b, 9c, 9d, 9e, 9f]   # all depend only on 9a
+  - wave: 3
+    tasks: [9g]
+  - wave: 4
+    tasks: [9h]
+longest_chain: [9a, 9c, 9g, 9h]
+total_complexity: 12

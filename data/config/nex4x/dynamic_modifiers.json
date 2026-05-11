@@ -1,0 +1,20 @@
+{
+    "BATTLE_WON":              { "tendency": "MILITARISTS",    "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 5.0 },
+    "BATTLE_LOST":             { "tendency": "FEDERALISTS",    "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 5.0 },
+    "MARKET_CAPTURED":         { "tendency": "MILITARISTS",    "baseAmount": 3.0, "decayPerDay": 0.025, "maxStack": 6.0 },
+    "MARKET_LOST":             { "tendency": "FEDERALISTS",    "baseAmount": 3.0, "decayPerDay": 0.025, "maxStack": 6.0 },
+    "SAT_BOMBARDMENT_DONE":    { "tendency": "MILITARISTS",    "baseAmount": 1.5, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "SAT_BOMBARDMENT_RECEIVED":{ "tendency": "ZEALOTS",        "baseAmount": 2.5, "decayPerDay": 0.033, "maxStack": 5.0 },
+    "TRADE_PROSPERITY":        { "tendency": "CORPORATISTS",   "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 4.0 },
+    "ECONOMIC_CRISIS":         { "tendency": "INDUSTRIALISTS", "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 4.0 },
+    "EMBARGO_SUFFERED":        { "tendency": "MILITARISTS",    "baseAmount": 1.5, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "TRADE_DEAL_SIGNED":       { "tendency": "CORPORATISTS",   "baseAmount": 1.0, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "ALLIANCE_FORMED":         { "tendency": "FEDERALISTS",    "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 4.0 },
+    "AGREEMENT_BROKEN_BY_US":  { "tendency": "MILITARISTS",    "baseAmount": 1.5, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "AGREEMENT_BROKEN_BY_THEM":{ "tendency": "ZEALOTS",        "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 5.0 },
+    "PEACE_SIGNED":            { "tendency": "FEDERALISTS",    "baseAmount": 1.5, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "IDEOLOGY_SPREAD":         { "tendency": "ZEALOTS",        "baseAmount": 1.5, "decayPerDay": 0.05,  "maxStack": 3.0 },
+    "IDEOLOGY_CHALLENGED":     { "tendency": "ZEALOTS",        "baseAmount": 2.0, "decayPerDay": 0.033, "maxStack": 5.0 },
+    "ESPIONAGE_CAUGHT":        { "tendency": "MILITARISTS",    "baseAmount": 1.0, "decayPerDay": 0.05,  "maxStack": 2.0 },
+    "STABILITY_CRISIS":        { "tendency": "INDUSTRIALISTS", "baseAmount": 2.5, "decayPerDay": 0.033, "maxStack": 5.0 }
+}

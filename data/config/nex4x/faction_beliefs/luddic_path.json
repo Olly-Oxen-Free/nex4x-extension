@@ -1,0 +1,13 @@
+{
+    "beliefs": [
+        {"id": "annihilate_all_ai_tech", "strength": 3, "visibility": "public"},
+        {"id": "sector_irredeemably_corrupt", "strength": 3, "visibility": "public"},
+        {"id": "violence_is_purification", "strength": 3, "visibility": "public"},
+        {"id": "centralized_authority_tyranny", "strength": 2, "visibility": "public"},
+        {"id": "values_ideological_alignment", "strength": 3, "visibility": "public"},
+        {"id": "values_military_strength", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_advanced_tech", "strength": 3, "visibility": "public"},
+        {"id": "distrusts_ai_core_users", "strength": 3, "visibility": "public"},
+        {"id": "distrusts_diplomatic_factions", "strength": 2, "visibility": "public"}
+    ]
+}

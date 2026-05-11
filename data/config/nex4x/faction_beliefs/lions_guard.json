@@ -1,0 +1,9 @@
+{
+    "beliefs": [
+        {"id": "protect_diktat", "strength": 3, "visibility": "public"},
+        {"id": "elite_military", "strength": 2, "visibility": "public"},
+        {"id": "loyalty_above_morality", "strength": 2, "visibility": "secret"},
+        {"id": "values_military_strength", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_hostile_diktat", "strength": 3, "visibility": "public"}
+    ]
+}

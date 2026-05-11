@@ -1,0 +1,59 @@
+{
+	# Merged with Nexerelin's strategicAIConfig.json.
+	# Adds Nex4x concerns + actions so the Nex StrategicAI UI presents our reasoning.
+	"concerns":{
+		"nex4x_goal":{
+			"name":"Strategic Goal",
+			"desc":"A goal identified by our strategic planning: $faction",
+			"classPath":"nex4x.strategic.concern.GoalWrapConcern",
+			"tags":["military", "diplomacy", "canDiplomacy", "canDeclareWar", "canInvade"],
+			"enabled":true,
+			"module":EXECUTIVE
+		},
+		"nex4x_belief_alignment":{
+			"name":"Belief Clash",
+			"desc":"Our doctrinal beliefs clash with those of $theFaction.",
+			"classPath":"nex4x.strategic.concern.BeliefAlignmentConcern",
+			"tags":["diplomacy", "canDiplomacy", "diplomacy_negative"],
+			"enabled":true,
+			"module":DIPLOMATIC
+		},
+		"nex4x_badge_provocation":{
+			"name":"Provocative Conduct",
+			"desc":"$TheFaction's recent conduct has been provocative enough to warrant response.",
+			"classPath":"nex4x.strategic.concern.BadgeProvocationConcern",
+			"tags":["diplomacy", "military", "canDiplomacy", "canDeclareWar", "diplomacy_negative"],
+			"enabled":true,
+			"module":DIPLOMATIC
+		}
+	},
+	"actions":{
+		"nex4x_declare_war":{
+			"name":"Declare War (Nex4x)",
+			"classPath":"nex4x.strategic.action.DeclareWarFromDesireAction",
+			"chance":1.0,
+			"cooldown":60,
+			"antiRepetition":1.0,
+			"enabled":true,
+			"tags":["military", "diplomacy", "canDeclareWar"]
+		},
+		"nex4x_seek_peace":{
+			"name":"Seek Peace (Nex4x)",
+			"classPath":"nex4x.strategic.action.SeekPeaceFromWillingnessAction",
+			"chance":1.0,
+			"cooldown":30,
+			"antiRepetition":1.0,
+			"enabled":true,
+			"tags":["diplomacy", "canDiplomacy", "diplomacy_positive"]
+		},
+		"nex4x_propose_agreement":{
+			"name":"Propose Agreement (Nex4x)",
+			"classPath":"nex4x.strategic.action.ProposeTieredAgreementAction",
+			"chance":1.0,
+			"cooldown":45,
+			"antiRepetition":1.0,
+			"enabled":true,
+			"tags":["diplomacy", "canDiplomacy", "diplomacy_positive"]
+		}
+	}
+}

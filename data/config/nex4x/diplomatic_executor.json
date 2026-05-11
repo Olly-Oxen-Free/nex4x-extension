@@ -1,0 +1,46 @@
+{
+    "warDecision": {
+        "grievanceWeight": 0.01,
+        "cbBonus": 40,
+        "militaryAdvantageWeight": 30,
+        "pressureAdvantageWeight": 15,
+        "beliefUrgencyWeight": 25,
+        "agreementPenaltyWeight": 50,
+        "overextensionWeight": 20,
+        "allianceDeterrentWeight": 25,
+        "threatTargetBonus": 25,
+        "goalAdvancementBonus": 30,
+        "randomRange": 20,
+        "declareThreshold": 100,
+        "considerThreshold": 70
+    },
+    "peaceDecision": {
+        "base": 30,
+        "warWearinessWeight": 0.005,
+        "scopeAchievedBonus": 40,
+        "stabilityWeight": 10,
+        "otherWarsWeight": 15,
+        "grievanceWeight": 0.005,
+        "militaryAdvantageWeight": 20,
+        "pressureWeight": 0.1,
+        "threatElsewhereBonus": 20,
+        "goalAchievedBonus": 30,
+        "randomRange": 15,
+        "seekPeaceThreshold": 80,
+        "acceptThreshold": 50
+    },
+    "actionScoring": {
+        "advancesGoalWeight": 30,
+        "addressesObstacleWeight": 25,
+        "currentGoalBonus": 15,
+        "multiGoalMultiplier": 1.3,
+        "multiObstacleMultiplier": 1.3,
+        "neitherPenalty": -20
+    },
+    "actionBudget": {
+        "maxPerDay": 2,
+        "carryOver": false,
+        "warPeaceExempt": true,
+        "reactiveResponseCostMult": 0.5
+    }
+}

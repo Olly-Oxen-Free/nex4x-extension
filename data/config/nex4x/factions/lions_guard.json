@@ -1,0 +1,18 @@
+{
+    "factionId": "lions_guard",
+    "startingArchetype": "DEFENSIVE_CONSOLIDATION",
+    "tendencyOverrides": {
+        "mil": 3.5,
+        "ind": 2.5,
+        "zea": 2.0,
+        "fed": 2.0,
+        "cor": 1.0,
+        "eco": 1.0
+    },
+    "goalPriorityOverrides": {
+        "DEFEND_TERRITORY": 1.5,
+        "CONTAIN_RIVAL": 1.3,
+        "SECURE_AGREEMENT": 1.1
+    },
+    "negotiationStyle": "STUBBORN"
+}

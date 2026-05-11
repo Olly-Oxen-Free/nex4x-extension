@@ -1,0 +1,16 @@
+{
+    "importanceWeights": {
+        "peacetime": 0.7,
+        "urgentGoalExists": 0.4,
+        "crisis": 0.2
+    },
+    "urgencyWeights": {
+        "peacetime": 0.3,
+        "urgentGoalExists": 0.6,
+        "crisis": 0.8
+    },
+    "convergenceBonus": 20,
+    "convergenceThreshold": 70,
+    "urgentGoalThreshold": 70,
+    "maxActiveGoals": 8
+}

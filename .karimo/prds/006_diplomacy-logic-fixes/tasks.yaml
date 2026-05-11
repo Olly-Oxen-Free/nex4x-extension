@@ -1,0 +1,222 @@
+prd: diplomacy-logic-fixes
+version: 1
+tasks:
+  - id: 6a
+    title: Fix bilateral 2x delta in DeclarationManager
+    description: |
+      Lines 153, 173, 222, 242: remove the second-side adjustRelationship call.
+      FactionAPI.adjustRelationship already mirrors. Test by Console-Commands
+      forcing a friendship declaration and verifying delta == intended (not 2x).
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6b
+    title: Route declare() through type guards
+    description: |
+      DeclarationManager.declare() at line 31 — branch on DeclarationType.unilateral
+      and DeclarationConfig.requiresReceiverConsent before applying. Reject FRIENDSHIP
+      from a unilateral path (must go through proposal flow).
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+      - src/nex4x/declarations/DeclarationType.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6c
+    title: Fix friendship/denounce dedupe in helpers
+    description: |
+      Lines 146, 164: route declareFriendship/declareDenouncement through declare()
+      so prior same-type declarations are withdrawn first. Verify no duplicate
+      Declarations accumulate via Console Commands smoke.
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+    complexity: 2
+    priority: must
+    depends_on: [6b]
+
+  - id: 6d
+    title: Scale daily decay by elapsed days
+    description: |
+      DeclarationManager.advanceDay receives elapsed days; lines 218, 237 must
+      multiply dailyRepGain and decayStep by elapsed. Prefer using Nex4xClock
+      helper from PRD-B if available; otherwise inline equivalent.
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6e
+    title: Add ownerFactionId to Nex4xAgentData
+    description: |
+      Add field. Seed at creation point in Nex4xAgentActionReportListener via
+      CovertActionIntel.getAgentFaction(). Backfill on advanceDay if missing.
+      Make field @Saved.
+    files:
+      - src/nex4x/agents/Nex4xAgentData.java
+      - src/nex4x/agents/Nex4xAgentActionReportListener.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 6f
+    title: Filter agent cascades by ownerFactionId
+    description: |
+      DiplomatExpulsionCascade.java:21 — filter mgr.getAllData() by ownerFactionId.
+      DiplomatPassiveManager.java:27 — same. Use the field added in 6e.
+    files:
+      - src/nex4x/agents/diplomat/DiplomatExpulsionCascade.java
+      - src/nex4x/agents/diplomat/DiplomatPassiveManager.java
+    complexity: 2
+    priority: must
+    depends_on: [6e]
+
+  - id: 6g
+    title: Demand validation + accept dispatch
+    description: |
+      DemandManager.issue() (line 32): validate non-null demanderId/targetId/type,
+      reject self-target, reject empty payload.
+      DemandManager.accept() (line 55): dispatch on Demand.type — credit transfer for
+      TRIBUTE, alliance dissolution for BREAK_ALLIANCE, ceasefire for END_WAR, etc.
+      Unknown types: log.warn and set status to ACCEPTED_NO_EFFECT (do not silently no-op).
+    files:
+      - src/nex4x/demands/DemandManager.java
+      - src/nex4x/demands/Demand.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 6h
+    title: Fix CasusBelliManager military-market filter
+    description: |
+      countMilitaryMarkets at line 303 — add hasIndustry check for MILITARYBASE,
+      HIGHCOMMAND, PATROLHQ; reject hidden markets.
+    files:
+      - src/nex4x/casusbelli/CasusBelliManager.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 6i
+    title: TrustSensitivity null guard + init order
+    description: |
+      Line 25: null-guard DiplomacyTraits.getFactionTraits result; return MEDIUM.
+      Verify never called before onGameLoad (search call sites).
+    files:
+      - src/nex4x/badges/TrustSensitivity.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 6j
+    title: Replace FactionCompatibility dead reflection layer
+    description: |
+      FactionCompatibility.java:57 — remove reflection on militarism/diplomacyPositive.
+      Either drop "Layer 2 auto-derive" entirely (if downstream callers don't use it)
+      OR re-derive from real fields: aggregate diplomacyPositiveChance/diplomacyNegativeChance
+      maps, use morality enum, pirateFaction flag.
+      Stop swallowing — let exceptions propagate or log with stack.
+    files:
+      - src/nex4x/integration/FactionCompatibility.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 6k
+    title: Fix MemoryManager IRREDENTIST/FOREVERWAR multipliers
+    description: |
+      Lines 83, 92 — return >=1000f to make decay extremely slow (matches design intent).
+      Document in Javadoc that multiplier > 1 means "slower decay".
+    files:
+      - src/nex4x/managers/MemoryManager.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 6l
+    title: PoliticalModifier sign handling
+    description: |
+      politics/PoliticalModifier.java:38 — track magnitude and sign separately, OR
+      change isExpired to use Math.abs(amount) <= 0 (i.e. exact zero).
+      Update decay() to walk towards zero from either side.
+    files:
+      - src/nex4x/politics/PoliticalModifier.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6m
+    title: ProposeTieredAgreementAction effect
+    description: |
+      strategic/action/ProposeTieredAgreementAction.java:45 — replace log-only with
+      AgreementManager.propose(...) and / or DiplomacyManager.createDiplomacyEvent(...).
+      Mirror DeclareWarFromDesireAction:34 pattern.
+    files:
+      - src/nex4x/strategic/action/ProposeTieredAgreementAction.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6n
+    title: FactionBeliefsLoader iterate live factions
+    description: |
+      Line 48: replace VANILLA_FACTIONS[] iteration with
+      Global.getSector().getAllFactions(). Run after sector exists (call from
+      onNewGameAfterEconomyLoad / onGameLoad). Ensure idempotent.
+    files:
+      - src/nex4x/data/FactionBeliefsLoader.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6o
+    title: Lazy-load LeaderConfigRegistry + DialogueSystem
+    description: |
+      LeaderConfigRegistry.java:21 and DialogueSystem.java:23 — autoload on first
+      get() if not yet loaded. Prevents NPE when UI opens before plugin init done.
+    files:
+      - src/nex4x/leaders/LeaderConfigRegistry.java
+      - src/nex4x/leaders/DialogueSystem.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 6p
+    title: IntelTierResolver log on Throwable
+    description: |
+      Line 12: replace silent swallow with log.warn("IntelTierResolver: {}", t.getMessage(), t).
+    files:
+      - src/nex4x/leaders/IntelTierResolver.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 6q
+    title: VassalManager dynamic weakness
+    description: |
+      VassalManager.java:90 — replace hardcoded 0.3 with computation from
+      FactionPowerRankings (use de-static accessor from PRD-D if available; else
+      inline equivalent and flag follow-up). Factor in recent market loss.
+    files:
+      - src/nex4x/vassals/VassalManager.java
+    complexity: 2
+    priority: should
+    depends_on: []
+
+  - id: 6r
+    title: Smoke + verify
+    description: |
+      ./build.sh clean. Console-Commands smokes:
+      - friendship declaration delta = configured value (not 2x).
+      - issue + accept demand: TRIBUTE actually transfers credits.
+      - countMilitaryMarkets returns military-only count.
+      - LeaderConfigRegistry.get(...) before onGameLoad does not NPE.
+      Remove all // TODO(audit-P*) markers in scoped files.
+    files: []
+    complexity: 2
+    priority: must
+    depends_on: [6a, 6b, 6c, 6d, 6e, 6f, 6g, 6h, 6i, 6j, 6k, 6l, 6m, 6n, 6o, 6p, 6q]

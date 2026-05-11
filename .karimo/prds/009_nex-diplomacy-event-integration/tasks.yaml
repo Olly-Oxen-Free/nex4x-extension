@@ -1,0 +1,108 @@
+prd: nex-diplomacy-event-integration
+version: 1
+tasks:
+  - id: 9a
+    title: Add NexDiplomacyBridge helper
+    description: |
+      New file: src/nex4x/integration/NexDiplomacyBridge.java
+      Static helpers wrapping Nex calls in try/catch with adjustRelationship fallback:
+        - fireRespectEvent(declarer, target, repPercent)   // creates "respect" event
+        - fireInsultEvent(declarer, target, repPercent)
+        - firePeaceTreaty(factionA, factionB)
+        - ensureAlliance(factionA, factionB)               // creates Nex Alliance if neither in one
+      Each method logs success/failure; never throws. Uses
+      DiplomacyManager.createDiplomacyEventV2 / AllianceManager.createAlliance.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 9b
+    title: Route DeclarationManager friendship/denouncement through bridge
+    description: |
+      DeclarationManager.declareFriendship line 172: replace direct adjustRelationship with
+      NexDiplomacyBridge.fireRespectEvent(declarer, target, cfg.flatRepBonus).
+      DeclarationManager.declareDenouncement line 191: fireInsultEvent.
+      Ripple loop (line 211): fireInsultEvent per ripple target with rippleAmt.
+      Daily rep gain/decay sites left as adjustRelationship (documented as low-noise drift).
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+    complexity: 2
+    priority: must
+    depends_on: [9a]
+
+  - id: 9c
+    title: AgreementManager.createAgreement creates Nex Alliance for COALITION tier
+    description: |
+      In AgreementManager.createAgreement, after creating the internal Agreement, if
+      type == AgreementType.COALITION, call NexDiplomacyBridge.ensureAlliance(factionA, factionB).
+      Idempotent: skip if either faction already in an alliance (use AllianceManager.getFactionAlliance).
+    files:
+      - src/nex4x/agreements/AgreementManager.java
+    complexity: 2
+    priority: must
+    depends_on: [9a]
+
+  - id: 9d
+    title: MediationManager success fires peace_treaty
+    description: |
+      In MediationManager.advanceDay, on the SUCCESS branch (where session resolves),
+      call NexDiplomacyBridge.firePeaceTreaty(belligerentA, belligerentB).
+      Add logging that ties session id to the peace event.
+    files:
+      - src/nex4x/mediation/MediationManager.java
+    complexity: 1
+    priority: must
+    depends_on: [9a]
+
+  - id: 9e
+    title: PeaceConference.accept() fires peace_treaty
+    description: |
+      In PeaceConference.accept(), after status flip to ACCEPTED, call
+      NexDiplomacyBridge.firePeaceTreaty(attackerId, defenderId). Wrap in try/catch.
+    files:
+      - src/nex4x/peace/PeaceConference.java
+    complexity: 1
+    priority: must
+    depends_on: [9a]
+
+  - id: 9f
+    title: DemandManager.END_WAR via Nex peace event
+    description: |
+      In DemandManager.applyDemandEffect, replace the END_WAR setRelationship(NEUTRAL)
+      branch with NexDiplomacyBridge.firePeaceTreaty(demanderId, targetId).
+      Remove the manual hostile-check + setRelationship lines (Nex's peace event handles).
+    files:
+      - src/nex4x/demands/DemandManager.java
+    complexity: 1
+    priority: must
+    depends_on: [9a]
+
+  - id: 9g
+    title: Save-load migration for in-flight COALITION agreements
+    description: |
+      In Nex4xModPlugin.onGameLoad (after manager init), walk
+      Nex4xManager.getAgreementManager().getAllAgreements() (or equivalent accessor;
+      add one if missing). For each active COALITION-tier agreement, call
+      NexDiplomacyBridge.ensureAlliance(a, b). Idempotent; logs "Backfilled N coalition
+      alliances" once with N.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+      - src/nex4x/agreements/AgreementManager.java
+    complexity: 2
+    priority: should
+    depends_on: [9a, 9c]
+
+  - id: 9h
+    title: Smoke + verify
+    description: |
+      Add auditDiplomacy() runcode to Nex4xDebugCommand:
+        - prints DiplomacyManager.intelManager getIntel(DiplomacyIntel.class) count
+        - reports for each live coalition agreement whether Nex Alliance shadow exists
+      ./build.sh clean. Manual: trigger friendship + denouncement, check intel log.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [9b, 9c, 9d, 9e, 9f]

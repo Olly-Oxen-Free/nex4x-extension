@@ -1,0 +1,74 @@
+{
+    "SABOTAGE_INDUSTRY": {
+        "requiredType": "COVERT",
+        "minLevel": 2,
+        "creditCost": 80000,
+        "influenceCost": 10,
+        "durationDays": 21,
+        "cooldownDays": 60,
+        "relationshipPenaltyOnDetection": -20
+    },
+    "DEEP_COVER": {
+        "requiredType": "COVERT",
+        "minLevel": 3,
+        "creditCost": 120000,
+        "influenceCost": 15,
+        "durationDays": 60,
+        "cooldownDays": 120,
+        "relationshipPenaltyOnDetection": -15
+    },
+    "BUILD_NETWORK": {
+        "requiredType": "GUERRILLA",
+        "minLevel": 0,
+        "creditCost": 15000,
+        "influenceCost": 2,
+        "durationDays": 14,
+        "cooldownDays": 20,
+        "relationshipPenaltyOnDetection": -8
+    },
+    "INCITE_RAID": {
+        "requiredType": "GUERRILLA",
+        "minLevel": 2,
+        "creditCost": 60000,
+        "influenceCost": 8,
+        "durationDays": 21,
+        "cooldownDays": 45,
+        "relationshipPenaltyOnDetection": -15
+    },
+    "HIRE_MERCS": {
+        "requiredType": "GUERRILLA",
+        "minLevel": 3,
+        "creditCost": 150000,
+        "influenceCost": 12,
+        "durationDays": 30,
+        "cooldownDays": 90,
+        "relationshipPenaltyOnDetection": -20
+    },
+    "FALSE_FLAG_ATTACK": {
+        "requiredType": "GUERRILLA",
+        "minLevel": 3,
+        "creditCost": 200000,
+        "influenceCost": 20,
+        "durationDays": 30,
+        "cooldownDays": 180,
+        "relationshipPenaltyOnDetection": -40
+    },
+    "DIPLOMAT_OFFICIAL_SUPPORT": {
+        "requiredType": "DIPLOMAT",
+        "minLevel": 0,
+        "creditCost": 5000,
+        "influenceCost": 1,
+        "durationDays": 10,
+        "cooldownDays": 14,
+        "relationshipPenaltyOnDetection": 0
+    },
+    "DIPLOMAT_UNOFFICIAL_LEAK": {
+        "requiredType": "DIPLOMAT",
+        "minLevel": 2,
+        "creditCost": 20000,
+        "influenceCost": 5,
+        "durationDays": 14,
+        "cooldownDays": 45,
+        "relationshipPenaltyOnDetection": -20
+    }
+}

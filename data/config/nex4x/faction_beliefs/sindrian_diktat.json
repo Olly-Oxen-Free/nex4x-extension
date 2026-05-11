@@ -1,0 +1,16 @@
+{
+    "beliefs": [
+        {"id": "fuel_monopoly_nonnegotiable", "strength": 3, "visibility": "public"},
+        {"id": "diktat_authority_absolute", "strength": 2, "visibility": "public"},
+        {"id": "military_economic_enforcement", "strength": 2, "visibility": "public"},
+        {"id": "expand_fuel_territory", "strength": 2, "visibility": "secret"},
+        {"id": "resents_heg_interference", "strength": 1, "visibility": "secret"},
+        {"id": "fuel_competitors_threats", "strength": 2, "visibility": "secret"},
+        {"id": "values_industrial_output", "strength": 2, "visibility": "public"},
+        {"id": "values_military_strength", "strength": 1, "visibility": "public"},
+        {"id": "distrusts_economic_competitors", "strength": 3, "visibility": "secret"},
+        {"id": "distrusts_expansion_near_diktat", "strength": 2, "visibility": "secret"},
+        {"id": "distrusts_challenge_authority", "strength": 2, "visibility": "public"},
+        {"id": "distrusts_secretive", "strength": 1, "visibility": "secret"}
+    ]
+}

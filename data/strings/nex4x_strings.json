@@ -1,0 +1,25 @@
+{
+    "nex4x": {
+        "dossierTitle": "$faction Dossier",
+        "dossierDesc": "Political intelligence on $theFaction",
+        "sectionBeliefs": "BELIEFS",
+        "sectionMemories": "RECENT MEMORIES",
+        "sectionBadges": "REPUTATION",
+        "sectionPolitics": "POLITICAL TENDENCIES",
+        "beliefPublic": "Public",
+        "beliefSecret": "Secret",
+        "beliefStrength1": "Minor concern",
+        "beliefStrength2": "Important",
+        "beliefStrength3": "Existential priority",
+        "memoryNoAccess": "Intelligence insufficient to assess this faction's disposition history.",
+        "beliefsNoAccess": "Intelligence insufficient to assess this faction's core beliefs.",
+        "tendenciesNoAccess": "Intelligence insufficient to assess internal politics.",
+        "memoryImpactPositive": "+%s disposition",
+        "memoryImpactNegative": "%s disposition",
+        "memoryDecayed": "(%s%% strength remaining)",
+        "badgeNone": "No notable reputation badges.",
+        "noBeliefsKnown": "No beliefs identified.",
+        "tendencyBar": "%s",
+        "noMemories": "No recorded diplomatic events with this faction."
+    }
+}

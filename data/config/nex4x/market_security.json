@@ -1,0 +1,9 @@
+{
+    "detectionPerSize": 2.0,
+    "detectionPerStabilityPoint": 0.5,
+    "cyberSecurityBonus": 15.0,
+    "embassyAssistBonus": 3.0,
+    "intelBureauBonus": 8.0,
+    "attackerBase": 10.0,
+    "attackerPerLevel": 5.0
+}

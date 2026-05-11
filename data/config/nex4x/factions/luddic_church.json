@@ -1,0 +1,18 @@
+{
+    "factionId": "luddic_church",
+    "startingArchetype": "IDEOLOGICAL_CRUSADE",
+    "tendencyOverrides": {
+        "zea": 4.5,
+        "fed": 2.0,
+        "mil": 1.5,
+        "ind": 1.5,
+        "eco": 2.0,
+        "cor": 0.5
+    },
+    "goalPriorityOverrides": {
+        "SPREAD_IDEOLOGY": 1.5,
+        "DEFEND_TERRITORY": 1.3,
+        "IMPROVE_RELATIONS": 1.1
+    },
+    "negotiationStyle": "PRINCIPLED"
+}

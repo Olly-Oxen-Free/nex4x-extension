@@ -1,0 +1,10 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["The Diktat hears you. Brevity.",
+                    "Speak. The Executor's time is owed elsewhere."],
+    "COOPERATIVE": ["A faithful friend of the Diktat. Welcome."]
+  },
+  "tribute_demanded": {
+    "NEUTRAL":     ["The Diktat is owed. You know this."]
+  }
+}

@@ -1,0 +1,137 @@
+prd: unify-relation-scale
+version: 1
+tasks:
+  - id: 1a
+    title: Add Nex4xRelations helper
+    description: |
+      Create src/nex4x/util/Nex4xRelations.java with:
+      - toPercent(float rel) -> float (rel * 100f)
+      - toPercentInt(float rel) -> int (Math.round(rel * 100f))
+      - atLeastPct(float rel, float pct) -> boolean (rel * 100f >= pct)
+      - fromRel(float rel) -> RepLevel (RepLevel.getLevelFor(rel))
+      Pure utility, no Sector access. JavaDoc each method noting the API convention is -1..1.
+    files:
+      - src/nex4x/util/Nex4xRelations.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 1b
+    title: Migrate ReputationTier thresholds + signature
+    description: |
+      Change ReputationTier.classify(float) to accept a percent value (-100..100).
+      Update thresholds appropriately (already in 0..100 idiom).
+      Add overload: classify(FactionAPI a, FactionAPI b) that does the conversion internally via Nex4xRelations.toPercent.
+      Do NOT migrate callers in this task.
+    files:
+      - src/nex4x/leaders/ReputationTier.java
+    complexity: 2
+    priority: must
+    depends_on: [1a]
+
+  - id: 1c
+    title: Migrate ReputationTier callers
+    description: |
+      Update every call to ReputationTier.classify(...) to use the new overload OR pre-convert.
+      Sites:
+        - src/nex4x/ui/NegotiationPanel.java:748
+        - src/nex4x/ui/NegotiationPanel.java:797
+        - src/nex4x/ui/intel/WarDeclarationIntel.java:39
+        - src/nex4x/ui/intel/AIProposalIntel.java:174
+        - src/nex4x/ui/intel/BadgeReactionIntel.java:52
+        - src/nex4x/evaluation/Valuator.java:40
+        - src/nex4x/debug/Nex4xDebugCommand.java:36
+      Remove the // TODO(audit-P0) comments at each site.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+      - src/nex4x/ui/intel/WarDeclarationIntel.java
+      - src/nex4x/ui/intel/AIProposalIntel.java
+      - src/nex4x/ui/intel/BadgeReactionIntel.java
+      - src/nex4x/evaluation/Valuator.java
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [1b]
+
+  - id: 1d
+    title: Fix NegotiationPanel.relationBadge display
+    description: |
+      Replace Math.round(rel) with Nex4xRelations.toPercentInt(rel).
+      Format string stays "(+%d)" / "(%d)".
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 1
+    priority: must
+    depends_on: [1a]
+
+  - id: 1e
+    title: Migrate DiplomacyIntel relColor + repLabel
+    description: |
+      In ui/DiplomacyIntel.java:200-onward, replace the 50f/-50f/80f/-70f thresholds
+      with Nex4xRelations.atLeastPct(rel, 50f) etc., OR convert rel once at top.
+      Do NOT touch unrelated logic in this file (overlay lifecycle is a separate PRD).
+    files:
+      - src/nex4x/ui/DiplomacyIntel.java
+    complexity: 2
+    priority: must
+    depends_on: [1a]
+
+  - id: 1f
+    title: Migrate DiplomacyTabPlugin.relColor
+    description: Same scale fix as 1e, applied to ui/DiplomacyTabPlugin.java:134.
+    files:
+      - src/nex4x/ui/DiplomacyTabPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: [1a]
+
+  - id: 1g
+    title: Delete dead CoreUITabInjectorListener.relColor
+    description: |
+      Remove the unused relColor method at CoreUITabInjectorListener.java:179
+      if no callers remain (verify with grep). If callers exist, migrate them like 1e.
+    files:
+      - src/nex4x/ui/CoreUITabInjectorListener.java
+    complexity: 1
+    priority: should
+    depends_on: [1a]
+
+  - id: 1h
+    title: Fix AgreementType + AgreementManager.canPropose
+    description: |
+      AgreementType.relationThreshold values (10/20/40/60) are correct AS PERCENT.
+      Migrate AgreementManager.canPropose to convert raw rel via Nex4xRelations.atLeastPct.
+      Add null guard on the chained Global.getSector().getFaction(a).getRelationship(b)
+      identified at AgreementManager.java:119 — return false on null faction.
+    files:
+      - src/nex4x/agreements/AgreementType.java
+      - src/nex4x/agreements/AgreementManager.java
+    complexity: 2
+    priority: must
+    depends_on: [1a]
+
+  - id: 1i
+    title: Fix LeaderAccessGate threshold convention
+    description: |
+      LeaderAccessGate.java:18 — convert raw rel via Nex4xRelations.atLeastPct.
+      Add null guard on player faction lookup pre-init.
+      Document expected scale in JavaDoc on threshold field.
+    files:
+      - src/nex4x/leaders/LeaderAccessGate.java
+    complexity: 1
+    priority: must
+    depends_on: [1a]
+
+  - id: 1j
+    title: Audit-rels smoke command + verification
+    description: |
+      Add `nex4x audit-rels` subcommand to Nex4xDebugCommand: iterate live faction pairs
+      and print (factionA, factionB, raw, percent, repLevel, tier) using new helpers.
+      Run ./build.sh and verify clean. Manual playtest: open faction browser, confirm
+      non-uniform colors. Open negotiation panel, confirm relationBadge no longer "+0".
+      Grep src/ for orphaned numeric thresholds against raw rel; report any remaining.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [1c, 1d, 1e, 1f, 1g, 1h, 1i]

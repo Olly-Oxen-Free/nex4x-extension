@@ -1,0 +1,113 @@
+prd: nex-alliance-cb-sync
+version: 1
+tasks:
+  - id: 10a
+    title: Extend NexDiplomacyBridge with sync helpers
+    description: |
+      Add to src/nex4x/integration/NexDiplomacyBridge.java:
+        - static void fireJustifiedWar(FactionAPI declarer, FactionAPI target, String cbId)
+            Call DiplomacyManager.createDiplomacyEvent(declarer, target, "declare_war", null).
+            Then read declarer's MEM_KEY_BADBOY value via Global.getSector().getMemoryWithoutUpdate()
+            (or DiplomacyManager.getBadboy(faction) if available — verify via javap).
+            Subtract any badboy delta added by the event (snapshot before/after).
+            Log "[Nex4x] Justified war (cb=" + cbId + ") — undid badboy delta " + delta.
+        - static void syncCoalitionToAlliance(String coalitionId, java.util.List<String> memberFids)
+            Resolve or create the Nex Alliance for this coalition. Strategy: find any member
+            already in an alliance via AllianceManager.getFactionAlliance(fid) to use as anchor;
+            otherwise createAlliance(memberFids.get(0), memberFids.get(1)). Then for each
+            remaining memberFid, call AllianceManager.getManager().joinAlliance(fid, alliance)
+            if not already in. canAlly check before join. Log final coverage.
+        - static void enforceNonAggression(String factionA, String factionB, float minRelRaw)
+            If FactionAPI.getRelationship(factionA, factionB) < minRelRaw, call
+            setRelationship(factionA, factionB, minRelRaw). Logs the nudge.
+        - static int sweepDiplomacyBrains()
+            Calls exerelin.campaign.ai.StrategicAI.removeAIs() in try/catch. Returns count
+            cleaned (use any accessor available; if none, return 0 and log).
+
+      All methods null-safe + try/catch + never throw. Verify Nex APIs via javap before use.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 10b
+    title: DiplomaticExecutor war declaration uses fireJustifiedWar
+    description: |
+      In src/nex4x/ai/DiplomaticExecutor.java, find the declare_war createDiplomacyEvent
+      call (~line 181). Before the call, check if a CB exists between declarer and target
+      via Nex4xManager.getCasusBelliManager().hasActiveCasusBelli(declarerId, targetId)
+      or equivalent (read CasusBelliManager API; add a hasAny accessor if missing).
+      If CB present: call NexDiplomacyBridge.fireJustifiedWar(.., cbId).
+      If no CB: leave existing createDiplomacyEvent unchanged (full warmonger penalty applies).
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+      - src/nex4x/casusbelli/CasusBelliManager.java
+    complexity: 2
+    priority: must
+    depends_on: [10a]
+
+  - id: 10c
+    title: Coalition member changes mirror to Nex Alliance
+    description: |
+      In src/nex4x/coalitions/CoalitionGovernance.java, find addMember and removeMember
+      methods (or their equivalents — add minimal wrappers if missing).
+      After internal state change:
+        addMember:    call NexDiplomacyBridge.syncCoalitionToAlliance(coalitionId, currentMemberFids)
+        removeMember: try AllianceManager.getManager().leaveAlliance(fid, alliance, false, false)
+                      where alliance = the one shadowing this coalition
+      Track coalition→alliance mapping if not already present (transient field on Coalition).
+    files:
+      - src/nex4x/coalitions/CoalitionGovernance.java
+    complexity: 3
+    priority: must
+    depends_on: [10a]
+
+  - id: 10d
+    title: AgreementManager NAP/DefPact/Mil tier relation floor
+    description: |
+      In src/nex4x/agreements/AgreementManager.createAgreement, after the existing
+      COALITION-bridge call, also enforce per-tier relation floors:
+        NAP                  → enforceNonAggression(a, b, 0.10f)
+        DEFENSIVE_PACT       → enforceNonAggression(a, b, 0.25f)
+        MILITARY_PARTNERSHIP → enforceNonAggression(a, b, 0.50f)
+        ECONOMIC_PARTNERSHIP → enforceNonAggression(a, b, 0.25f)
+      COALITION already gets Nex Alliance which manages floor.
+      Daily refresh: in DeclarationManager.advanceDay or AgreementManager.advanceDay,
+      walk active alliance-track agreements and re-call enforceNonAggression so Nex's
+      drift doesn't sink relations below the floor. Cheap; clamp-only-upward.
+    files:
+      - src/nex4x/agreements/AgreementManager.java
+    complexity: 2
+    priority: must
+    depends_on: [10a]
+
+  - id: 10e
+    title: Nex4xManager daily DiplomacyBrain sweep
+    description: |
+      In Nex4xManager.advance, inside the decayInterval.intervalElapsed() block,
+      after the existing sub-manager calls, add a periodic DiplomacyBrain sweep.
+      Use a counter (e.g. every 10 ticks) so we don't call removeAIs() every day.
+      Wrap in try/catch. Log only when count > 0.
+    files:
+      - src/nex4x/managers/Nex4xManager.java
+    complexity: 1
+    priority: should
+    depends_on: [10a]
+
+  - id: 10f
+    title: auditNexSync() smoke + build verify
+    description: |
+      Add to src/nex4x/debug/Nex4xDebugCommand.java a runcode method auditNexSync()
+      reporting:
+        - Active CB-justified wars vs total active wars per faction
+        - Coalition shadow coverage (count active coalitions where Nex Alliance exists)
+        - NAP/DefPact pairs with floor-met vs below-floor
+        - DiplomacyBrain instances detected (via reflection on StrategicAI internals if possible;
+          otherwise just call sweepDiplomacyBrains() and report count)
+      ./build.sh clean. Manual: trigger CB war via console; verify badboy unchanged.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [10b, 10c, 10d, 10e]

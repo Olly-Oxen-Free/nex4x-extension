@@ -1,0 +1,8 @@
+prd: p2-p3-cleanup
+waves:
+  - wave: 1
+    tasks: [7a, 7b, 7c, 7d, 7e]   # all independent, can run parallel
+  - wave: 2
+    tasks: [7f]
+longest_chain: [7a, 7f]
+total_complexity: 19

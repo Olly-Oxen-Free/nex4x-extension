@@ -1,0 +1,10 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["Board convenes. Brief me on the proposition.",
+                    "Tri-Tachyon values productive meetings. Go."],
+    "FAVORABLE":   ["Quarterly projections look interesting on your side. Details."]
+  },
+  "trade_pact_proposed": {
+    "NEUTRAL":     ["A pact? The margins will speak. Present figures."]
+  }
+}
