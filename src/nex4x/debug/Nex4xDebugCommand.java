@@ -357,6 +357,13 @@ public class Nex4xDebugCommand {
         return sb.toString();
     }
 
+    /** runcode nex4x.debug.Nex4xDebugCommand.openPeaceConference("hegemony","sindrian_diktat"); */
+    public static String openPeaceConference(String attackerId, String defenderId) {
+        nex4x.peace.PeaceConference pc = new nex4x.peace.PeaceConference(attackerId, defenderId);
+        nex4x.ui.PeaceConferenceDialog.openScaled(pc);
+        return "Opened peace conference: " + attackerId + " vs " + defenderId;
+    }
+
     /** runcode nex4x.debug.Nex4xDebugCommand.auditRels() — prints relation diagnostics for all live factions vs player. */
     public static String auditRels() {
         StringBuilder sb = new StringBuilder("[nex4x audit-rels]\n");
