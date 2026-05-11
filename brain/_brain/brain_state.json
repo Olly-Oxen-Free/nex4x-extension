@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "init_timestamp": "2026-05-11T07:29:39Z",
+  "last_maintenance": "",
+  "last_analyzed_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+  "themes": {
+    "Diplomacy Core": [
+      "diplomacy-core.md"
+    ],
+    "Strategic AI": [
+      "strategic-ai.md"
+    ],
+    "Agents and Covert Ops": [
+      "agents-and-covert-ops.md"
+    ],
+    "Conflict System": [
+      "conflict-system.md"
+    ],
+    "Faction State": [
+      "faction-state.md"
+    ],
+    "Nex Integration Layer": [
+      "nex-integration-layer.md"
+    ],
+    "Player UI Surface": [
+      "player-ui-surface.md"
+    ]
+  },
+  "article_metadata": {
+    "diplomacy-core.md": {
+      "title": "Diplomacy Core",
+      "filename": "wiki/diplomacy-core.md",
+      "theme": "Diplomacy Core",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "strategic-ai.md": {
+      "title": "Strategic Ai",
+      "filename": "wiki/strategic-ai.md",
+      "theme": "Strategic AI",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "agents-and-covert-ops.md": {
+      "title": "Agents And Covert Ops",
+      "filename": "wiki/agents-and-covert-ops.md",
+      "theme": "Agents and Covert Ops",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "conflict-system.md": {
+      "title": "Conflict System",
+      "filename": "wiki/conflict-system.md",
+      "theme": "Conflict System",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "faction-state.md": {
+      "title": "Faction State",
+      "filename": "wiki/faction-state.md",
+      "theme": "Faction State",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "nex-integration-layer.md": {
+      "title": "Nex Integration Layer",
+      "filename": "wiki/nex-integration-layer.md",
+      "theme": "Nex Integration Layer",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    },
+    "player-ui-surface.md": {
+      "title": "Player Ui Surface",
+      "filename": "wiki/player-ui-surface.md",
+      "theme": "Player UI Surface",
+      "source_files": [],
+      "last_updated_commit": "7a3953367c43c5351a06660a915a282d8cddc5bd",
+      "keywords": [],
+      "backlinks": [],
+      "word_count": 0
+    }
+  },
+  "claude_md_version": "1.0",
+  "claude_md_last_checked": "2026-05-11T07:29:39Z",
+  "sibling_brains": []
+}
