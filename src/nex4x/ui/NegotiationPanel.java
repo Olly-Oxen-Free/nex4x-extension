@@ -21,6 +21,7 @@ import nex4x.pressure.PressureSource;
 import org.apache.log4j.Logger;
 
 import java.awt.Color;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,11 @@ public class NegotiationPanel extends BasePopUpDialog {
     private boolean needsRefresh;
 
     private static final String CAT_TOGGLE_PREFIX = "cat_toggle_";
+    private static final String NEX4X_ADD_PREFIX  = "nex4x_add_";
     private final Set<NegotiableItemType> expandedCategories = new HashSet<NegotiableItemType>();
+
+    /** Transient map rebuilt on each createUI pass: encoded button id → raw catalog id. */
+    private final Map<String, String> buttonToCatalogId = new HashMap<String, String>();
 
     public NegotiationPanel(String targetFactionId) {
         this(targetFactionId, false);
@@ -151,6 +156,7 @@ public class NegotiationPanel extends BasePopUpDialog {
 
     @Override
     public void createUI(CustomPanelAPI panel) {
+        buttonToCatalogId.clear();
         createHeaader(panel); // Ashlib title bar — sets this.y
         FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
         if (targetFaction == null) {
@@ -270,6 +276,28 @@ public class NegotiationPanel extends BasePopUpDialog {
                 dealProposal.applyMutation(
                         DealMutation.addRequest(item.getId(), (int) item.getAmount()), catalog);
                 log.info("[Nex4x] Added request: " + item.getDisplayLabel());
+            }
+            needsRefresh = true;
+            return;
+        }
+
+        // Catalog-driven add buttons rendered by addCatalogItemsThreeZone.
+        if (id.startsWith(NEX4X_ADD_PREFIX)) {
+            String catalogId = buttonToCatalogId.get(id);
+            if (catalogId == null) {
+                log.warn("[Nex4x] buttonPressed: no catalog mapping for button id: " + id);
+                needsRefresh = true;
+                return;
+            }
+            int qty = catalog.suggestedQty(catalogId, 1);
+            NegotiableItem item = catalog.build(catalogId, qty);
+            if (item != null) {
+                deal.addOffer(item);
+                dealProposal.applyMutation(
+                        DealMutation.addOffer(item.getId(), qty), catalog);
+                log.info("[Nex4x] Catalog add: " + catalogId + " qty=" + qty);
+            } else {
+                log.warn("[Nex4x] catalog.build returned null for id: " + catalogId);
             }
             needsRefresh = true;
             return;
@@ -480,98 +508,43 @@ public class NegotiationPanel extends BasePopUpDialog {
                 Alignment.MID, CutStyle.ALL, contentW - pad * 4f, 22f, 3f);
     }
 
+    /**
+     * Renders add-buttons for every catalog id belonging to {@code type}.
+     * Uses {@link NegotiableItemCatalog#idsForType} as the authoritative source.
+     * Falls back to a single placeholder row for deferred categories (CONTRACTS,
+     * CONCESSIONS, WAR_DECLARATION) that return an empty id list.
+     * <p>
+     * Each button is registered in {@link #buttonToCatalogId} so that
+     * {@link #buttonPressed} can look up the raw catalog id without string-decoding.
+     */
     private void addCatalogItemsThreeZone(TooltipMakerAPI info, NegotiableItemType type,
                                           float btnW, float btnH, float pad,
                                           Color playerColor, Color playerDark,
                                           Color factionColor, Color factionDark) {
-        switch (type) {
-            case CREDITS:
-                addThreeZoneRow(info, "10,000 credits", "credits_10000",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                addThreeZoneRow(info, "50,000 credits", "credits_50000",
-                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case TRIBUTE:
-                addThreeZoneRow(info, "5,000 cr/cycle (90 days)", "tribute_5000",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case AGREEMENTS: {
-                AgreementType[] types = viceroyMode
-                        ? new AgreementType[]{AgreementType.TRADE_AGREEMENT}
-                        : getAvailableAgreementTypes();
-                for (AgreementType at : types) {
-                    addThreeZoneRow(info, at.displayName, "agree_" + at.name(),
-                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                }
-                break;
-            }
-            case PEACE_TERMS:
-                addThreeZoneRow(info, "Ceasefire", "ceasefire",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                addThreeZoneRow(info, "Peace Treaty", "peace_treaty",
-                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case WAR_DECLARATION:
-                for (FactionAPI faction : Global.getSector().getAllFactions()) {
-                    if (faction.getId().equals(playerFactionId)) continue;
-                    if (faction.getId().equals(targetFactionId)) continue;
-                    if (faction.isNeutralFaction()) continue;
-                    if (!hasMarkets(faction.getId())) continue;
-                    addThreeZoneRow(info, "War on " + faction.getDisplayName(),
-                            "war_" + faction.getId(),
-                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                }
-                break;
-            case TERRITORY:
-                for (MarketAPI market : Global.getSector().getEconomy().getMarketsCopy()) {
-                    if (market.getFactionId().equals(playerFactionId)) {
-                        addThreeZoneRow(info, market.getName() + " (yours, size " + market.getSize() + ")",
-                                "territory_" + market.getId(),
-                                btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                    } else if (market.getFactionId().equals(targetFactionId)) {
-                        addThreeZoneRow(info, market.getName() + " (theirs, size " + market.getSize() + ")",
-                                "territory_" + market.getId(),
-                                btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                    }
-                }
-                break;
-            case COMMODITIES:
-                String[] commodities = {"supplies", "fuel", "metals", "rare_metals",
-                        "organics", "food", "hand_weapons"};
-                for (String c : commodities) {
-                    addThreeZoneRow(info, "500 x " + c, "commodity_" + c,
-                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                }
-                break;
-            case KNOWLEDGE:
-                addThreeZoneRow(info, "Blueprint package", "knowledge_blueprints",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case INTEL:
-                addThreeZoneRow(info, "Map data", "intel_map",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                addThreeZoneRow(info, "Fleet intel", "intel_fleet",
-                        btnW, btnH, 2f, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case CONTRACTS:
-                addThreeZoneRow(info, "Mercenary contract (180 days)", "contract_mercenary",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                break;
-            case CONCESSIONS:
-                for (FactionAPI faction : Global.getSector().getAllFactions()) {
-                    if (faction.getId().equals(playerFactionId)) continue;
-                    if (faction.getId().equals(targetFactionId)) continue;
-                    if (faction.isNeutralFaction()) continue;
-                    if (!hasMarkets(faction.getId())) continue;
-                    addThreeZoneRow(info, "Embargo " + faction.getDisplayName(),
-                            "concession_embargo_" + faction.getId(),
-                            btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                }
-                break;
-            case PRISONERS:
-                addThreeZoneRow(info, "Prisoner exchange", "prisoner_exchange",
-                        btnW, btnH, pad, playerColor, playerDark, factionColor, factionDark);
-                break;
+        List<String> ids = catalog.idsForType(type, atWar, targetFactionId);
+
+        if (ids.isEmpty()) {
+            // Deferred categories (CONTRACTS, CONCESSIONS, WAR_DECLARATION) — graceful no-op.
+            info.addPara("  (not yet configurable in this version)", Misc.getGrayColor(), 2f);
+            return;
+        }
+
+        float rowPad = pad;
+        for (String catalogId : ids) {
+            String displayName = catalog.getDisplayName(catalogId);
+            int unitVal = catalog.estimatedUnitValue(catalogId, leader, playerFactionId);
+            String label = unitVal > 0 ? displayName + " (~" + unitVal + ")" : displayName;
+
+            // Encode a stable button id: replace ':' and '-' with '_' then store the mapping.
+            String encodedKey = catalogId.replace(':', '_').replace('-', '_');
+            String btnId = NEX4X_ADD_PREFIX + encodedKey;
+            buttonToCatalogId.put(btnId, catalogId);
+
+            info.addButton(label, btnId,
+                    Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
+                    Alignment.MID, CutStyle.ALL,
+                    btnW * 3f, 20f, rowPad);
+            rowPad = 3f; // tighter spacing after first row
         }
     }
 
