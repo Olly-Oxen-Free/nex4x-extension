@@ -357,6 +357,33 @@ public class Nex4xDebugCommand {
         return sb.toString();
     }
 
+    /** runcode nex4x.debug.Nex4xDebugCommand.proposeMediation("hegemony","sindrian_diktat","persean",1000); */
+    public static String proposeMediation(String mediator, String a, String b, int influence) {
+        nex4x.mediation.MediationManager mgr = nex4x.mediation.MediationManager.getOrCreate();
+        nex4x.mediation.MediationSession s = mgr.propose(mediator, a, b, (float) influence);
+        return s != null
+                ? "[Nex4x] Mediation opened by " + mediator + ": " + a + " <-> " + b
+                : "[Nex4x] Mediation rejected (insufficient influence, not at war, or invalid args)";
+    }
+
+    /** runcode nex4x.debug.Nex4xDebugCommand.auditUI() — verifies player UI integration points. */
+    public static String auditUI() {
+        StringBuilder sb = new StringBuilder("[nex4x audit-ui]\n");
+        try {
+            nex4x.negotiation.NegotiableItemCatalog cat = new nex4x.negotiation.NegotiableItemCatalog();
+            for (nex4x.negotiation.NegotiableItemType type : nex4x.negotiation.NegotiableItemType.values()) {
+                java.util.List<String> ids = cat.idsForType(type, false, "hegemony");
+                sb.append("  ").append(type).append(" -> ").append(ids.size()).append(" id(s)\n");
+            }
+            sb.append("  PeaceConferenceDialog class loaded: ")
+              .append(nex4x.ui.PeaceConferenceDialog.class.getName() != null).append("\n");
+        } catch (Throwable t) {
+            sb.append("  audit-ui failed: ").append(t.getMessage()).append("\n");
+        }
+        com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(sb.toString());
+        return sb.toString();
+    }
+
     /** runcode nex4x.debug.Nex4xDebugCommand.openPeaceConference("hegemony","sindrian_diktat"); */
     public static String openPeaceConference(String attackerId, String defenderId) {
         nex4x.peace.PeaceConference pc = new nex4x.peace.PeaceConference(attackerId, defenderId);
