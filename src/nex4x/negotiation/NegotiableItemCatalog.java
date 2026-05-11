@@ -124,6 +124,84 @@ public class NegotiableItemCatalog {
         return Collections.unmodifiableList(out);
     }
 
+    /**
+     * Returns the catalog IDs that belong to a given {@link NegotiableItemType}.
+     *
+     * <p>For {@code TERRITORY} the list is populated from the live sector economy, capped at 5
+     * markets owned by {@code targetFactionId}. For {@code AGREEMENTS} only alliance-track
+     * {@link nex4x.agreements.AgreementType} values are included.
+     *
+     * @param type           the category to resolve; {@code null} returns an empty list
+     * @param atWar          whether the player is currently at war with the target faction
+     * @param targetFactionId faction ID used to filter territory markets; may be {@code null}
+     * @return an unmodifiable list of catalog IDs for the given type
+     */
+    public java.util.List<String> idsForType(NegotiableItemType type, boolean atWar, String targetFactionId) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        if (type == null) return java.util.Collections.unmodifiableList(out);
+        switch (type) {
+            case CREDITS:
+                out.add(ID_CREDITS);
+                break;
+            case TRIBUTE:
+                out.add(ID_TRIBUTE);
+                break;
+            case COMMODITIES:
+                for (String c : new String[]{"supplies", "machinery", "fuel", "food",
+                        "heavy_machinery", "organs", "drugs", "hand_weapons"}) {
+                    out.add(PREFIX_COMMODITY + c);
+                }
+                break;
+            case TERRITORY:
+                if (targetFactionId != null && com.fs.starfarer.api.Global.getSector() != null) {
+                    int count = 0;
+                    for (com.fs.starfarer.api.campaign.econ.MarketAPI m
+                            : com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
+                        if (count >= 5) break;
+                        if (m.isHidden()) continue;
+                        if (targetFactionId.equals(m.getFactionId())) {
+                            out.add(PREFIX_TERRITORY + m.getId());
+                            count++;
+                        }
+                    }
+                }
+                break;
+            case AGREEMENTS:
+                for (nex4x.agreements.AgreementType at : nex4x.agreements.AgreementType.values()) {
+                    if (at.isAllianceTrack()) {
+                        out.add(PREFIX_AGREEMENT + at.name());
+                    }
+                }
+                break;
+            case PEACE_TERMS:
+                out.add(ID_CEASEFIRE);
+                out.add(ID_PEACE_TREATY);
+                out.add(ID_WAR_REPARATIONS);
+                break;
+            case KNOWLEDGE:
+                out.add(ID_KNOWLEDGE);
+                break;
+            case INTEL:
+                out.add(ID_INTEL_BASIC);
+                out.add(ID_INTEL_DEEP);
+                break;
+            case PRISONERS:
+                out.add(ID_PRISONER);
+                break;
+            case DECLARATIONS:
+                for (nex4x.declarations.DeclarationType dt : nex4x.declarations.DeclarationType.values()) {
+                    out.add(PREFIX_DECLARATION + dt.name());
+                }
+                break;
+            case WAR_DECLARATION:
+            case CONTRACTS:
+            case CONCESSIONS:
+            default:
+                break; // deferred: require additional picker context
+        }
+        return java.util.Collections.unmodifiableList(out);
+    }
+
     public String getDisplayName(String itemId) {
         if (itemId == null) return "";
         if (ID_CREDITS.equals(itemId)) return "Credits";
