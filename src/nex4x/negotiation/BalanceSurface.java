@@ -2,7 +2,13 @@ package nex4x.negotiation;
 
 import nex4x.leaders.IntelTier;
 
-/** Adapts a BalanceCalculator.Result for display given an IntelTier. */
+/**
+ * Adapts a BalanceCalculator.Result for display given an IntelTier.
+ *
+ * @deprecated Use ItemValuator.valueForLeader + DealEvaluator(LeaderProfile, proposerFactionId).
+ *             See PRD-016. Deletion deferred to PRD-025.
+ */
+@Deprecated
 public class BalanceSurface {
 
     public static class Surface {

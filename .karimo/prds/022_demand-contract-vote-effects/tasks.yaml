@@ -1,0 +1,429 @@
+prd: demand-contract-vote-effects
+version: 1
+tasks:
+
+  # ── SUBSYSTEM A: DEMANDS ──────────────────────────────────────────────────
+
+  - id: 22a
+    title: Add FORCE_NEUTRALITY to Demand.DemandType
+    description: |
+      File: src/nex4x/demands/Demand.java
+      Add FORCE_NEUTRALITY at the end of the DemandType enum (preserves ordinal order
+      for save compatibility). This type instructs the target to cease hostilities with
+      a named third party (payload = third-party faction id).
+      No logic change to DemandManager yet — that comes in 22c.
+    files:
+      - src/nex4x/demands/Demand.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 22b
+    title: Add demand cooldown tracking to DiplomaticExecutor
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+      Add a transient Map<String, Float> demandCooldowns (demandee factionId -> day of
+      last issued demand). Serialized field not needed (transient OK — resets on load,
+      which is safe). Default cooldown: DEMAND_COOLDOWN_DAYS = 30f (configurable via
+      loadConfig JSON key "demandCooldownDays"). Add helper:
+        private boolean canIssueDemand(String targetId) {
+            Float last = demandCooldowns.get(targetId);
+            if (last == null) return true;
+            return (nex4x.util.Nex4xClock.currentAbsoluteDay() - last) >= DEMAND_COOLDOWN_DAYS;
+        }
+      and a setter that records the day. This guard is checked before any demand is issued.
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 22c
+    title: Wire PRESS_GRIEVANCE/EXPLOIT_WEAKNESS to DemandManager.issue()
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+      In executeDiplomaticAction, add cases for GoalType.PRESS_GRIEVANCE and
+      GoalType.EXPLOIT_WEAKNESS. For each:
+        1. Check canIssueDemand(goal.targetFactionId). Skip if cooling down.
+        2. Check DemandManager.getOrCreate().getPending(factionId) — skip if 2+ pending
+           demands already active (spam guard).
+        3. Choose DemandType based on archetype + goal type:
+             PRESS_GRIEVANCE + MILITARY_SUPREMACY/TERRITORIAL_EXPANSION → TRIBUTE_CREDITS
+             PRESS_GRIEVANCE + IDEOLOGICAL_CRUSADE → BREAK_ALLIANCE
+             EXPLOIT_WEAKNESS (any archetype) → CEDE_MARKET if target has a contested
+               market (use FactionMarketUtil.firstMarketOfFaction), else TRIBUTE_CREDITS.
+        4. Compute pressureCost = 20f, influenceCost = 15f (hardcoded defaults for now;
+           configurable via loadConfig "demandCosts" JSON block in 22h).
+        5. Call DemandManager.getOrCreate().issue(factionId, goal.targetFactionId, type,
+           payload, pressureCost, influenceCost). If non-null, record cooldown.
+        6. Decrement actionBudgetRemaining (budgeted action).
+      Verified entry point: DiplomaticExecutor.java line 277 executeDiplomaticAction switch.
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 3
+    priority: must
+    depends_on: [22a, 22b]
+
+  - id: 22d
+    title: Wire AI accept/reject of incoming demands
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+      At the TOP of advanceDay() (before war/peace evaluation), add:
+        evaluateIncomingDemands(goalMgr, archetype);
+      New private method evaluateIncomingDemands:
+        - Calls DemandManager.getOrCreate().getPending(factionId).
+        - For each pending demand where targetId == factionId (i.e., directed at us):
+            * Compute acceptWillingness score:
+                base 40f
+                + if MILITARY_SUPREMACY archetype and TRIBUTE type: -30f (resistors)
+                + if FEDERALISTS tendency > 0.5: +15f (compliant)
+                + war weariness contribution (war ongoing vs demander: -20f resistance)
+                + random -20..+20 jitter
+            * If score >= 60f: DemandManager.getOrCreate().accept(demand)
+            * Else: DemandManager.getOrCreate().reject(demand)
+        - Uses WAR_PEACE_EXEMPT = true (budget exempt).
+      This ensures every pending demand is resolved within its 14-day window by AI factions
+      without waiting for expiry.
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 2
+    priority: must
+    depends_on: [22c]
+
+  - id: 22e
+    title: Implement FORCE_NEUTRALITY effect in DemandManager.applyDemandEffect
+    description: |
+      File: src/nex4x/demands/DemandManager.java
+      In applyDemandEffect, add case FORCE_NEUTRALITY (line ~150, default branch area):
+        - payload = third-party faction id that target must stop fighting.
+        - Get target FactionAPI and third-party FactionAPI.
+        - If target.isHostileTo(third-party): call
+            nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(target, thirdParty)
+          wrapped in try/catch.
+        - Log result. If third-party not found, log warning and return.
+      For remaining unimplemented types (any default fall-through after this case):
+        Change existing log.info to log.warn with message:
+          "[Nex4x] WARN: unhandled demand type " + d.getType() + " — no effect applied"
+    files:
+      - src/nex4x/demands/DemandManager.java
+    complexity: 1
+    priority: must
+    depends_on: [22a]
+
+  # ── SUBSYSTEM B: CONTRACTS ────────────────────────────────────────────────
+
+  - id: 22f
+    title: Implement ContractAuctionManager.complete() with influence transfer + covert dispatch
+    description: |
+      File: src/nex4x/contracts/ContractAuctionManager.java
+      Replace the stub body of complete(Contract c, boolean success) starting at line 71:
+
+        if (c.getStatus() != Contract.Status.AWARDED) return;
+        c.setStatus(success ? Contract.Status.COMPLETED : Contract.Status.FAILED);
+
+      Add after status flip (success path only):
+        1. Compute influence payment:
+             long pay = (c.getWinningBid() != null && c.getWinningBid().getCredits() > 0)
+                        ? computeSecondPrice(c) : c.getReservePrice();
+             // computeSecondPrice: same logic as resolveAuction's pay var — extract helper.
+           Note: resolveAuction already computes pay locally; extract to private
+             long computeSecondPrice(Contract c) to reuse here.
+
+        2. Transfer payoff:
+             String winnerId = c.getWinningBid().getBidderFactionId();
+             boolean playerWon = winnerId.equals(
+                 Global.getSector().getPlayerFaction().getId());
+             if (playerWon) {
+                 // DESIGN: player fleet can receive literal credits.
+                 Global.getSector().getPlayerFleet().getCargo().getCredits().add(pay);
+                 log.info("[Nex4x] Contract " + c.getId() + " paid " + pay
+                     + " credits to player fleet");
+             } else {
+                 // DESIGN: AI factions cannot hold credits — model as influence.
+                 float influence = (float)(pay * CONTRACT_INFLUENCE_RATE);
+                 nex4x.influence.InfluenceManager.getOrCreate()
+                     .addLump(winnerId, influence, nex4x.influence.InfluenceSource.CONTRACT_PAYOFF);
+                 log.info("[Nex4x] Contract " + c.getId() + " — influence +"
+                     + influence + " to " + winnerId + " (credits=" + pay + ")");
+             }
+
+        3. Dispatch covert action:
+             try {
+                 dispatchContractAction(c, winnerId);
+             } catch (Throwable t) {
+                 log.warn("[Nex4x] Contract covert dispatch failed: " + t.getMessage());
+             }
+
+      Add constant: static final float CONTRACT_INFLUENCE_RATE = 0.1f;
+
+      Add private void dispatchContractAction(Contract c, String executorFactionId):
+        - Look up a Nex agent owned by executorFactionId via
+            exerelin.campaign.covertops.CovertOpsManager (try/catch Nex unavailable).
+        - If found: queue action matching c.getType() (HARASS_FACTION →
+            ActionDefIds.GUERRILLA_HIRE_MERCS or best match; SABOTAGE_INDUSTRY →
+            ActionDefIds.GUERRILLA_FALSE_FLAG; etc. — use best-effort mapping, document
+            unmapped types).
+        - If no agent found: log "[Nex4x] Contract " + c.getId()
+            + " — no executor agent available for " + executorFactionId + "; skipping dispatch".
+      New constant block: CONTRACT_TYPE_TO_ACTION_DEF mapping (static Map initialization).
+    files:
+      - src/nex4x/contracts/ContractAuctionManager.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 22g
+    title: Add InfluenceSource.CONTRACT_PAYOFF enum value
+    description: |
+      File: src/nex4x/influence/InfluenceSource.java
+      Add CONTRACT_PAYOFF at end of enum. Needed by task 22f to tag influence additions.
+      Verify that InfluenceSource is an enum (not a class constant pattern) before editing.
+    files:
+      - src/nex4x/influence/InfluenceSource.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 22h
+    title: Wire contract posting from DiplomaticExecutor (EXPLOIT_WEAKNESS path)
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+      In executeDiplomaticAction, for GoalType.EXPLOIT_WEAKNESS: after any demand check,
+      add a secondary contract posting path:
+        - If pressure(factionId, target) > 40 AND no open contract already exists for
+          this issuer-target pair (check ContractAuctionManager.getOrCreate().getOpen()):
+          post a contract: ContractAuctionManager.getOrCreate().post(
+              factionId, goal.targetFactionId, pickContractType(archetype), RESERVE_PRICE).
+          Where RESERVE_PRICE = 5000L default; pickContractType maps:
+            MILITARY_SUPREMACY → RAID_FACTION
+            TERRITORIAL_EXPANSION → BLOCKADE_MARKET
+            IDEOLOGICAL_CRUSADE → ASSASSINATE_OFFICIAL
+            default → HARASS_FACTION
+        - AI bidding: in a separate new method advanceBidding() called from advanceDay(),
+          iterate ContractAuctionManager.getOrCreate().getOpen() and bid on contracts
+          whose targetFactionId is hostile to factionId. Bid amount: random 3000-8000L.
+          This provides organic AI participation so contracts can actually close.
+      Note: this task is SHOULD priority — contracts can complete manually via debug even
+      without it, but gameplay value requires at least minimal AI posting/bidding loop.
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 2
+    priority: should
+    depends_on: [22f, 22g]
+
+  # ── SUBSYSTEM C: COALITION VOTES ──────────────────────────────────────────
+
+  - id: 22i
+    title: Remove/retire CoalitionVote.resolve(String) back-compat overload
+    description: |
+      File: src/nex4x/coalitions/CoalitionVote.java
+      Line 78: the single-arg resolve(String blocLeaderId) calls resolve(blocLeaderId, 0).
+      memberCount=0 causes the quorum check at line 61 to be skipped (0 > 0 is false,
+      so the guard branch is never entered).
+
+      Replace body with:
+        throw new UnsupportedOperationException(
+            "resolve(blocLeaderId) is retired — use resolve(blocLeaderId, memberCount)");
+
+      Grep: confirm zero callers of resolve(String) outside CoalitionVote.java itself
+      (confirmed above — no external callers). This is a safe removal.
+    files:
+      - src/nex4x/coalitions/CoalitionVote.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 22j
+    title: Implement vote resolution loop in CoalitionGovernance.advanceDay()
+    description: |
+      File: src/nex4x/coalitions/CoalitionGovernance.java
+      Current advanceDay() (line 94-98) only prunes already-resolved votes. Replace with:
+
+        public void advanceDay() {
+            for (CoalitionTension t : tensions) t.decay(TENSION_DECAY_PER_DAY);
+            for (CoalitionVote vote : pendingVotes) {
+                if (vote.isResolved()) continue;
+                if (!vote.isExpired()) continue;
+                // Resolve with real member count
+                String coalitionKey = buildCoalitionKey(vote);
+                List<String> members = getCoalitionMembers(vote.getProposerFactionId());
+                int memberCount = members.size();
+                String leader = getBlocLeader(members);
+                // Auto-cast abstentions for members who haven't voted
+                for (String memberId : members) {
+                    if (!vote.getVotes().containsKey(memberId)) {
+                        // abstain = no cast = excluded from quorum numerator
+                        // (do NOT call castVote — just let them be absent from denominator)
+                    }
+                }
+                boolean decided = vote.resolve(leader, memberCount);
+                if (decided && vote.isPassed()) {
+                    applyVoteEffect(vote, members);
+                } else if (!decided) {
+                    log.info("[Nex4x] Vote FAILED_QUORUM: " + vote.getType()
+                        + " in coalition of " + memberCount);
+                }
+            }
+            // Prune resolved
+            Iterator<CoalitionVote> it = pendingVotes.iterator();
+            while (it.hasNext()) if (it.next().isResolved()) it.remove();
+        }
+
+      Add private void applyVoteEffect(CoalitionVote vote, List<String> members):
+        switch (vote.getType()) {
+          case ADD_MEMBER:
+            // Notify AgreementManager to create agreements between new member + all existing
+            // SHOULD: call AgreementManager.createAgreement for each pair (complex —
+            //   use a callback interface or static accessor to avoid circular deps).
+            log.info("[Nex4x] Coalition vote ADD_MEMBER passed: " + vote.getTargetFactionId());
+            break;
+          case KICK_MEMBER:
+            // Cancel all coalition agreements involving the kicked member.
+            log.info("[Nex4x] Coalition vote KICK_MEMBER passed: " + vote.getTargetFactionId());
+            break;
+          case DISSOLVE:
+            // Cancel all coalition agreements among members.
+            log.info("[Nex4x] Coalition vote DISSOLVE passed");
+            break;
+          case DECLARE_WAR:
+            // Call NexDiplomacyBridge or DiplomacyManager to declare war (coalition vs target).
+            nex4x.integration.NexDiplomacyBridge.fireCoalitionWarDeclaration(
+                members, vote.getTargetFactionId());
+            break;
+          case MAKE_PEACE:
+            nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(
+                Global.getSector().getFaction(vote.getProposerFactionId()),
+                Global.getSector().getFaction(vote.getTargetFactionId()));
+            break;
+        }
+
+      Add private List<String> getCoalitionMembers(String anyMemberId):
+        Delegate to Nex4xManager's AgreementManager.getCoalitionMembers(anyMemberId, anyMemberId)
+        (or equivalent transitive-member-list method). This provides the authoritative
+        denominator for quorum. If AgreementManager lacks a single-faction lookup, add one.
+
+      Notes on complexity: ADD_MEMBER/KICK_MEMBER/DISSOLVE effects touch AgreementManager
+      and possibly NexDiplomacyBridge. Full wiring of add/kick/dissolve is marked SHOULD
+      within this task — the must-complete portion is quorum-correct resolution + DECLARE_WAR
+      + MAKE_PEACE effects.
+    files:
+      - src/nex4x/coalitions/CoalitionGovernance.java
+    complexity: 3
+    priority: must
+    depends_on: [22i]
+
+  - id: 22k
+    title: Wire proposeVote() call site from AgreementManager or DiplomaticExecutor
+    description: |
+      Choose ONE of two wiring points (whichever has less cross-dependency risk):
+        Option A — AgreementManager.createAgreement (line 66, COALITION branch):
+          After the NexDiplomacyBridge.syncCoalitionToAlliance call, if this is an upgrade
+          (an existing coalition gains a member), propose an ADD_MEMBER vote:
+            CoalitionGovernance.getOrCreate().proposeVote(
+                CoalitionVote.VoteType.ADD_MEMBER, factionA, factionB);
+          Cast immediate YEA votes for both proposing parties:
+            vote.castVote(factionA, true);
+            vote.castVote(factionB, true);
+          AI members in the existing coalition will vote in advanceDay (22l).
+
+        Option B — DiplomaticExecutor: on COALITION-tier goal completion (after
+          proposeAgreementIfViable produces a COALITION agreement), propose a DECLARE_WAR
+          vote against a shared hostile faction if both factions are at war with the same
+          target.
+
+      Recommendation: implement Option A (coalition formation is the more common trigger
+      and has a concrete call site at AgreementManager line 66).
+    files:
+      - src/nex4x/agreements/AgreementManager.java
+    complexity: 2
+    priority: must
+    depends_on: [22j]
+
+  - id: 22l
+    title: Wire AI vote-casting into DiplomaticExecutor.advanceDay()
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+      In advanceDay(), add call: evaluateCoalitionVotes(goalMgr, archetype);
+
+      New private method evaluateCoalitionVotes:
+        - Get CoalitionGovernance.getOrCreate().getPendingVotes().
+        - For each vote where proposerFactionId or targetFactionId involves this faction
+          OR this faction is a coalition member of the proposer:
+            * If factionId has already voted: skip.
+            * Score the vote based on archetype + tendency:
+                DECLARE_WAR: inFavor = archetype.isMilitary() || warDesire > 50f
+                MAKE_PEACE:  inFavor = peaceWillingness > 50f
+                ADD_MEMBER:  inFavor = relations(factionId, target) > 0.1f
+                KICK_MEMBER: inFavor = relations(factionId, target) < -0.1f
+                DISSOLVE:    inFavor = tension > DISSOLUTION_TENSION_THRESHOLD
+            * Call vote.castVote(factionId, inFavor).
+        - Budget: vote casting is budget-exempt (low-overhead decision).
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 2
+    priority: must
+    depends_on: [22j, 22k]
+
+  # ── SMOKE / DEBUG ─────────────────────────────────────────────────────────
+
+  - id: 22m
+    title: Add auditDemands(), auditContracts(), auditVotes() to Nex4xDebugCommand
+    description: |
+      File: src/nex4x/debug/Nex4xDebugCommand.java
+      Add three new static String methods (console-runcode callable):
+
+      auditDemands():
+        - Iterate DemandManager.getOrCreate().getAll().
+        - Print each demand: id, demanderId -> targetId, type, status, expiryDay.
+        - Count by status (PENDING / ACCEPTED / REJECTED / EXPIRED).
+        Output example:
+          [nex4x audit-demands]
+            hegemony -> persean : TRIBUTE_CREDITS [ACCEPTED]  expires day 312
+            ...
+          Total: 3 demands (1 pending, 1 accepted, 1 expired)
+
+      auditContracts():
+        - Iterate ContractAuctionManager.getOrCreate().getAll().
+        - Print id, issuer, target, type, status, winner (if any), pay amount (second-price).
+        - For COMPLETED contracts also print "influence delta" or "credits delta (player)".
+
+      auditVotes():
+        - Iterate CoalitionGovernance.getOrCreate().getPendingVotes().
+        - Print type, proposer, target, resolved (Y/N), passed (Y/N/pending),
+          failedQuorum (Y/N), voteCount.
+        - Also call getBlocLeader for each proposer's coalition and print leader id.
+
+      All three methods call getCampaignUI().addMessage() with the result string.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [22c, 22f, 22j]
+
+  # ── BUILD VERIFICATION ────────────────────────────────────────────────────
+
+  - id: 22n
+    title: Build green + smoke verification
+    description: |
+      Run ./build.sh from mod root. Confirm exit 0 with no compile errors.
+      In-game verification (or runcode):
+        1. runcode nex4x.debug.Nex4xDebugCommand.auditDemands()
+           — manually issue a demand first via:
+             nex4x.demands.DemandManager.getOrCreate().issue("hegemony","persean",
+               nex4x.demands.Demand.DemandType.TRIBUTE_CREDITS,"50000",15f,10f)
+           — then advance ~1 day tick (wait for AI accept/reject path).
+        2. runcode nex4x.debug.Nex4xDebugCommand.auditContracts()
+           — post a contract + bid + manually call complete():
+             ContractAuctionManager c = nex4x.contracts.ContractAuctionManager.getOrCreate();
+             nex4x.contracts.Contract ct = c.post("hegemony","persean",
+               nex4x.contracts.ContractType.HARASS_FACTION,3000L);
+             c.bid(ct,"tritachyon",5000L); c.bid(ct,"sindrian_diktat",4000L);
+             c.complete(ct,true);
+             (check influence ledger of tritachyon delta)
+        3. runcode nex4x.debug.Nex4xDebugCommand.auditVotes()
+           — verify member count > 0 and quorum logic applied.
+      Document observed results in briefs/smoke-results.md (optional).
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [22e, 22f, 22g, 22j, 22k, 22l, 22m]

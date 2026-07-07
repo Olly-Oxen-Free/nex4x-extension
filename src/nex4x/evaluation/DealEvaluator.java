@@ -28,12 +28,29 @@ public class DealEvaluator {
 
     private final ItemValuator valuator;
 
+    /** PRD-016: leader/proposer for the personality/goal/relation/scarcity pipeline. Null = legacy. */
+    private final nex4x.leaders.LeaderProfile targetLeader;
+    private final String proposerFactionId;
+
+    /** Legacy no-arg constructor — personality/goal/scarcity disabled. Logs a warning. */
     public DealEvaluator() {
         this.valuator = new ItemValuator();
+        this.targetLeader = null;
+        this.proposerFactionId = null;
+        log.warn("[Nex4x] DealEvaluator constructed without leader — personality/goal/scarcity disabled");
     }
 
     public DealEvaluator(ItemValuator valuator) {
         this.valuator = valuator;
+        this.targetLeader = null;
+        this.proposerFactionId = null;
+    }
+
+    /** PRD-016 leader-aware constructor — routes evaluate() through ItemValuator.valueForLeader. */
+    public DealEvaluator(nex4x.leaders.LeaderProfile targetLeader, String proposerFactionId) {
+        this.valuator = new ItemValuator();
+        this.targetLeader = targetLeader;
+        this.proposerFactionId = proposerFactionId;
     }
 
     /**
@@ -46,7 +63,10 @@ public class DealEvaluator {
         String proposerId = deal.getProposerFactionId();
 
         // Step 1: Deal balance (subjective per-item values)
-        float balance = deal.getBalance(valuator);
+        // PRD-016: use leader-aware balance when a leader is wired (personality/goal/scarcity).
+        float balance = targetLeader != null
+                ? deal.getLeaderBalance(targetLeader, proposerFactionId)
+                : deal.getBalance(valuator);
 
         // Step 2: Belief hard-block check
         String beliefBlock = checkBeliefHardBlocks(deal, targetId);
@@ -77,10 +97,13 @@ public class DealEvaluator {
 
     /**
      * Quick balance check for UI display (no full evaluation).
+     * PRD-016: uses leader-aware path when leader is wired.
      * @return Raw deal balance from target's perspective
      */
     public float quickBalance(DealPackage deal) {
-        return deal.getBalance(valuator);
+        return targetLeader != null
+                ? deal.getLeaderBalance(targetLeader, proposerFactionId)
+                : deal.getBalance(valuator);
     }
 
     /** Get the ItemValuator for external use (e.g., UI tooltips). */

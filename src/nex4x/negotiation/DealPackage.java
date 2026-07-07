@@ -94,6 +94,24 @@ public class DealPackage implements Serializable {
     }
 
     /**
+     * PRD-016: Leader-aware balance using ItemValuator.valueForLeader.
+     * Personality, goal alignment, relation, and scarcity all apply.
+     * Positive = favorable to target (leader's faction).
+     */
+    public float getLeaderBalance(nex4x.leaders.LeaderProfile targetLeader,
+                                  String proposerFactionId) {
+        float receivedValue = 0f;
+        for (NegotiableItem item : offers) {
+            receivedValue += ItemValuator.valueForLeader(item, targetLeader, proposerFactionId);
+        }
+        float givenValue = 0f;
+        for (NegotiableItem item : requests) {
+            givenValue += ItemValuator.valueForLeader(item, targetLeader, proposerFactionId);
+        }
+        return receivedValue - givenValue;
+    }
+
+    /**
      * Get the total value of all offered items from the target's perspective.
      */
     public float getOfferedValue(ItemValuator valuator) {

@@ -1,6 +1,10 @@
 package nex4x.peace;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionAPI;
+import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import exerelin.campaign.SectorManager;
+import nex4x.negotiation.NegotiationDealExecutor;
 import org.apache.log4j.Logger;
 
 import java.io.Serializable;
@@ -58,14 +62,78 @@ public class PeaceConference implements Serializable {
         }
         this.status = Status.ACCEPTED;
         log.info("[Nex4x] PeaceConference " + attackerId + " vs " + defenderId + " ACCEPTED");
+
+        // Apply each ratified term.
+        // Loser = attacker, winner = defender (standard conference convention).
+        if (proposed != null) {
+            for (PeaceTerms.Term term : proposed.getTerms()) {
+                applyTerm(term);
+            }
+        }
+
+        // Fire peace event via Nexerelin bridge.
         try {
-            com.fs.starfarer.api.campaign.FactionAPI fa =
-                    com.fs.starfarer.api.Global.getSector().getFaction(attackerId);
-            com.fs.starfarer.api.campaign.FactionAPI fb =
-                    com.fs.starfarer.api.Global.getSector().getFaction(defenderId);
+            FactionAPI fa = Global.getSector().getFaction(attackerId);
+            FactionAPI fb = Global.getSector().getFaction(defenderId);
             nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(fa, fb);
         } catch (Throwable t) {
             log.warn("[Nex4x] PeaceConference.accept fire peace: " + t.getMessage());
+        }
+    }
+
+    /**
+     * Applies a single ratified term.
+     * Loser = attacker, winner = defender.
+     */
+    private void applyTerm(PeaceTerms.Term term) {
+        FactionAPI loserFaction  = Global.getSector().getFaction(attackerId);
+        FactionAPI winnerFaction = Global.getSector().getFaction(defenderId);
+
+        switch (term.type) {
+            case TERRITORY_CEDE: {
+                MarketAPI m = Global.getSector().getEconomy().getMarket(term.payload);
+                if (m == null) {
+                    log.warn("[Nex4x] TERRITORY_CEDE: market not found: " + term.payload);
+                    break;
+                }
+                if (!attackerId.equals(m.getFactionId())) {
+                    log.warn("[Nex4x] TERRITORY_CEDE: market " + m.getId()
+                            + " not owned by attacker " + attackerId + " — skipping.");
+                    break;
+                }
+                if (loserFaction == null || winnerFaction == null) {
+                    log.warn("[Nex4x] TERRITORY_CEDE: null faction(s)");
+                    break;
+                }
+                try {
+                    SectorManager.transferMarket(m, loserFaction, winnerFaction,
+                            false, false, null, 0f);
+                    log.info("[Nex4x] TERRITORY_CEDE applied: " + m.getId()
+                            + " (" + attackerId + " -> " + defenderId + ")");
+                } catch (Throwable t) {
+                    log.error("[Nex4x] SectorManager.transferMarket failed: " + t.getMessage(), t);
+                }
+                break;
+            }
+            case REPARATIONS:
+            case WAR_REPARATIONS: {
+                // Attacker pays defender.
+                NegotiationDealExecutor.transferCreditsStatic(
+                        attackerId, defenderId, (long) term.amount);
+                log.info("[Nex4x] " + term.type + " applied: "
+                        + attackerId + " -> " + defenderId + " (" + (long) term.amount + " cr)");
+                break;
+            }
+            case CEASEFIRE:
+            case WHITE_PEACE:
+            case TRADE_RESUMPTION:
+            case NAP:
+                // Already handled by firePeaceTreaty above; log acknowledgement only.
+                log.info("[Nex4x] Term acknowledged (handled by peace treaty): " + term.type);
+                break;
+            default:
+                log.info("[Nex4x] Peace term not explicitly handled: " + term.type);
+                break;
         }
     }
 

@@ -1,0 +1,28 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "revised_date": "2026-05-31",
+  "revision_reason": "Wrong-premise correction: Java registration uses different ids from JSON (not same ids), and Nex StrategicAI Path A is intentionally disabled — correct fix is to remove orphan Java defs, not add tags in Java.",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "depends_on_prds": ["014_diplomacy-bridge-fallback"],
+  "tasks_total": 6,
+  "complexity_total": 11,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["15a", "15b", "15c", "15d", "15e", "15f"],
+  "notes": {
+    "pseudocode_adaptations": [
+      "15b Fix B: Pseudocode said `cb.getSeverity() * 10f` — CasusBelli has no getSeverity() method and CasusBelliType has no severity field. Adapted to use `cb.getType().validityDays < 0 ? 60f : 40f` (conditional CBs → persistent grievances = higher obstacle severity 60, timed event CBs = 40).",
+      "15b Fix B: Pseudocode said `new StrategicGoal.Obstacle(severity, 'CasusBelli')` (2-arg) — the real Obstacle constructor is `(ObstacleType, String sourceFactionId, float severity, String details)` (4-arg, top-level class not inner class of StrategicGoal). Used ObstacleType.NO_CASUS_BELLI as the type.",
+      "15b Fix A: Pseudocode referenced `cbMgr.getAllCBsFor(myId)` to check if any CB targets `targetId` — that method returns CBs where factionId is holder OR target. The actual check needed is `cbMgr.hasAnyCB(myFactionId, targetFactionId)` which correctly checks holder→target direction.",
+      "15b Fix A: Pseudocode said `DiplomaticPosture.CONCILIATORY` for END_WAR — no such enum constant. Actual constants are HOSTILE, PRESSURING, NEGOTIATING, ALLIED, DEFENSIVE. Used NEGOTIATING (conciliatory intent).",
+      "15c: Pseudocode referenced `goal.getEffectivePriority()` for PRESSURE_DOMINANCE threat severity — StrategicGoal.getEffectivePriority() exists (line 49). Used as-is.",
+      "15c: Pseudocode referenced `FeasibilityChecker.check(goal, factionId) * 100` for MILITARY_AGGRESSION severity — FeasibilityChecker.check() returns 0-1 float. Multiplied by 100 and capped at 100 as specified.",
+      "15d: Pseudocode passed string factionIds to NexDiplomacyBridge.firePeaceTreaty — real signature is `firePeaceTreaty(FactionAPI a, FactionAPI b)`. Resolved FactionAPI objects from sector before calling.",
+      "15f: Pseudocode said `mgr.getGoalManager(factionId)` — verified this method exists on Nex4xManager (line 89). Used as-is.",
+      "15f: generateGrievanceGoals previously included CBs where the faction was the TARGET (getAllCBsFor returns holder-or-target). Added a `cb.getHolderFactionId().equals(factionId)` guard to only create goals for CBs we HOLD."
+    ],
+    "smoke_runcode": "runcode nex4x.debug.Nex4xDebugCommand.auditStrategicAI(\"hegemony\");",
+    "build_result": "BUILD SUCCESSFUL — 205 source files compiled, zero new errors, only pre-existing -source 7 obsolete warnings"
+  }
+}

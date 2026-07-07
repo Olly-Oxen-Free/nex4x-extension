@@ -12,11 +12,28 @@ import java.util.List;
  */
 public class AutoBalanceSolver {
 
+    /**
+     * Compute balance using the leader-aware path (PRD-016 16h: inlined from BalanceCalculator).
+     * Positive = leans to receiver (leader likes it). Negative = leans to proposer.
+     */
+    private static int computeBalance(DealProposal deal, LeaderProfile leader) {
+        int fromProposer = 0;
+        int fromReceiver = 0;
+        for (NegotiableItem i : deal.getProposerOffers()) {
+            fromProposer += ItemValuator.valueForLeader(i, leader, deal.getProposer());
+        }
+        for (NegotiableItem i : deal.getReceiverOffers()) {
+            fromReceiver += ItemValuator.valueForLeader(i, leader, deal.getProposer());
+        }
+        return fromProposer - fromReceiver;
+    }
+
     public static void solve(DealProposal deal, LeaderProfile leader,
                              NegotiableItemCatalog catalog, IntelTier tier,
                              int acceptanceThreshold) {
         int marginCredits = Math.max(50, Math.round(acceptanceThreshold * tier.marginFraction));
-        int balance = BalanceCalculator.evaluate(deal, leader, acceptanceThreshold).balance;
+        // PRD-016 16h: inlined from BalanceCalculator.evaluate — BalanceCalculator is deprecated.
+        int balance = computeBalance(deal, leader);
 
         // Needs to add value on proposer side (balance too negative <-> leans to proposer).
         // If balance is positive, we overshot -- do nothing in v5 (solver only adds, never removes).
@@ -28,7 +45,7 @@ public class AutoBalanceSolver {
             if (pickedId == null) break;
             int qty = catalog.suggestedQty(pickedId, Math.abs(balance));
             if (!deal.applyMutation(DealMutation.addOffer(pickedId, qty), catalog)) break;
-            balance = BalanceCalculator.evaluate(deal, leader, acceptanceThreshold).balance;
+            balance = computeBalance(deal, leader);
             addedIterations++;
         }
     }

@@ -1,0 +1,328 @@
+prd: player-ui-stub-completion
+version: 1
+tasks:
+  - id: 21a
+    title: "ViceroyDialog: add sub-menu phase field for tier/target selection"
+    description: |
+      src/nex4x/ui/ViceroyDialog.java — ViceroyDialog currently calls each handler then
+      immediately re-shows the main menu. AiCoreHandler, IntelPurchaseHandler, and
+      WetworkHandler all need a second option-selection pass (core tier, intel tier, wetwork
+      target faction).
+
+      Add a `phase` int field (0 = main menu, 1 = AI-core tier, 2 = intel tier, 3 = wetwork
+      target) and a `pendingFactionId` String for wetwork target.
+
+      In `optionSelected`:
+        - OPT_AI_CORES  → set phase=1, show tier options (Alpha/Beta/Gamma + OPT_BACK)
+        - OPT_BUY_INTEL → set phase=2, show intel tier options (LOCATION_TIP/FACTION_GOALS/
+                           BOUNTY_TARGETS + OPT_BACK)
+        - OPT_WETWORK   → set phase=3, populate options from all factions not at war with
+                           market faction and not allied; add OPT_BACK
+        - "vic_back"    → reset phase=0, showMenu()
+        - In phase 1: route selected tier to AiCoreHandler.purchase(dialog, market, tier)
+        - In phase 2: route to IntelPurchaseHandler.purchase(dialog, market, tier)
+        - In phase 3: route selected factionId to WetworkHandler.contract(dialog, market, factionId)
+
+      New option constants: OPT_BACK, OPT_TIER_ALPHA, OPT_TIER_BETA, OPT_TIER_GAMMA,
+      OPT_INTEL_LOCATION, OPT_INTEL_GOALS, OPT_INTEL_BOUNTY.
+
+      The QuestsHandler and CommissionHandler paths remain single-shot (no sub-menu needed).
+    files:
+      - src/nex4x/ui/ViceroyDialog.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 21b
+    title: "IntelPurchaseHandler: wire real credit deduction and intel grant"
+    description: |
+      src/nex4x/ui/viceroy/IntelPurchaseHandler.java — current `open()` is flavor text only.
+
+      Add `purchase(InteractionDialogAPI dialog, MarketAPI market, IntelTier tier)` (enum or
+      int constant: LOCATION_TIP=500cr, FACTION_GOALS=2500cr, BOUNTY_TARGETS=1000cr).
+
+      Implementation:
+        1. Check `playerFleet.getCargo().getCredits().get() >= price`; if not, print "Insufficient
+           credits." and return.
+        2. Deduct: `playerFleet.getCargo().getCredits().subtract(price)`;
+           call `AddRemoveCommodity.addCreditsLossText(price, null)`.
+        3. Create `Nex4xIntelItem` (or reuse any existing intel-tip intel class; if none exists,
+           create a minimal `BaseMissionIntel`-based `ViceroyIntelItem` in
+           `src/nex4x/ui/viceroy/ViceroyIntelItem.java` with getters for tier + marketFactionId).
+        4. `Global.getSector().getIntelManager().addIntel(item, false, dialog.getTextPanel())`.
+        5. Print confirmation: "Purchased: [tier name]. Intel added to your journal."
+
+      Keep existing `open()` for the main-menu display pass; it now just prints the menu text
+      (ViceroyDialog routes back from sub-menu into `purchase()`).
+
+      API refs verified:
+        - `playerFleet.getCargo().getCredits()` → MutableValue.subtract(float) ✓
+        - `AddRemoveCommodity.addCreditsLossText(int, TextPanelAPI)` ✓
+        - `IntelManagerAPI.addIntel(IntelInfoPlugin, boolean, TextPanelAPI)` ✓
+    files:
+      - src/nex4x/ui/viceroy/IntelPurchaseHandler.java
+      - src/nex4x/ui/viceroy/ViceroyIntelItem.java
+    complexity: 2
+    priority: must
+    depends_on: [21a]
+
+  - id: 21c
+    title: "AiCoreHandler: wire credit deduction and cargo grant"
+    description: |
+      src/nex4x/ui/viceroy/AiCoreHandler.java — current `open()` is flavor text only.
+
+      Add `purchase(InteractionDialogAPI dialog, MarketAPI market, String coreItemId)`.
+
+      Vanilla AI core item IDs: "alpha_core", "beta_core", "gamma_core".
+      Prices (define as constants): ALPHA=150000, BETA=50000, GAMMA=10000.
+
+      Implementation:
+        1. Check `cfg.canSellAiCores` (already done in `open()`; guard here too).
+        2. Check credits >= price; if not, "Insufficient credits."
+        3. Deduct credits + `AddRemoveCommodity.addCreditsLossText`.
+        4. `Global.getSector().getPlayerFleet().getCargo()
+              .addSpecial(new SpecialItemData(coreItemId, null), 1f)`.
+        5. Print confirmation.
+
+      API refs verified:
+        - `CargoAPI.addSpecial(SpecialItemData, float)` ✓
+        - `new SpecialItemData(String id, String data)` ✓ (data = null for standard cores)
+    files:
+      - src/nex4x/ui/viceroy/AiCoreHandler.java
+    complexity: 1
+    priority: must
+    depends_on: [21a]
+
+  - id: 21d
+    title: "CommissionHandler: wire real commission grant and resign"
+    description: |
+      src/nex4x/ui/viceroy/CommissionHandler.java — current `open()` prints status text
+      and "(Phase 12)" stub.
+
+      Extend `open()` to add dialog options via `dialog.getOptionPanel()`:
+        - If no active commission: option "Apply for commission with [faction]"
+          → `grantCommission(dialog, market)`
+        - If active commission with same faction: option "Resign commission"
+          → `current.endMission(null)`; print confirmation.
+        - If active commission with different faction: option "Resign [other] and apply here"
+          → `current.endMission(null)` then `grantCommission(dialog, market)`.
+
+      `grantCommission(dialog, market)`:
+        1. Guard: `findActive() != null` → bail (double-grant protection).
+        2. `FactionAPI faction = market.getFaction()`
+        3. `Nex_FactionCommissionIntel intel = new Nex_FactionCommissionIntel(faction)`
+        4. `Global.getSector().getIntelManager().addIntel(intel, false, dialog.getTextPanel())`
+        5. `intel.missionAccepted()` — starts stipend/hostility tracking.
+        6. Print: "You now hold a commission with [faction]."
+
+      Note: `Nex_FactionCommissionIntel` constructor verified: takes `FactionAPI`.
+      `missionAccepted()` is inherited from `FactionCommissionIntel` / `BaseMissionIntel`.
+
+      API refs verified:
+        - `Nex_FactionCommissionIntel(FactionAPI)` ✓
+        - `IntelManagerAPI.addIntel(IntelInfoPlugin, boolean, TextPanelAPI)` ✓
+        - `BaseMissionIntel.missionAccepted()` — inherited ✓
+    files:
+      - src/nex4x/ui/viceroy/CommissionHandler.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 21e
+    title: "WetworkHandler: wire target picker, credit deduction, and MemoryManager contract"
+    description: |
+      src/nex4x/ui/viceroy/WetworkHandler.java — current `open()` describes flavor only.
+
+      Add `contract(InteractionDialogAPI dialog, MarketAPI market, String targetFactionId)`.
+
+      Fee schedule (constants): 25000 credits base.
+
+      Implementation:
+        1. Check credits >= FEE; if not, "Insufficient credits."
+        2. Deduct credits + `addCreditsLossText`.
+        3. Call `Nex4xManager.getOrCreateManager().getMemoryManager()
+              .createMemory("wetwork_contract", market.getFactionId(), targetFactionId,
+                            "30d wetwork contract")`.
+        4. Print confirmation: "Contract accepted. The [viceroyTitle] will deny involvement."
+
+      The target-faction list is built in ViceroyDialog (task 21a) by iterating
+      `Global.getSector().getAllFactions()`, filtering out: player faction, market faction,
+      any faction currently hostile to market faction (use `marketFaction.isHostileTo(f)`),
+      any faction allied with market faction (check AgreementManager if needed, or skip this
+      filter for v1 — document the simplification).
+
+      Discovery path (`onDiscovered`) already correct — no change needed.
+    files:
+      - src/nex4x/ui/viceroy/WetworkHandler.java
+    complexity: 2
+    priority: must
+    depends_on: [21a]
+
+  - id: 21f
+    title: "PeaceConferenceDialog: Counter Offer opens minimal term-removal editor"
+    description: |
+      src/nex4x/ui/PeaceConferenceDialog.java lines 88–92.
+
+      Current code:
+        PeaceTerms simpler = pc.getProposed();
+        // v1 counter: same terms — placeholder until full editor exists.
+        pc.counterOffer(simpler);
+
+      Replace with a minimal inline editor rendered in `createUI`:
+        - When `BTN_COUNTER` is pressed, set a `boolean editingCounter = true` field and
+          call `recreateUI()` (or rebuild the panel).
+        - In `createUI`, if `editingCounter`, render a "Remove terms" list: for each term in
+          `pc.getProposed().getTerms()`, show a remove-button
+          (key: "pc_rm_" + index). Player unchecks unwanted terms.
+        - A "Submit Counter" button (`BTN_COUNTER_SUBMIT`) collects surviving terms into a
+          new `PeaceTerms`, calls `pc.counterOffer(editedTerms)`, then `removeUI()`.
+        - A "Cancel" button resets `editingCounter = false` and re-renders the main view.
+
+      Minimum viable: term removal only (no amount editing). Amounts from REPARATIONS
+      terms carry over unchanged. Document this limitation in the UI text.
+
+      No new files needed — all inline in PeaceConferenceDialog.
+    files:
+      - src/nex4x/ui/PeaceConferenceDialog.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 21g
+    title: "PeaceConference.accept(): apply ratified PeaceTerms"
+    description: |
+      src/nex4x/peace/PeaceConference.java `accept()` — currently fires peace event but
+      ignores `this.proposed` terms.
+
+      After `this.status = Status.ACCEPTED` (line 59) and before the `NexDiplomacyBridge`
+      call, iterate `this.proposed.getTerms()` and apply each:
+
+        for (PeaceTerms.Term term : proposed.getTerms()) {
+            applyTerm(term);
+        }
+
+      `applyTerm(Term t)` private method:
+        case TERRITORY_CEDE:
+          - `MarketAPI m = Global.getSector().getEconomy().getMarket(t.payload)`
+          - Guard: m != null && m.getFactionId().equals(loserFactionId)
+          - `SectorManager.transferMarket(m, loserFaction, winnerFaction,
+                false, false, null, 0f)`
+          - Wrap in try/catch; log outcome.
+        case REPARATIONS / WAR_REPARATIONS:
+          - Delegate to the existing `transferCredits` logic in `NegotiationDealExecutor`
+            (either duplicate the player-credit check or extract it to a shared util).
+          - `NegotiationDealExecutor.transferCreditsStatic(loser, winner, t.amount)` —
+            promote `transferCredits` to package-visible static for reuse.
+        case CEASEFIRE, WHITE_PEACE, TRADE_RESUMPTION, NAP:
+          - Already handled by `NexDiplomacyBridge.firePeaceTreaty`; no additional action
+            needed. Log that term was acknowledged.
+
+      Loser = attacker; winner = defender for standard conference (document assumption).
+      Use `Global.getSector().getFaction(attackerId/defenderId)` — already imported.
+
+      API ref verified:
+        - `SectorManager.transferMarket(MarketAPI, FactionAPI, FactionAPI, boolean, boolean,
+           List<String>, float)` ✓ (two overloads; use the 7-arg form)
+    files:
+      - src/nex4x/peace/PeaceConference.java
+      - src/nex4x/negotiation/NegotiationDealExecutor.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 21h
+    title: "NegotiationDealExecutor TERRITORY: call SectorManager.transferMarket"
+    description: |
+      src/nex4x/negotiation/NegotiationDealExecutor.java lines 69–75.
+
+      Current code:
+        log.info("[Nex4x] Territory transfer requested: " + item.getTargetId()
+            + " (" + giver + " -> " + receiver + ") — log only; use invasion/Nex transfer...");
+
+      Replace with:
+        MarketAPI m = Global.getSector().getEconomy().getMarket(item.getTargetId());
+        if (m == null) {
+            log.warn("[Nex4x] Territory deal: market not found: " + item.getTargetId());
+            break;
+        }
+        FactionAPI giverFaction   = Global.getSector().getFaction(giver);
+        FactionAPI receiverFaction = Global.getSector().getFaction(receiver);
+        if (giverFaction == null || receiverFaction == null) break;
+        if (!giver.equals(m.getFactionId())) {
+            log.warn("[Nex4x] Territory deal: market " + m.getId()
+                + " not owned by giver " + giver + " — skipping transfer.");
+            break;
+        }
+        try {
+            exerelin.campaign.SectorManager.transferMarket(
+                m, giverFaction, receiverFaction, false, false, null, 0f);
+            log.info("[Nex4x] Territory transferred: " + m.getId()
+                + " (" + giver + " -> " + receiver + ")");
+        } catch (Throwable t) {
+            log.error("[Nex4x] SectorManager.transferMarket failed: " + t.getMessage(), t);
+        }
+
+      API ref verified:
+        - `SectorManager.transferMarket(MarketAPI, FactionAPI, FactionAPI, boolean, boolean,
+           List<String>, float)` — static method on `exerelin.campaign.SectorManager` ✓
+    files:
+      - src/nex4x/negotiation/NegotiationDealExecutor.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 21i
+    title: "NegotiationPanel: honest 'coming soon' for deferred categories"
+    description: |
+      src/nex4x/ui/NegotiationPanel.java lines 526–529.
+
+      Current placeholder text in the `ids.isEmpty()` branch:
+        info.addPara("  (not yet configurable in this version)", Misc.getGrayColor(), 2f);
+
+      Add a per-type label so the player understands the category exists but is deferred:
+
+        String deferredLabel = "(coming soon — not available in this build)";
+        switch (type) {
+            case CONTRACTS:
+                deferredLabel = "Contracts (mercenary/arms) — coming in a future build";
+                break;
+            case CONCESSIONS:
+                deferredLabel = "Concessions (third-party diplomatic actions) — coming in a future build";
+                break;
+            case WAR_DECLARATION:
+                deferredLabel = "War Declaration — requires target picker; coming in a future build";
+                break;
+            default:
+                break;
+        }
+        info.addPara("  " + deferredLabel, Misc.getGrayColor(), 2f);
+
+      No functional wiring for these categories. This is an intentional UX improvement only.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 1
+    priority: should
+    depends_on: []
+
+  - id: 21j
+    title: "Nex4xDebugCommand: smokeStubs runcode command"
+    description: |
+      src/nex4x/debug/Nex4xDebugCommand.java — add `smokeStubs` sub-command.
+
+      Smoke surfaces:
+        1. Intel purchase: call `IntelPurchaseHandler.purchase(null, hegemonyMarket, LOCATION_TIP)`;
+           verify credits reduced by 500; verify intel list size increased.
+        2. Territory deal: find any non-player market; build a TERRITORY DealPackage with it
+           as offer from its faction to player; call `NegotiationDealExecutor.executeDeal()`;
+           verify market.getFactionId() == player faction id.
+        3. Peace terms: create `PeaceConference`; add a TERRITORY_CEDE term for the same
+           market; call `accept()`; verify market faction changed and status == ACCEPTED.
+
+      Output each test as PASS/FAIL line to sector console log.
+      Do not modify save state if running in "dry run" mode (add --dry flag that skips actual
+      transferMarket calls and only checks preconditions).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [21b, 21c, 21d, 21e, 21g, 21h]

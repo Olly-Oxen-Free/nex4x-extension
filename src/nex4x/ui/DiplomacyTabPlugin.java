@@ -62,7 +62,7 @@ public class DiplomacyTabPlugin extends CommandUIPlugin {
 
     private void buildFactionCard(TooltipMakerAPI list, FactionAPI f, String playerId, float listW) {
         float rel     = f.getRelationship(playerId);
-        String relStr = String.format("%+.0f", rel);
+        String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));
         Color relColor = relColor(rel);
         Color base = f.getBaseUIColor();
         Color dark = f.getDarkUIColor();
@@ -70,7 +70,7 @@ public class DiplomacyTabPlugin extends CommandUIPlugin {
         TooltipMakerAPI card = list.beginImageWithText(f.getCrest(), 48f);
         card.addPara(f.getDisplayName(), base, 0f);
         card.addPara(repLabel(rel) + " (" + relStr + " / 100)", relColor, 2f);
-        card.addPara(FactionBrowserPanelModel.repBarAscii(rel), relColor, 1f);
+        card.addPara(FactionBrowserPanelModel.repBarAscii(nex4x.util.Nex4xRelations.toPercent(rel)), relColor, 1f);
         list.addImageWithText(4f);
 
         float btnW = (listW - 16f) / 2f - 2f;

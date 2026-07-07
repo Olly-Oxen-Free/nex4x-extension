@@ -5,6 +5,7 @@ import com.fs.starfarer.api.campaign.FactionAPI;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.AddRemoveCommodity;
 import com.fs.starfarer.api.util.MutableValue;
+import exerelin.campaign.SectorManager;
 import nex4x.agreements.AgreementType;
 import nex4x.declarations.DeclarationManager;
 import nex4x.declarations.DeclarationType;
@@ -69,9 +70,30 @@ public final class NegotiationDealExecutor {
             case TERRITORY:
                 if (item.getTargetId() != null) {
                     MarketAPI m = Global.getSector().getEconomy().getMarket(item.getTargetId());
-                    if (m != null) {
-                        log.info("[Nex4x] Territory transfer requested: " + item.getTargetId()
-                                + " (" + giver + " -> " + receiver + ") — log only; use invasion/Nex transfer for full effect.");
+                    if (m == null) {
+                        log.warn("[Nex4x] Territory deal: market not found: " + item.getTargetId());
+                        break;
+                    }
+                    FactionAPI giverFaction    = Global.getSector().getFaction(giver);
+                    FactionAPI receiverFaction = Global.getSector().getFaction(receiver);
+                    if (giverFaction == null || receiverFaction == null) {
+                        log.warn("[Nex4x] Territory deal: null faction(s) giver=" + giver
+                                + " receiver=" + receiver);
+                        break;
+                    }
+                    if (!giver.equals(m.getFactionId())) {
+                        log.warn("[Nex4x] Territory deal: market " + m.getId()
+                                + " not owned by giver " + giver + " — skipping transfer.");
+                        break;
+                    }
+                    try {
+                        SectorManager.transferMarket(
+                                m, giverFaction, receiverFaction, false, false, null, 0f);
+                        log.info("[Nex4x] Territory transferred: " + m.getId()
+                                + " (" + giver + " -> " + receiver + ")");
+                    } catch (Throwable t) {
+                        log.error("[Nex4x] SectorManager.transferMarket failed: "
+                                + t.getMessage(), t);
                     }
                 }
                 break;
@@ -139,6 +161,15 @@ public final class NegotiationDealExecutor {
         if ("reparations".equals(item.getSecondaryId())) {
             transferCredits(giver, receiver, playerId, (long) item.getAmount());
         }
+    }
+
+    /**
+     * Package-visible static accessor for peace-term credit transfers.
+     * Delegates to the main transferCredits path using the player faction id.
+     */
+    public static void transferCreditsStatic(String giver, String receiver, long amount) {
+        String playerId = Global.getSector().getPlayerFaction().getId();
+        transferCredits(giver, receiver, playerId, amount);
     }
 
     private static void transferCredits(String giver, String receiver, String playerId, long amount) {

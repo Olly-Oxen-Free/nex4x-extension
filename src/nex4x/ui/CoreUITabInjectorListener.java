@@ -156,7 +156,7 @@ public class CoreUITabInjectorListener implements CoreUITabListener {
             TooltipMakerAPI card = list.beginImageWithText(f.getCrest(), 48f);
             card.addPara(f.getDisplayName(), base, 0f);
             card.addPara(repLabel(rel) + " (" + relStr + " / 100)", relColor, 2f);
-            card.addPara(FactionBrowserPanelModel.repBarAscii(rel), relColor, 1f);
+            card.addPara(FactionBrowserPanelModel.repBarAscii(nex4x.util.Nex4xRelations.toPercent(rel)), relColor, 1f);
             list.addImageWithText(4f);
 
             list.addButton("Negotiate", BTN_NEG_PREFIX + f.getId(),

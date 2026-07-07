@@ -23,3 +23,4 @@ rep_gain,"Reputation Improved",3,90,POLITICAL,#
 bounty_completed,"Bounty Completed",2,60,MILITARY,#
 commission_change,"Commission Change",-5,180,POLITICAL,#
 covert_operation,"Covert Operation",-6,120,MILITARY|POLITICAL,#
+wetwork_contract,"Wetwork Contract",-10,30,MILITARY|POLITICAL,#

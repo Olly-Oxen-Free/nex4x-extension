@@ -1,0 +1,16 @@
+{
+  "status": "planned",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P3",
+  "depends_on_prds": [
+    "015_strategic-ai-activation",
+    "016_valuation-engine-wiring",
+    "020_negotiation-catalog-gaps",
+    "022_demand-contract-vote-effects"
+  ],
+  "tasks_total": 14,
+  "complexity_total": 17,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": []
+}

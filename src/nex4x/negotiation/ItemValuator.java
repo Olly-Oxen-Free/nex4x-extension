@@ -75,10 +75,9 @@ public class ItemValuator {
     }
 
     // ── Base value constants ───────────────────────────────────
+    // PRD-016: CEASEFIRE_BASE, PEACE_TREATY_BASE, NAP_BASE, TRADE_AGREEMENT_BASE removed;
+    // now read from BaseValueTable (driven by base_values.json). Intel now reads BaseValueTable.INTEL.
 
-    private static final float CEASEFIRE_BASE = 5000f;
-    private static final float PEACE_TREATY_BASE = 8000f;
-    private static final float INTEL_BASE = 2000f;
     private static final float PRISONER_BASE = 3000f;
     private static final float CONTRACT_BASE_PER_DAY = 20f;
 
@@ -90,12 +89,10 @@ public class ItemValuator {
     private static final float DENOUNCE_BASE = 2500f;
     private static final float RIVALRY_BASE = 4000f;
 
-    // Agreement base values by tier
-    private static final float NAP_BASE = 3000f;
+    // Agreement base values by tier (not yet in BaseValueTable — kept as literals)
     private static final float DEFENSIVE_PACT_BASE = 6000f;
     private static final float PARTNERSHIP_BASE = 10000f;
     private static final float COALITION_BASE = 20000f;
-    private static final float TRADE_AGREEMENT_BASE = 4000f;
 
     // Territory value: market size^2 × this constant
     private static final float TERRITORY_SIZE_MULT = 2000f;
@@ -145,7 +142,7 @@ public class ItemValuator {
                 return getKnowledgeValue(item.getTargetId());
 
             case INTEL:
-                return INTEL_BASE;
+                return BaseValueTable.INTEL;
 
             case CONTRACTS:
                 return CONTRACT_BASE_PER_DAY * item.getDurationDays();
@@ -199,12 +196,12 @@ public class ItemValuator {
     private float getAgreementValue(AgreementType type) {
         if (type == null) return 3000f;
         switch (type) {
-            case NAP: return NAP_BASE;
+            case NAP: return BaseValueTable.NON_AGGRESSION_PACT;
             case DEFENSIVE_PACT: return DEFENSIVE_PACT_BASE;
             case MILITARY_PARTNERSHIP: return PARTNERSHIP_BASE;
             case ECONOMIC_PARTNERSHIP: return PARTNERSHIP_BASE;
             case COALITION: return COALITION_BASE;
-            case TRADE_AGREEMENT: return TRADE_AGREEMENT_BASE;
+            case TRADE_AGREEMENT: return BaseValueTable.TRADE_PACT;
             default: return 3000f;
         }
     }
@@ -217,17 +214,18 @@ public class ItemValuator {
     }
 
     private float getPeaceTermValue(NegotiableItem item) {
+        // PRD-016: read from BaseValueTable (driven by base_values.json).
         String subType = item.getSecondaryId();
-        if ("ceasefire".equals(subType)) return CEASEFIRE_BASE;
-        if ("peace_treaty".equals(subType)) return PEACE_TREATY_BASE;
+        if ("ceasefire".equals(subType)) return BaseValueTable.CEASEFIRE;
+        if ("peace_treaty".equals(subType)) return BaseValueTable.PEACE_TREATY;
         if ("reparations".equals(subType)) return item.getAmount();
-        return CEASEFIRE_BASE;
+        return BaseValueTable.CEASEFIRE;
     }
 
     private float getKnowledgeValue(String blueprintId) {
-        // Blueprint rarity and type affect value.
-        // Full evaluation deferred to game data integration.
-        return 5000f;
+        // PRD-016: use BaseValueTable.STAR_CHART * BLUEPRINT_MULT for configurable blueprint value.
+        // Full rarity-based evaluation deferred to follow-up PRD.
+        return BaseValueTable.STAR_CHART * BaseValueTable.BLUEPRINT_MULT;
     }
 
     private float getDeclarationValue(NegotiableItem item) {
@@ -285,11 +283,34 @@ public class ItemValuator {
             case KNOWLEDGE:       return nex4x.negotiation.ItemCategory.BLUEPRINT;
             case INTEL:           return nex4x.negotiation.ItemCategory.INTEL;
             case TERRITORY:       return nex4x.negotiation.ItemCategory.MARKET;
-            case AGREEMENTS:      return nex4x.negotiation.ItemCategory.ALLIANCE; // refined per item-id in v5.1
+            case AGREEMENTS: {
+                // PRD-016 16b: sub-type discrimination so personality multipliers reach NAP/TRADE_PACT.
+                nex4x.agreements.AgreementType at = item.getAgreementType();
+                if (at == null) return nex4x.negotiation.ItemCategory.ALLIANCE;
+                switch (at) {
+                    case NAP:
+                        return nex4x.negotiation.ItemCategory.NAP;
+                    case TRADE_AGREEMENT:
+                        return nex4x.negotiation.ItemCategory.TRADE_PACT;
+                    case DEFENSIVE_PACT:
+                    case MILITARY_PARTNERSHIP:
+                    case ECONOMIC_PARTNERSHIP:
+                    case COALITION:
+                    default:
+                        return nex4x.negotiation.ItemCategory.ALLIANCE;
+                }
+            }
             case PEACE_TERMS:     return nex4x.negotiation.ItemCategory.PEACE_TERMS;
             case WAR_DECLARATION: return nex4x.negotiation.ItemCategory.WAR_DECLARATION;
             case CONCESSIONS:     return nex4x.negotiation.ItemCategory.SPARE_CONCESSION;
-            case DECLARATIONS:    return nex4x.negotiation.ItemCategory.FRIENDSHIP_DECLARATION;
+            case DECLARATIONS: {
+                // PRD-016 16b: distinguish hostile/friendly declarations.
+                nex4x.declarations.DeclarationType dt = item.getDeclarationType();
+                if (dt == nex4x.declarations.DeclarationType.DENOUNCE
+                        || dt == nex4x.declarations.DeclarationType.RIVALRY)
+                    return nex4x.negotiation.ItemCategory.DENOUNCEMENT_DECLARATION;
+                return nex4x.negotiation.ItemCategory.FRIENDSHIP_DECLARATION;
+            }
             case CONTRACTS:
             case PRISONERS:
             default:              return nex4x.negotiation.ItemCategory.OTHER;

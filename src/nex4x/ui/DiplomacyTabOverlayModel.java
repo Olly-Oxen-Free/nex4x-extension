@@ -397,7 +397,7 @@ public class DiplomacyTabOverlayModel implements Serializable {
         for (DiploEventEntry e : events) {
             if (shown >= limit) break;
             shown++;
-            String deltaStr = String.format("%+.0f", e.delta);
+            String deltaStr = String.format("%+.0f", e.delta * 100f); // delta is raw -1..1; show as percent
             Color c = e.delta >= 0 ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor();
             LabelAPI l = info.addPara(String.format("%dd", Math.round(e.daysAgo)) + "  " + e.description + "  " + deltaStr, 2f);
             l.setHighlight(deltaStr);
@@ -656,7 +656,7 @@ public class DiplomacyTabOverlayModel implements Serializable {
             int shown = 0;
             for (DiploEventEntry e : events) {
                 if (shown++ >= 5) break;
-                String ds = String.format("%+.0f", e.delta);
+                String ds = String.format("%+.0f", e.delta * 100f); // delta is raw -1..1; show as percent
                 Color c = e.delta >= 0 ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor();
                 LabelAPI l = t.addPara(String.format("%dd", Math.round(e.daysAgo)) + "  " + e.description + "  " + ds, 2f);
                 l.setHighlight(ds); l.setHighlightColor(c);

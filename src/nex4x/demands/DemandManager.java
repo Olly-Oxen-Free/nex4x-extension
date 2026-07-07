@@ -147,8 +147,38 @@ public class DemandManager implements Serializable {
                     }
                     break;
                 }
+                case FORCE_NEUTRALITY: {
+                    // payload = third-party faction id that target must stop fighting
+                    String thirdPartyId = d.getPayload();
+                    if (thirdPartyId == null || thirdPartyId.isEmpty()) {
+                        log.warn("[Nex4x] FORCE_NEUTRALITY: missing third-party faction id in payload");
+                        break;
+                    }
+                    com.fs.starfarer.api.campaign.FactionAPI target =
+                            Global.getSector().getFaction(d.getTargetId());
+                    com.fs.starfarer.api.campaign.FactionAPI thirdParty =
+                            Global.getSector().getFaction(thirdPartyId);
+                    if (thirdParty == null) {
+                        log.warn("[Nex4x] FORCE_NEUTRALITY: third-party faction not found: " + thirdPartyId);
+                        break;
+                    }
+                    if (target != null && target.isHostileTo(thirdParty)) {
+                        try {
+                            nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(target, thirdParty);
+                            log.info("[Nex4x] FORCE_NEUTRALITY: " + d.getTargetId()
+                                    + " forced to make peace with " + thirdPartyId);
+                        } catch (Throwable t2) {
+                            log.warn("[Nex4x] FORCE_NEUTRALITY peace call failed: " + t2.getMessage());
+                        }
+                    } else {
+                        log.info("[Nex4x] FORCE_NEUTRALITY: " + d.getTargetId()
+                                + " already at peace with " + thirdPartyId + " — no action needed");
+                    }
+                    break;
+                }
                 default:
-                    log.info("[Nex4x] Demand effect not yet implemented for " + d.getType());
+                    log.warn("[Nex4x] WARN: unhandled demand type " + d.getType()
+                            + " — no effect applied");
                     break;
             }
         } catch (Throwable t) {

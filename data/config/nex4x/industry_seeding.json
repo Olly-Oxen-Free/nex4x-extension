@@ -1,0 +1,13 @@
+{
+    "_comment": "Controls which AI faction markets receive nex4x industries at new-game start.",
+    "diplomaticEmbassy": {
+        "industryId": "nex4x_diplomatic_embassy",
+        "minMarketSize": 3
+    },
+    "intelligenceBureau": {
+        "industryId": "nex4x_intelligence_bureau",
+        "minMarketSize": 4
+    },
+    "excludeFactions": ["pirates", "remnants", "derelict", "neutral"],
+    "excludeMarketTags": []
+}

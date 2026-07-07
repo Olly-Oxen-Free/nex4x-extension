@@ -54,8 +54,8 @@ public class AIProposalManager implements Serializable {
             return;
         }
 
-        // Sector day count (cycle relative to 206 to keep legacy field-value range).
-        float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f;
+        // Sector day count (cycle-0 epoch, 360 days/cycle).
+        float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay();
 
         for (FactionAPI faction : Global.getSector().getAllFactions()) {
             String fid = faction.getId();
@@ -95,7 +95,13 @@ public class AIProposalManager implements Serializable {
         AgreementType currentTier = mgr.getAgreementManager()
                 .getAllianceTier(aiFactionId, playerFactionId);
 
-        DealEvaluator evaluator = new DealEvaluator();
+        // PRD-016 16f: use leader-aware DealEvaluator so AI proposals reflect the
+        // player leader's personality/goal/relation/scarcity when evaluating.
+        nex4x.leaders.LeaderProfile targetLeader =
+                mgr.getLeaderRegistry().getProfile(playerFactionId);
+        DealEvaluator evaluator = (targetLeader != null)
+                ? new DealEvaluator(targetLeader, aiFactionId)
+                : new DealEvaluator();
         AutoNegotiator auto = new AutoNegotiator(evaluator);
         return auto.generateAIProposal(aiFactionId, playerFactionId, currentTier);
     }

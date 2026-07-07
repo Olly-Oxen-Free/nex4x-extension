@@ -29,17 +29,21 @@ public final class Nex4xClock {
         return c == null ? 0f : c.getElapsedDaysSince(ts);
     }
 
-    /** Absolute calendar-day index (cycle*365 + (month-1)*30 + day). For display / serialization. */
+    /**
+     * Absolute calendar-day index (cycle*360 + (month-1)*30 + day). For display / serialization.
+     * Epoch: cycle 0, day 1. Starsector's calendar is 12 months × 30 days = 360 days/cycle.
+     */
     public static float currentAbsoluteDay() {
         CampaignClockAPI c = Global.getSector() == null ? null : Global.getSector().getClock();
         if (c == null) return 0f;
-        return c.getCycle() * 365f + (c.getMonth() - 1) * 30f + c.getDay();
+        return c.getCycle() * 360f + (c.getMonth() - 1) * 30f + c.getDay();
     }
 
     /**
      * Heuristic: pre-fix, several fields stored raw timestamp (seconds since epoch ~ 5e6+)
      * as a "day count". Real day counts are tiny floats. Anything with magnitude > 1e6 is
      * almost certainly a legacy raw-timestamp value loaded from an older save.
+     * Epoch: cycle 0 (post-fix). At cycle 206 the absolute day is ~74 000, well below 1e6.
      */
     public static boolean isLegacyDayValue(double v) {
         return Math.abs(v) > 1e6;

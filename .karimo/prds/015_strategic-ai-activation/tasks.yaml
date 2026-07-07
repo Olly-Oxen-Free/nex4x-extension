@@ -1,0 +1,233 @@
+prd: strategic-ai-activation
+version: 2
+tasks:
+
+  - id: 15a
+    title: Remove orphan Java registrations from Nex4xStrategicAIConcerns
+    description: |
+      Files:
+        src/nex4x/integration/Nex4xStrategicAIConcerns.java
+        src/nex4x/Nex4xModPlugin.java
+
+      Background: StrategicDefManager's static initializer calls loadConfig() at class-init,
+      loading strategicAIConfig.json with correct ids and tags before onApplicationLoad runs.
+      Nex4xStrategicAIConcerns.register() then runs in onApplicationLoad and inserts two
+      tagless defs under WRONG ids that do not match the JSON:
+        - Java id "nex4x_goal_wrap" vs JSON id "nex4x_goal"     (different — both inserted)
+        - Java id "nex4x_propose_tiered_agreement" vs JSON id "nex4x_propose_agreement" (different)
+        - Java id "nex4x_belief_alignment" = JSON id "nex4x_belief_alignment" (same — skipped by
+          containsKey guard at line 48, so no harm)
+      The two orphan defs (nex4x_goal_wrap, nex4x_propose_tiered_agreement) are tagless and
+      permanently unselectable. Since Nex StrategicAI is disabled via NexConfig.enableStrategicAI=false
+      in onGameLoad, Path A is inert anyway — the JSON defs exist but serve a disabled loop.
+      The orphan defs are pure pollution.
+
+      Fix:
+      1. In Nex4xStrategicAIConcerns.java: replace the body of register() with a single log line:
+           log.info("[Nex4x] StrategicAI concerns: registration delegated to strategicAIConfig.json");
+         This makes the class a no-op stub (safer than deleting the class entirely — callers stay
+         compilable). Alternatively delete the class if confirmed no other callers exist.
+      2. In Nex4xModPlugin.java line 75: remove the Nex4xStrategicAIConcerns.register() call and
+         its surrounding try/catch block (lines 73-78 inclusive).
+      3. Confirm: grep the entire src/ tree for "nex4x_goal_wrap" and "nex4x_propose_tiered_agreement"
+         — both should have zero results after the change.
+
+      Verification: build passes; log no longer shows "Registered 2 concerns + 1 action".
+    files:
+      - src/nex4x/integration/Nex4xStrategicAIConcerns.java
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 15b
+    title: Set goal posture and obstacle in GoalGenerator
+    description: |
+      File: src/nex4x/ai/goals/GoalGenerator.java
+
+      Bug: StrategicGoal.setPosture is never called anywhere in src. All goals are born with
+      posture=NEGOTIATING (StrategicGoal constructor line 33). DiplomaticExecutor.evaluateWarDecisions
+      (line 119) gates on goal.getPosture() == HOSTILE — so the war path is permanently unreachable.
+      Similarly setObstacle is never called, so GoalScorer.obstacleEscalation (line 203) always
+      returns 0.1 (the floor), and GoalScorer.cascadeRisk always returns 0.1 (parentGoalId null).
+
+      Fix A — posture derivation in GoalGenerator:
+      Add a private static method derivePosture(GoalType, String targetFactionId, String myFactionId):
+        - If GoalType.category == AGGRESSION:
+            FactionAPI them = ...; float rel = us.getRelationship(targetId);
+            boolean hasCB = cbMgr.getAllCBsFor(myId) contains targetId
+            if (rel < -0.3f || hasCB) return DiplomaticPosture.HOSTILE;
+            if (rel < 0f) return DiplomaticPosture.PRESSURING;
+        - If GoalType == END_WAR: return DiplomaticPosture.CONCILIATORY
+        - If GoalType == BUILD_ALLIANCE or SECURE_AGREEMENT or IMPROVE_RELATIONS: return NEGOTIATING
+        - Default: NEGOTIATING
+
+      Call goal.setPosture(derivePosture(goal.type, goal.targetFactionId, factionId)) on every
+      generated goal that has a non-null targetFactionId. Place call at end of each generateXxxGoals
+      helper, or in a single post-pass loop in generateGoals.
+
+      Fix B — obstacle from active wars / CB:
+      In generateGrievanceGoals, after constructing the PRESS_GRIEVANCE goal, set:
+        goal.setObstacle(new StrategicGoal.Obstacle(cb.getSeverity() * 10f, "CasusBelli"));
+      where Obstacle uses a float severity field — check StrategicGoal.Obstacle.none() definition;
+      if Obstacle is a real inner class with severity + type string fields, reuse it; if it is a stub,
+      add severity + type fields.
+
+      Fix C — parentGoalId wiring:
+      In generateSecurityGoals, for END_WAR goals, check if there is an existing PRESS_GRIEVANCE goal
+      for the same targetFactionId in the current generation pass; if so, call
+      endWarGoal.setParentGoalId(grievanceGoal.getKey()). This allows cascadeRisk to return 0.5
+      instead of 0.1 for war-related peace goals.
+    files:
+      - src/nex4x/ai/goals/GoalGenerator.java
+      - src/nex4x/ai/goals/StrategicGoal.java
+    complexity: 3
+    priority: must
+    depends_on: []
+
+  - id: 15c
+    title: Build and inject StrategicFocus.Threat in StrategicGoalManager
+    description: |
+      File: src/nex4x/ai/StrategicGoalManager.java
+
+      Bug: StrategicFocus.greatestThreat is always null. At step 7 (line 142),
+      focus.update(highestImportance, highestPriority, focus.getGreatestThreat(), 1f) passes the
+      current (null) threat back into itself — so it can never become non-null. Nothing in the
+      pipeline ever constructs a StrategicFocus.Threat.
+
+      Consequence: GoalScorer.computeEffectivePriority always takes the peacetime weighting branch
+      (IMP=0.7, URG=0.3). During a military crisis urgency should dominate (IMP=0.2, URG=0.8) but
+      hasCrisis is permanently false.
+
+      Fix: Add a private method buildThreat(String factionId, List<StrategicGoal> activeGoals)
+      that returns a StrategicFocus.Threat or null:
+        1. Count active hostile factions. For each hostile faction with a PRESS_GRIEVANCE or
+           END_WAR goal, compute severity = FeasibilityChecker.check(goal, factionId) * 100.
+           ThreatType = MILITARY_AGGRESSION.
+           boolean existential = severity > 70.
+        2. Scan activeGoals for goals with posture == HOSTILE targeting a faction that is already
+           hostile to us (they attacked first). ThreatType = PRESSURE_DOMINANCE, severity =
+           goal.getEffectivePriority().
+        3. Return the Threat with highest severity (cap candidates at 5 for performance).
+        4. Return null if no threats found.
+
+      In advanceDay, between steps 6 (rank/keep) and 7 (update focus), insert:
+        StrategicFocus.Threat newThreat = buildThreat(factionId, activeGoals);
+      Then change the focus.update call at step 7 to pass newThreat instead of
+      focus.getGreatestThreat().
+    files:
+      - src/nex4x/ai/StrategicGoalManager.java
+    complexity: 2
+    priority: must
+    depends_on: [15b]
+
+  - id: 15d
+    title: Wire DiplomaticExecutor evaluatePeaceDecisions to call real peace effect
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+
+      Bug: evaluatePeaceDecisions (line 244-255) calculates peaceWill and logs "seeking peace"
+      but never calls any bridge or event API. The peace-seeking path is log-only.
+
+      Note: This task depends on PRD-014 (014_diplomacy-bridge-fallback) which fixes
+      NexDiplomacyBridge null-masking. If PRD-014 is not yet merged, add a fallback:
+        try { NexDiplomacyBridge.firePeaceTreaty(factionId, targetId); }
+        catch (Exception e) {
+            // PRD-014 not yet applied; fallback to direct relation clear
+            FactionAPI us = ...; FactionAPI them = ...;
+            if (us != null && them != null && us.isHostileTo(them)) {
+                us.setRelationship(targetId, 0f); them.setRelationship(factionId, 0f);
+            }
+        }
+
+      Fix in evaluatePeaceDecisions: after the existing log.info "seeking peace" line, add:
+        if (peaceWill > PEACE_SEEK_THRESHOLD) {
+            try {
+                nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(factionId, goal.targetFactionId);
+            } catch (Exception e) {
+                log.warn("[Nex4x] Peace treaty bridge failed: " + e.getMessage());
+                FactionAPI us = Global.getSector().getFaction(factionId);
+                FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                if (us != null && them != null && us.isHostileTo(them)) {
+                    us.setRelationship(goal.targetFactionId, 0f);
+                    them.setRelationship(factionId, 0f);
+                }
+            }
+        }
+
+      Double-fire guard: add a Set<String> peaceProposedThisDay (cleared in advanceDay reset)
+      to prevent double-firing if both Path A and Path B evaluate the same goal on the same
+      day (Path A is currently disabled but may be re-enabled in future).
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 2
+    priority: must
+    depends_on: []
+    # NOTE: Requires PRD-014 (014_diplomacy-bridge-fallback) for reliable NexDiplomacyBridge.
+    # If PRD-014 is not yet merged, include the fallback block described above.
+
+  - id: 15e
+    title: Wire DiplomaticExecutor proposeAgreementIfViable to call createAgreement
+    description: |
+      File: src/nex4x/ai/DiplomaticExecutor.java
+
+      Bug: proposeAgreementIfViable (line 291-303) logs the proposal and decrements the action
+      budget but never calls AgreementManager.createAgreement. The agreement is never created.
+
+      Note: This task depends on PRD-014 (014_diplomacy-bridge-fallback). The preferred path is
+      NexDiplomacyBridge.ensureAlliance for COALITION tier; for lower tiers, call
+      AgreementManager.createAgreement directly which is a local API (no bridge needed).
+      Add the bridge call only for COALITION as a separate post-step:
+        if (nextTier == AgreementType.COALITION) {
+            nex4x.integration.NexDiplomacyBridge.ensureAlliance(factionId, goal.targetFactionId);
+        }
+
+      Fix in proposeAgreementIfViable: after the log.info line, before actionBudgetRemaining--,
+      insert:
+        try {
+            aMgr.createAgreement(factionId, goal.targetFactionId, nextTier);
+            if (nextTier == AgreementType.COALITION) {
+                try {
+                    nex4x.integration.NexDiplomacyBridge.ensureAlliance(
+                        factionId, goal.targetFactionId);
+                } catch (Exception bridgeEx) {
+                    log.warn("[Nex4x] ensureAlliance bridge failed: " + bridgeEx.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("[Nex4x] createAgreement failed: " + e.getMessage());
+            return; // don't decrement budget on failure
+        }
+    files:
+      - src/nex4x/ai/DiplomaticExecutor.java
+    complexity: 2
+    priority: must
+    depends_on: []
+    # NOTE: COALITION tier path benefits from PRD-014 (014_diplomacy-bridge-fallback) being merged
+    # before this task. Non-COALITION path is independent.
+
+  - id: 15f
+    title: Smoke debug command auditStrategicAI
+    description: |
+      File: src/nex4x/debug/Nex4xDebugCommand.java
+
+      Add case "auditstrategicai" (or "auditStrategicAI" + lowercase match):
+        - Confirm orphan ids gone: assert StrategicDefManager.CONCERN_DEFS_BY_ID does NOT contain
+          "nex4x_goal_wrap" or "nex4x_propose_tiered_agreement"; print PASS/FAIL for each.
+        - For each registered concern/action def with id prefix "nex4x_": print id + tags.size() + tags.
+        - For the given factionId, print active goals with their posture and obstacle severity.
+        - Print focus.getGreatestThreat(): type + severity + existential, or "null".
+        - Print hasCrisis derived value.
+
+      This command directly verifies all four bugs are fixed without needing a full game run:
+        1. No orphan ids → bug 1 fixed.
+        2. At least one HOSTILE goal present for a faction at war → bug 2 fixed.
+        3. greatestThreat != null for a faction with enemies → bug 3 fixed.
+        4. Agreement and peace wiring verified by watching creation logs during a daily advance.
+
+      Build command: ./build.sh (compilation is the only automated test — no unit-test framework).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [15a, 15b, 15c, 15d, 15e]

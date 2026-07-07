@@ -12,7 +12,9 @@ public class Demand implements Serializable {
         BREAK_ALLIANCE,
         END_WAR,
         OPEN_MARKETS,
-        RELEASE_VASSAL
+        RELEASE_VASSAL,
+        /** Instructs target to cease hostilities with a named third party. Payload = third-party faction id. */
+        FORCE_NEUTRALITY
     }
 
     public enum DemandStatus {

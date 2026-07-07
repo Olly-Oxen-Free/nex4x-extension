@@ -88,12 +88,15 @@ public class NegotiationPanel extends BasePopUpDialog {
 
     private boolean needsRefresh;
 
-    private static final String CAT_TOGGLE_PREFIX = "cat_toggle_";
-    private static final String NEX4X_ADD_PREFIX  = "nex4x_add_";
+    private static final String CAT_TOGGLE_PREFIX  = "cat_toggle_";
+    private static final String NEX4X_ADD_PREFIX   = "nex4x_add_";
+    private static final String NEX4X_REQUEST_PREFIX = "nex4x_req_";
     private final Set<NegotiableItemType> expandedCategories = new HashSet<NegotiableItemType>();
 
     /** Transient map rebuilt on each createUI pass: encoded button id → raw catalog id. */
-    private final Map<String, String> buttonToCatalogId = new HashMap<String, String>();
+    private final Map<String, String> buttonToCatalogId    = new HashMap<String, String>();
+    /** Transient map for request-side catalog buttons: encoded button id → raw catalog id. */
+    private final Map<String, String> buttonToCatalogIdReq = new HashMap<String, String>();
 
     public NegotiationPanel(String targetFactionId) {
         this(targetFactionId, false);
@@ -109,7 +112,10 @@ public class NegotiationPanel extends BasePopUpDialog {
 
         this.deal = new DealPackage(playerFactionId, targetFactionId);
         this.dealProposal = new DealProposal(playerFactionId, targetFactionId);
-        this.evaluator = new DealEvaluator();
+
+        // PRD-016 16e: assign leader BEFORE constructing DealEvaluator so it can be passed in.
+        this.leader = Nex4xManager.getOrCreateManager().getLeaderRegistry().getProfile(targetFactionId);
+        this.evaluator = new DealEvaluator(leader, playerFactionId);
         this.valuator = evaluator.getValuator();
 
         Nex4xManager mgr = Nex4xManager.getManager();
@@ -120,7 +126,6 @@ public class NegotiationPanel extends BasePopUpDialog {
         FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
         this.atWar = targetFac != null && playerFac != null && playerFac.isHostileTo(targetFac);
 
-        this.leader = Nex4xManager.getOrCreateManager().getLeaderRegistry().getProfile(targetFactionId);
         this.mood = new SessionMood();
 
         setConfirmText("Send Proposal");
@@ -157,6 +162,7 @@ public class NegotiationPanel extends BasePopUpDialog {
     @Override
     public void createUI(CustomPanelAPI panel) {
         buttonToCatalogId.clear();
+        buttonToCatalogIdReq.clear();
         createHeaader(panel); // Ashlib title bar — sets this.y
         FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
         if (targetFaction == null) {
@@ -302,6 +308,28 @@ public class NegotiationPanel extends BasePopUpDialog {
             needsRefresh = true;
             return;
         }
+
+        // Catalog-driven request buttons rendered by addCatalogItemsThreeZone.
+        if (id.startsWith(NEX4X_REQUEST_PREFIX)) {
+            String catalogId = buttonToCatalogIdReq.get(id);
+            if (catalogId == null) {
+                log.warn("[Nex4x] buttonPressed: no catalog-req mapping for button id: " + id);
+                needsRefresh = true;
+                return;
+            }
+            int qty = catalog.suggestedQty(catalogId, 1);
+            NegotiableItem item = catalog.build(catalogId, qty);
+            if (item != null) {
+                deal.addRequest(item);
+                dealProposal.applyMutation(
+                        DealMutation.addRequest(item.getId(), qty), catalog);
+                log.info("[Nex4x] Catalog req: " + catalogId + " qty=" + qty);
+            } else {
+                log.warn("[Nex4x] catalog.build returned null for req id: " + catalogId);
+            }
+            needsRefresh = true;
+            return;
+        }
     }
 
     @Override
@@ -362,7 +390,8 @@ public class NegotiationPanel extends BasePopUpDialog {
         float pad  = 6f;
         float innerW = contentW - pad * 2f;
 
-        float rawBalance = deal.getBalance(valuator);
+        // PRD-016 16e: leader-aware balance for the balance bar display.
+        float rawBalance = deal.getLeaderBalance(leader, playerFactionId);
         float normalized = Math.max(-1f, Math.min(1f, rawBalance / 10000f));
 
         BalanceBarPlugin plugin = new BalanceBarPlugin(innerW, barH, normalized);
@@ -406,7 +435,8 @@ public class NegotiationPanel extends BasePopUpDialog {
         } else {
             for (int i = 0; i < offers.size(); i++) {
                 NegotiableItem item = offers.get(i);
-                float val = valuator.evaluate(item, targetFactionId);
+                // PRD-016 16e: leader-aware display value (consistent with accept/reject path).
+                float val = ItemValuator.valueForLeader(item, leader, playerFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
                 leftTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
@@ -431,7 +461,8 @@ public class NegotiationPanel extends BasePopUpDialog {
         } else {
             for (int i = 0; i < requests.size(); i++) {
                 NegotiableItem item = requests.get(i);
-                float val = valuator.evaluate(item, targetFactionId);
+                // PRD-016 16e: leader-aware display value (consistent with accept/reject path).
+                float val = ItemValuator.valueForLeader(item, leader, playerFactionId);
                 String label = item.getDisplayLabel()
                         + "  (" + String.format("%.0f", val) + ")";
                 rightTip.addPara(label, 3f, Misc.getHighlightColor(), item.getDisplayLabel());
@@ -524,11 +555,28 @@ public class NegotiationPanel extends BasePopUpDialog {
         List<String> ids = catalog.idsForType(type, atWar, targetFactionId);
 
         if (ids.isEmpty()) {
-            // Deferred categories (CONTRACTS, CONCESSIONS, WAR_DECLARATION) — graceful no-op.
-            info.addPara("  (not yet configurable in this version)", Misc.getGrayColor(), 2f);
+            // Deferred categories: show honest "coming soon" label instead of misleading placeholder.
+            String deferredLabel;
+            switch (type) {
+                case CONTRACTS:
+                    deferredLabel = "Contracts (mercenary/arms) — coming in a future build";
+                    break;
+                case CONCESSIONS:
+                    deferredLabel = "Concessions (third-party diplomatic actions) — coming in a future build";
+                    break;
+                case WAR_DECLARATION:
+                    deferredLabel = "War Declaration — requires target picker; coming in a future build";
+                    break;
+                default:
+                    deferredLabel = "(coming soon — not available in this build)";
+                    break;
+            }
+            info.addPara("  " + deferredLabel, Misc.getGrayColor(), 2f);
             return;
         }
 
+        float totalW   = btnW * 3f;
+        float btnHalf  = (totalW - pad) / 2f;
         float rowPad = pad;
         for (String catalogId : ids) {
             String displayName = catalog.getDisplayName(catalogId);
@@ -537,13 +585,19 @@ public class NegotiationPanel extends BasePopUpDialog {
 
             // Encode a stable button id: replace ':' and '-' with '_' then store the mapping.
             String encodedKey = catalogId.replace(':', '_').replace('-', '_');
-            String btnId = NEX4X_ADD_PREFIX + encodedKey;
+            String btnId    = NEX4X_ADD_PREFIX    + encodedKey;
+            String reqBtnId = NEX4X_REQUEST_PREFIX + encodedKey;
             buttonToCatalogId.put(btnId, catalogId);
+            buttonToCatalogIdReq.put(reqBtnId, catalogId);
 
-            info.addButton(label, btnId,
-                    Misc.getButtonTextColor(), Misc.getDarkPlayerColor(),
+            info.addButton("[+ Offer] " + label, btnId,
+                    playerColor, playerDark,
                     Alignment.MID, CutStyle.ALL,
-                    btnW * 3f, 20f, rowPad);
+                    btnHalf, 20f, rowPad);
+            info.addButton("[Request +] " + label, reqBtnId,
+                    factionColor, factionDark,
+                    Alignment.MID, CutStyle.ALL,
+                    btnHalf, 20f, 0f);
             rowPad = 3f; // tighter spacing after first row
         }
     }

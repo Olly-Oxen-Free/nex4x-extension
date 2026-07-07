@@ -1,0 +1,110 @@
+prd: agent-ownership-wiring
+version: 1
+tasks:
+  - id: 19a
+    title: Add AgentOwnershipSweep helper
+    description: |
+      New file: src/nex4x/agents/AgentOwnershipSweep.java
+
+      Static method: sweepAndWire(Nex4xAgentManager mgr)
+        - Calls AgentIntel.getAgentsStatic() to obtain all live AgentIntel instances.
+        - For each ai: if ai.isDeadOrDismissed(), call mgr.remove(ai.getAgent().getId())
+          and continue.
+        - Resolve type via AgentTypeMap.fromAgent(ai).
+        - Call mgr.getOrCreate(ai.getAgent().getId(), type) — idempotent.
+        - If data.getOwnerFactionId() == null:
+            FactionAPI f = ai.updateAgentDisplayedFaction();
+            if (f != null) data.setOwnerFactionId(f.getId());
+        - If data.getType() != type: data.setType(type) (keeps type in sync like the
+          listener does).
+        - Log a single summary line: "[Nex4x] AgentOwnershipSweep: N records ensured,
+          M owner ids set" (use counters, not per-agent log spam).
+      No throws; wrap body in try/catch logging to warn.
+    files:
+      - src/nex4x/agents/AgentOwnershipSweep.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 19b
+    title: Wire sweep into Nex4xManager v3 daily tick
+    description: |
+      In src/nex4x/managers/Nex4xManager.java, in the v3 daily tick block (lines 160-171):
+        - Before the existing line 162 (Nex4xAgentManager.getOrCreate().advanceAll(...)),
+          insert: AgentOwnershipSweep.sweepAndWire(Nex4xAgentManager.getOrCreate());
+        - Import nex4x.agents.AgentOwnershipSweep if not already present.
+      Order: sweep first so ownerFactionId is populated before advanceAll ticks buildup
+      and before DiplomatPassiveManager.advanceDay runs.
+    files:
+      - src/nex4x/managers/Nex4xManager.java
+    complexity: 1
+    priority: must
+    depends_on: [19a]
+
+  - id: 19c
+    title: Dead-agent pruning on sweep
+    description: |
+      In AgentOwnershipSweep.sweepAndWire (added in 19a):
+        - The isDeadOrDismissed() branch already calls mgr.remove(...). Verify
+          Nex4xAgentManager.remove(String) exists (line 36 — it does). No new method
+          needed.
+        - Add a log.debug line per pruned agent: "[Nex4x] Pruned dead agent: " + id.
+      This is folded into the 19a implementation notes but listed separately so it can be
+      reviewed as a distinct concern.
+    files:
+      - src/nex4x/agents/AgentOwnershipSweep.java
+    complexity: 1
+    priority: should
+    depends_on: [19a]
+
+  - id: 19d
+    title: Add null-owner warning log to DiplomatPassiveManager
+    description: |
+      In src/nex4x/agents/diplomat/DiplomatPassiveManager.java, at line 31:
+        Change the silent continue for null-owner to a log.warn:
+          if (!ownerFactionId.equals(d.getOwnerFactionId())) {
+              if (d.getOwnerFactionId() == null)
+                  log.warn("[Nex4x] DiplomatPassiveManager: skipping agent with null owner — sweep may not have run yet");
+              continue;
+          }
+      Keeps the skip in place (safe) but surfaces the failure condition in logs so it's
+      detectable post-release.
+    files:
+      - src/nex4x/agents/diplomat/DiplomatPassiveManager.java
+    complexity: 1
+    priority: should
+    depends_on: [19a]
+
+  - id: 19e
+    title: Add null-owner warning log to DiplomatExpulsionCascade
+    description: |
+      In src/nex4x/agents/diplomat/DiplomatExpulsionCascade.java, at line 24:
+        Analogous to 19d — add log.warn when skipping a null-owner diplomat:
+          if (!actorFactionId.equals(d.getOwnerFactionId())) {
+              if (d.getOwnerFactionId() == null)
+                  log.warn("[Nex4x] DiplomatExpulsionCascade: skipping null-owner diplomat");
+              continue;
+          }
+    files:
+      - src/nex4x/agents/diplomat/DiplomatExpulsionCascade.java
+    complexity: 1
+    priority: should
+    depends_on: [19a]
+
+  - id: 19f
+    title: Add auditAgentOwnership smoke to Nex4xDebugCommand
+    description: |
+      In src/nex4x/debug/Nex4xDebugCommand.java, add a new debug subcommand
+      "auditAgents":
+        - Calls AgentIntel.getAgentsStatic().
+        - For each ai, looks up Nex4xAgentManager.get().get(ai.getAgent().getId()).
+        - Prints: "Agent <personId> type=<type> owner=<ownerFactionId|NULL>
+          buildup=<level> dismissed=<bool>".
+        - Prints summary: "Total: N agents, M with null owner".
+      This gives a one-command runcode smoke to verify the fix without needing a full
+      in-game session.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [19a, 19b]

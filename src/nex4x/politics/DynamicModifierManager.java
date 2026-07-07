@@ -29,8 +29,7 @@ public class DynamicModifierManager implements Serializable {
     public void fireEvent(String factionId, ModifierEventType eventType,
                           float amount, String details) {
         List<PoliticalModifier> mods = getModifiers(factionId);
-        float day = Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
 
         PoliticalModifier mod = new PoliticalModifier(eventType, amount, day, details);
         mods.add(mod);

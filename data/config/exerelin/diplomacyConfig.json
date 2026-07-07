@@ -1,0 +1,30 @@
+{
+	# Merged into Nexerelin's diplomacyConfig.json via Global.getSettings().getMergedJSONForMod.
+	# Adds the "respect" and "insult" stages that nex4x's DeclarationManager fires through
+	# NexDiplomacyBridge — these stages are absent from the Nex base config, so without this
+	# file createDiplomacyEventV2("respect"/"insult") returns null and applies no rep change.
+	"events":[
+		{
+			"name":"Friendship Declaration",
+			"stage":"respect",
+			"random":false,
+			"minRepChange":0.04,
+			"maxRepChange":0.10,
+			"allowPiratesToPirates":true,
+			"allowPiratesToNonPirates":true,
+			"allowNonPiratesToPirates":true,
+			"desc":"$TheFaction has publicly declared friendship with $theOtherFaction, formally warming relations between the two."
+		},
+		{
+			"name":"Public Denouncement",
+			"stage":"insult",
+			"random":false,
+			"minRepChange":-0.10,
+			"maxRepChange":-0.04,
+			"allowPiratesToPirates":true,
+			"allowPiratesToNonPirates":true,
+			"allowNonPiratesToPirates":true,
+			"desc":"$TheFaction has publicly denounced $theOtherFaction, formally souring relations between the two."
+		}
+	]
+}

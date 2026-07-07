@@ -1,0 +1,30 @@
+prd: save-integrity-and-correctness
+waves:
+  - wave: 1
+    tasks: [24a, 24b, 24c, 24d]
+    # 24a: P1 singleton-lock fix (NegotiationPanel + AIProposalIntel)
+    # 24b: FactionBeliefsLoader cache clear on onGameLoad
+    # 24c: LeaderConfigRegistry cache clear on onGameLoad
+    # 24d: FactionPowerRankings.invalidate() call added to onGameLoad
+    # All independent; 24a is highest priority and should be tackled first within the wave.
+
+  - wave: 2
+    tasks: [24e, 24f, 24g, 24h, 24i, 24j]
+    # 24e: MemoryManager category-based no-decay check
+    # 24f: CasusBelliManager territorial CB restricted fix
+    # 24g: CasusBelliManager ideological conflict mutual-opposition fix
+    # 24h: CoalitionVote back-compat quorum bypass fix
+    # 24i: ForceAction full-pressure spend
+    # 24j: InfluenceManager while-loop cycle catch-up
+    # All logic-correctness fixes; independent of each other and of wave 1 (no shared files).
+
+  - wave: 3
+    tasks: [24k]
+    # Smoke tests depend on all prior fixes being in place.
+
+longest_chain: [24a, 24k]
+# 24a is the only wave-1 task that also touches NegotiationPanel.java which 24k tests.
+# All other chains are length 2 (wave 1/2 task → 24k).
+
+total_complexity: 16
+# 24a=2, 24b=1, 24c=1, 24d=1, 24e=1, 24f=2, 24g=2, 24h=2, 24i=1, 24j=1, 24k=2

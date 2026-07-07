@@ -5,7 +5,11 @@ import nex4x.leaders.LeaderProfile;
 /**
  * Balance = sum(valueTo(leader, proposer-item)) - sum(valueTo(leader, receiver-item))
  * Positive -> leans to receiver, they like it. Negative -> leans to proposer, leader dislikes.
+ *
+ * @deprecated Use ItemValuator.valueForLeader + DealEvaluator(LeaderProfile, proposerFactionId).
+ *             See PRD-016. Deletion deferred to PRD-025.
  */
+@Deprecated
 public class BalanceCalculator {
 
     public static class Result {

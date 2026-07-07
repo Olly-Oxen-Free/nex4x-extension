@@ -1,0 +1,19 @@
+prd: dead-code-removal
+waves:
+  - wave: 1
+    description: "Delete dead classes — all independent, parallelizable"
+    tasks: [25a, 25b, 25c, 25d, 25e, 25f, 25g]
+
+  - wave: 2
+    description: "Remove dead methods inside live classes — all independent, parallelizable"
+    tasks: [25h, 25i, 25j, 25l, 25m, 25n]
+
+  - wave: 3
+    description: "Deferred removal blocked on PRD-016"
+    tasks: [25o]
+
+# 25k-note has complexity 0 and no file changes; excluded from execution.
+longest_chain: [25a, 25o]   # any wave-1 task → wave-3 (serial but trivially short)
+total_complexity: 16
+# Breakdown: wave-1 = 7×1 = 7, wave-2 = 2+2+2+2+1+1 = 10, wave-3 = 1×1 = 1 (deferred)
+# Executable now (wave 1+2): complexity 17 total; deferred (wave 3): complexity 1

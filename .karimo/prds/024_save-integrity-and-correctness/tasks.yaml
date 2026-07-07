@@ -1,0 +1,291 @@
+prd: save-integrity-and-correctness
+version: 1
+tasks:
+
+  # ── WAVE 1 ── P1 singleton-lock fix (no dependencies) ──────────────────────
+
+  - id: 24a
+    title: "Fix AIProposalIntel counter-propose singleton leak (P1)"
+    description: |
+      AIProposalIntel.java lines 252-256 (buttonPressConfirmed) and lines 312-315
+      (optionSelected) each call `new NegotiationPanel(factionId, aiDeal)` + `popUpDialog`
+      directly, bypassing NegotiationPanel.openScaled's guard and try/catch.
+
+      The NegotiationPanel ctor (NegotiationPanel.java line 104) sets `activeInstance = this`
+      before popUpDialog completes display. If popUpDialog throws, activeInstance is leaked
+      and all subsequent negotiation panels are silently blocked until reload.
+
+      Fix: add a new `NegotiationPanel.openScaled(String targetFactionId, DealPackage aiDeal)`
+      overload that mirrors the existing openScaled guard + try/catch pattern but constructs
+      `new NegotiationPanel(targetFactionId, aiDeal)` internally. The catch block sets
+      `activeInstance = null` (same as the existing overload).
+
+      Replace both direct `new NegotiationPanel(...) + popUpDialog(...)` call sites in
+      AIProposalIntel with calls to the new `NegotiationPanel.openScaled(factionId, aiDeal)`.
+
+      Verify: `openScaled`'s `if (activeInstance != null) return;` guard still fires correctly
+      when a panel is already open; new overload clears `activeInstance` on exception.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+      - src/nex4x/ui/AIProposalIntel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  # ── WAVE 1 ── Static-cache invalidation (all independent) ──────────────────
+
+  - id: 24b
+    title: "Clear FactionBeliefsLoader static cache on onGameLoad"
+    description: |
+      FactionBeliefsLoader.java line 20: static `factionBeliefs` map is only cleared in
+      `load()` (called at onApplicationLoad). `loadForLiveFactions()` line 68 skips ids
+      already present, so faction entries from session A persist into session B.
+
+      Add `public static void invalidate()` to FactionBeliefsLoader:
+        1. Call `factionBeliefs.clear()` — wipe all entries including vanilla ones.
+        2. Call `load()` — re-populate vanilla faction entries from file (safe: Sector not
+           required for vanilla reload path).
+
+      In Nex4xModPlugin.onGameLoad, call `FactionBeliefsLoader.invalidate()` BEFORE the
+      existing `FactionBeliefsLoader.loadForLiveFactions()` call (~line 146). Wrap in
+      try/catch with a warn log, consistent with the existing pattern.
+
+      Verify: after invalidate(), `FactionBeliefsLoader.getAll().size()` equals vanilla
+      faction count (10), not session-A count.
+    files:
+      - src/nex4x/data/FactionBeliefsLoader.java
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 24c
+    title: "Clear LeaderConfigRegistry static cache on onGameLoad"
+    description: |
+      LeaderConfigRegistry.java lines 13-14: static `cache` (Map) and `defaults`
+      (LeaderConfig) are populated at onApplicationLoad and never cleared.
+      A faction id from session A that is absent in session B returns a stale config.
+
+      Add `public static void invalidate()`:
+        1. `cache.clear()`
+        2. Re-call `load()` to reload `defaults` from file (same JSON path as at app load).
+           Wrap the `load()` call in try/catch; if it fails, log a warning and leave defaults
+           as-is (stale defaults are less harmful than a crash).
+
+      In Nex4xModPlugin.onApplicationLoad, LeaderConfigRegistry.load() is already called
+      (line 46). In onGameLoad, call `LeaderConfigRegistry.invalidate()` early in the
+      method, before any manager init that may call LeaderConfigRegistry.get(). Wrap in
+      try/catch.
+
+      Verify: after invalidate(), `cache` is empty; subsequent `get("hegemony")` reloads
+      from file.
+    files:
+      - src/nex4x/leaders/LeaderConfigRegistry.java
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 24d
+    title: "Add FactionPowerRankings.invalidate() call to onGameLoad"
+    description: |
+      FactionPowerRankings.java lines 21-25: static score caches (economic, military,
+      expansion, rank) are invalidated in beforeGameSave() but NOT on onGameLoad.
+      If the player loads a different save without saving session A, the caches hold
+      session-A scores until the first UI render calls rebuild() — which is fine —
+      but if beforeGameSave was skipped (crash exit, return-to-menu), stale data persists.
+
+      In Nex4xModPlugin.onGameLoad, call `FactionPowerRankings.invalidate()` early in the
+      method (before any UI or manager init). Wrap in try/catch.
+
+      The existing `invalidate()` method is already correct; this task only adds the call
+      site. No changes to FactionPowerRankings itself.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  # ── WAVE 2 ── Logic correctness (depends on nothing but can parallel) ───────
+
+  - id: 24e
+    title: "Fix MemoryManager IRREDENTIST/FOREVERWAR fragile string-prefix check"
+    description: |
+      MemoryManager.java lines 83-84 and 93-94: no-decay multiplier (1000f) is returned
+      only when `memoryTypeId.startsWith("territorial")` or `.startsWith("military")`.
+      Any memory id that doesn't follow this prefix convention (e.g. "border_dispute_hegemony",
+      "occupation_of_x") silently gets normal decay, even if its MemoryTypeDef has category
+      TERRITORIAL or MILITARY.
+
+      Fix: replace the `startsWith` checks with category lookups via MemoryTypeRegistry:
+        - IRREDENTIST no-decay: if `MemoryTypeRegistry.get(memoryTypeId) != null &&
+          MemoryTypeRegistry.get(memoryTypeId).category == MemoryTypeDef.Category.TERRITORIAL`
+        - FOREVERWAR no-decay: same pattern with `.category == MemoryTypeDef.Category.MILITARY`
+
+      Keep the early return pattern (return 1000f immediately); keep the trait loop structure.
+      Add a fallback: if `MemoryTypeRegistry.get(memoryTypeId)` is null, fall back to the
+      old startsWith check and log a warning so missing registry entries are surfaced.
+    files:
+      - src/nex4x/managers/MemoryManager.java
+    complexity: 1
+    priority: high
+    depends_on: []
+
+  - id: 24f
+    title: "Fix CasusBelliManager territorial CB false-positive trigger"
+    description: |
+      CasusBelliManager.java hasTerritorialClaim (~line 229): currently returns true if
+      holder has any TERRITORIAL belief at strength >= 2 AND target owns any market at all.
+      This means any faction with a territorial belief has a CB against every market-owning
+      faction in the sector.
+
+      Restricted fix (full market-id matching deferred):
+        1. Scope the check to belief IDs that explicitly imply a specific territorial claim
+           rather than a general disposition. Add a static set
+           `SPECIFIC_TERRITORIAL_CLAIM_IDS` containing: "claims_domain_territory",
+           "claims_league_territory", "absorb_fringe_colonies" (cross-reference against
+           DEFAULT_SECRET_IF_VISIBILITY_OMITTED in FactionBeliefsLoader — these are already
+           tracked as sensitive territorial ids).
+        2. In `hasTerritorialClaim`, after confirming strength >= 2, also require
+           `SPECIFIC_TERRITORIAL_CLAIM_IDS.contains(territorial.beliefId)` before returning
+           true.
+        3. Add a TODO comment: "Full fix: BeliefEntry.targetMarketId field + JSON migration —
+           see PRD-024 deferred scope."
+
+      This eliminates the blanket false-positive (e.g. "respects_strength" in TERRITORIAL
+      category cannot trigger a CB) while preserving legitimate claim triggers.
+    files:
+      - src/nex4x/casusbelli/CasusBelliManager.java
+    complexity: 2
+    priority: high
+    depends_on: []
+
+  - id: 24g
+    title: "Fix CasusBelliManager ideological conflict asymmetric/mislabeled check"
+    description: |
+      CasusBelliManager.java hasIdeologicalConflict (~line 248): the current check returns
+      true if holder has a strong IDEOLOGICAL belief that target does NOT share. This is
+      asymmetric (holder A vs B can differ from B vs A) and produces a CB merely for being
+      different, not for holding opposing views.
+
+      Fix: change to require that holder and target each hold a belief in the same IDEOLOGICAL
+      sub-tag that are declared as opposites. Implementation:
+        1. In `BeliefDef`, add an optional `String opposedTo` field (null = no explicit
+           opposition). Populate it for the key belief pairs in the existing JSON data:
+           e.g. "annihilate_all_ai_tech" opposedTo "ai_is_neutral_tool", "luddic_purity"
+           opposedTo "domain_revival" (verify against data/config/nex4x/beliefs/).
+        2. In `hasIdeologicalConflict`, iterate holder's IDEOLOGICAL beliefs at strength >= 2;
+           for each, check if target holds a belief whose id is in the holder-belief's `opposedTo`
+           list (bidirectional: also check if target belief's `opposedTo` includes the holder
+           belief). Return true on first match.
+        3. Fallback: if no `opposedTo` data is defined for any belief, fall back to the old
+           non-shared check to preserve existing behavior; log a one-time warning.
+    files:
+      - src/nex4x/casusbelli/CasusBelliManager.java
+      - src/nex4x/data/BeliefDef.java
+    complexity: 2
+    priority: high
+    depends_on: []
+
+  - id: 24h
+    title: "Fix CoalitionVote back-compat resolve() bypassing quorum"
+    description: |
+      CoalitionVote.java line 78: `resolve(String blocLeaderId)` calls
+      `resolve(blocLeaderId, 0)`. In `resolve(String, int)` lines 61-65, the quorum check
+      is `if (memberCount > 0 && ...)` — so memberCount=0 skips quorum entirely.
+      Any caller using the back-compat overload bypasses quorum.
+
+      Note: PRD-022 does not exist; this is the only open quorum fix. However this task is
+      narrowly scoped to the overload — a broader quorum policy redesign is out of scope.
+
+      Fix:
+        1. Mark `resolve(String blocLeaderId)` as @Deprecated.
+        2. Add a log.warn inside the overload: "[Nex4x] CoalitionVote.resolve called without
+           memberCount — quorum skipped. Callers should use resolve(blocLeaderId, memberCount)."
+        3. Audit all call sites of the single-arg overload (grep for `.resolve(` in
+           src/nex4x/coalitions/). For each call site, update to pass the actual coalition
+           member count (retrieve from CoalitionManager or equivalent).
+        4. If a call site cannot easily determine memberCount (e.g. in serialized callbacks),
+           change it to pass `Math.max(1, knownMemberCount)` so quorum is always evaluated.
+    files:
+      - src/nex4x/coalitions/CoalitionVote.java
+    complexity: 2
+    priority: high
+    depends_on: []
+
+  - id: 24i
+    title: "Fix ForceAction spending only threshold instead of actual pressure"
+    description: |
+      ForceAction.java line 38: `pm.spend(fromFaction, toFaction, type.pressureThreshold)`.
+      This deducts only the threshold floor, leaving the excess pressure on the ledger.
+      A faction with 100 pressure executing a FORCE_PEACE (threshold 60) retains 40 pressure
+      and can execute again at essentially zero marginal cost.
+
+      Fix: change the spend call to spend the full accumulated pressure:
+        `pm.spend(fromFaction, toFaction, pressure);`
+      where `pressure` is the value already read at line 29. The influence cost is already
+      spent correctly on the line above (line 37); only the pressure spend needs updating.
+
+      Verify: after a successful force action, `pm.getPressure(fromFaction, toFaction)`
+      returns 0 (or near-zero after decay, depending on timing).
+    files:
+      - src/nex4x/pressure/ForceAction.java
+    complexity: 1
+    priority: high
+    depends_on: []
+
+  - id: 24j
+    title: "Fix InfluenceManager.advanceDay skipping cycles on multi-day jumps"
+    description: |
+      InfluenceManager.java lines 66-74: `advanceDay(float elapsedDays)` uses a single `if`
+      check. If `elapsedDays` is 65 and `daysAccumulated` starts at 0, after the call:
+        - daysAccumulated = 65; enters if (65 >= 30); daysAccumulated -= 30 → 35; runCycle()
+        - Loop exits: second cycle (35 >= 30) is never run.
+      Result: 2 cycles elapsed but only 1 runs.
+
+      Fix: change line 69 from `if (daysAccumulated >= CYCLE_DAYS)` to
+      `while (daysAccumulated >= CYCLE_DAYS)`. The `daysAccumulated -= CYCLE_DAYS` and
+      `runCycle()` body remains unchanged.
+
+      Guard against infinite loop: add `int guard = 0; ... if (++guard > 100) { log.warn(...); break; }`
+      inside the while, since time jumps > 3000 days would be pathological.
+    files:
+      - src/nex4x/influence/InfluenceManager.java
+    complexity: 1
+    priority: high
+    depends_on: []
+
+  # ── WAVE 3 ── Verification smoke tests ──────────────────────────────────────
+
+  - id: 24k
+    title: "Add debug smoke tests for cache integrity, singleton lock, and cycle catch-up"
+    description: |
+      Add three `auditXxx()` methods to Nex4xDebugCommand (or create the class if it does
+      not yet exist):
+
+      auditCacheIntegrity():
+        - Calls FactionBeliefsLoader.invalidate(), LeaderConfigRegistry.invalidate(),
+          FactionPowerRankings.invalidate() in sequence (simulating onGameLoad sequence).
+        - Prints: belief map size (should equal vanilla count post-invalidate),
+          leader cache size (should be 0), power-rankings cache size (should be 0).
+
+      auditCounterPropose():
+        - Sets a static debug flag `NegotiationPanel.debugThrowOnNextOpen = true`.
+        - Calls `NegotiationPanel.openScaled(someTestFactionId, new DealPackage(...))`.
+        - Asserts `NegotiationPanel.activeInstance == null` and prints pass/fail.
+        - Clears the debug flag.
+
+      auditInfluenceCycles():
+        - Creates a fresh `InfluenceManager` (not the sector singleton).
+        - Calls `advanceDay(65f)`.
+        - Prints cycles run (expected: 2) and remaining daysAccumulated (expected: 5).
+        - Asserts and prints pass/fail.
+
+      Build green is the primary gate; these runcode smokes are the acceptance signal.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+      - src/nex4x/ui/NegotiationPanel.java
+      - src/nex4x/influence/InfluenceManager.java
+    complexity: 2
+    priority: must
+    depends_on: [24a, 24b, 24c, 24d, 24e, 24f, 24g, 24h, 24i, 24j]

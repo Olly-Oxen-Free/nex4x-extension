@@ -86,11 +86,9 @@ public class Agreement implements Serializable {
     public boolean isViaViceroy() { return viaViceroy; }
 
     /**
-     * Absolute calendar-day index. Note: subtracts cycle 206 to keep the legacy
-     * field-value range; preserves save compatibility with existing Agreement timestamps.
+     * Absolute calendar-day index using cycle-0 epoch, 360 days/cycle.
      */
     private static float getCurrentDay() {
-        return nex4x.util.Nex4xClock.currentAbsoluteDay()
-                - 206f * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 }

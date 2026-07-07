@@ -74,9 +74,14 @@ public class CoalitionVote implements Serializable {
         return true;
     }
 
-    /** Backwards-compat: resolves without quorum enforcement. */
+    /**
+     * @deprecated retired — use {@link #resolve(String, int)}.
+     * Passing memberCount=0 bypasses quorum enforcement; this overload now throws.
+     */
+    @Deprecated
     public void resolve(String blocLeaderId) {
-        resolve(blocLeaderId, 0);
+        throw new UnsupportedOperationException(
+                "resolve(blocLeaderId) is retired — use resolve(blocLeaderId, memberCount)");
     }
 
     /** True if vote has been open longer than DEFAULT_TIMEOUT_DAYS. */

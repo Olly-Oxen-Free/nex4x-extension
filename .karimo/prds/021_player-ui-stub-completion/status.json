@@ -1,0 +1,39 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P2",
+  "tasks_total": 10,
+  "complexity_total": 17,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["21a", "21b", "21c", "21d", "21e", "21f", "21g", "21h", "21i", "21j"],
+  "tasks_deferred": [],
+  "notes": {
+    "apis_verified": {
+      "SectorManager.transferMarket": "exerelin.campaign.SectorManager.transferMarket(MarketAPI, FactionAPI, FactionAPI, boolean, boolean, List<String>, float) — static, confirmed via javap. Used in NegotiationDealExecutor TERRITORY case (21h) and PeaceConference.applyTerm TERRITORY_CEDE (21g).",
+      "CargoAPI.addSpecial": "com.fs.starfarer.api.campaign.CargoAPI.addSpecial(SpecialItemData, float) — confirmed via javap.",
+      "SpecialItemData_ctor": "new SpecialItemData(String id, String data) — confirmed. Used with data=null for standard AI cores.",
+      "CargoAPI.getCredits": "Returns MutableValue. subtract(float) and add(float) used for credit deductions/additions.",
+      "AddRemoveCommodity": "addCreditsLossText(int, TextPanelAPI) and addCreditsGainText(int, TextPanelAPI) — confirmed.",
+      "Nex_FactionCommissionIntel": "exerelin.campaign.intel.Nex_FactionCommissionIntel(FactionAPI) constructor confirmed. missionAccepted() inherited from FactionCommissionIntel/BaseMissionIntel (abstract method, confirmed).",
+      "IntelManagerAPI.addIntel": "addIntel(IntelInfoPlugin, boolean, TextPanelAPI) — used throughout.",
+      "BaseMissionIntel_abstract_methods": "BaseMissionIntel has 5 abstract methods. ViceroyIntelItem redesigned to extend BaseIntelPlugin instead (zero abstract methods)."
+    },
+    "divergences": [
+      "21b: IntelPurchaseHandler.IntelTier enum added as inner enum (not separate class). Legacy int constants preserved for backwards compatibility.",
+      "21b/ViceroyIntelItem: Extended BaseIntelPlugin (not BaseMissionIntel) — BaseMissionIntel requires 5 abstract methods inappropriate for a simple receipt-style intel item.",
+      "21d/CommissionHandler: Option IDs are public constants on CommissionHandler, handled in ViceroyDialog phase 4.",
+      "21e/WetworkHandler: wetwork_contract memory type added to data/config/nex4x/memory_types.csv. Allied-faction filter simplified to hostile-only for v1.",
+      "21f/PeaceConferenceDialog: recreateUI() implemented by dismiss+reopen (Ashlib does not expose in-place panel rebuild). Counter-editor state preserved via constructor fields.",
+      "21g/NegotiationDealExecutor.transferCreditsStatic: promoted to public static to allow cross-package access from nex4x.peace."
+    ],
+    "deferred": "None. All 10 tasks implemented.",
+    "smoke_steps": [
+      "runcode nex4x.debug.Nex4xDebugCommand.smokeStubs(\"--dry\") — dry run, verifies preconditions without mutating save",
+      "runcode nex4x.debug.Nex4xDebugCommand.smokeStubs() — live run; credits deducted, intel added, territory transferred, peace accepted",
+      "runcode nex4x.debug.Nex4xDebugCommand.openViceroy(\"hegemony\") — verify AI core / intel / wetwork sub-menus and commission options appear",
+      "runcode nex4x.debug.Nex4xDebugCommand.openPeaceConference(\"hegemony\",\"sindrian_diktat\") — verify Counter Offer shows term-removal editor"
+    ],
+    "build": "BUILD SUCCESSFUL — 208 source files compiled, 4 pre-existing -source 7 warnings only, 0 new errors."
+  }
+}

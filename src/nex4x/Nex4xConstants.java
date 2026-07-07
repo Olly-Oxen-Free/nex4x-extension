@@ -30,6 +30,7 @@ public class Nex4xConstants {
     public static final String PATH_AGENT_ACTIONS = "data/config/nex4x/agent_actions.json";
     public static final String PATH_AGENT_SYNERGY = "data/config/nex4x/agent_synergy.json";
     public static final String PATH_MARKET_SECURITY = "data/config/nex4x/market_security.json";
+    public static final String PATH_INDUSTRY_SEEDING = "data/config/nex4x/industry_seeding.json";
 
     // v2 persist keys
     public static final String PERSIST_KEY_INFLUENCE_MANAGER = "nex4x_influenceManager";

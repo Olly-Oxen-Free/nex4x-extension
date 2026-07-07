@@ -6,6 +6,8 @@ import exerelin.campaign.AllianceManager;
 import exerelin.campaign.alliances.Alliance;
 import nex4x.casusbelli.CasusBelliManager;
 import nex4x.casusbelli.CasusBelliType;
+import nex4x.coalitions.CoalitionGovernance;
+import nex4x.coalitions.CoalitionVote;
 import nex4x.integration.NexDiplomacyBridge;
 import nex4x.managers.Nex4xManager;
 import nex4x.ui.AgreementExpiryIntel;
@@ -69,6 +71,28 @@ public class AgreementManager implements Serializable {
                 List<String> members = getCoalitionMembers(factionA, factionB);
                 String coalitionId = buildCoalitionId(members);
                 NexDiplomacyBridge.syncCoalitionToAlliance(coalitionId, members);
+
+                // PRD-022 (22k): If this coalition already has existing members beyond factionA and
+                // factionB, treat this as a member-join and propose an ADD_MEMBER vote.
+                // (members.size() > 2 means existing coalition is gaining a new faction)
+                if (members.size() > 2) {
+                    try {
+                        CoalitionGovernance gov = CoalitionGovernance.getOrCreate();
+                        // Determine which party is "new" — the one with fewer prior coalition agreements
+                        String newMember = (getCoalitionMembersFor(factionA).size() <
+                                getCoalitionMembersFor(factionB).size()) ? factionA : factionB;
+                        String proposer = newMember.equals(factionA) ? factionB : factionA;
+                        CoalitionVote vote = gov.proposeVote(
+                                CoalitionVote.VoteType.ADD_MEMBER, proposer, newMember);
+                        // Both parties immediately vote yea
+                        vote.castVote(factionA, true);
+                        vote.castVote(factionB, true);
+                        log.info("[Nex4x] Coalition ADD_MEMBER vote proposed: "
+                                + proposer + " -> " + newMember);
+                    } catch (Throwable t2) {
+                        log.warn("[Nex4x] Coalition ADD_MEMBER vote failed: " + t2.getMessage());
+                    }
+                }
             } catch (Throwable t) {
                 log.warn("[Nex4x] Coalition alliance sync (add): " + t.getMessage(), t);
             }
@@ -158,6 +182,14 @@ public class AgreementManager implements Serializable {
 
         // Parallel track — just need relations
         return true;
+    }
+
+    /**
+     * Returns all coalition members reachable from a single faction.
+     * If the faction has no active COALITION agreements, returns a list containing only itself.
+     */
+    public List<String> getCoalitionMembersFor(String factionId) {
+        return getCoalitionMembers(factionId, factionId);
     }
 
     /**

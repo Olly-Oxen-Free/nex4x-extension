@@ -6,6 +6,7 @@ import exerelin.campaign.CovertOpsManager;
 import exerelin.campaign.intel.agents.AgentIntel;
 import org.apache.log4j.Logger;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
@@ -80,6 +81,11 @@ public final class Nex4xCovertActionRegistry {
                     9000f, 35f, 85,
                     2f, new Pair<Float,Float>(8f, 12f),
                     true, true, true);
+
+            // Re-sort so nex4x defs land at their sortOrder position; Nex only sorts
+            // during its own loadSettings, which has already run by the time we append.
+            // CovertActionDef implements Comparable<CovertActionDef>.
+            Collections.sort(CovertOpsManager.actionDefs);
 
             log.info("[Nex4x] Registered " + 7 + " covert action defs with Nex CovertOpsManager");
         } catch (NoClassDefFoundError ncdfe) {

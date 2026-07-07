@@ -3,13 +3,30 @@ package nex4x.ui.viceroy;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FactionAPI;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
+import com.fs.starfarer.api.campaign.TextPanelAPI;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import com.fs.starfarer.api.impl.campaign.rulecmd.AddRemoveCommodity;
+import com.fs.starfarer.api.util.MutableValue;
 import nex4x.leaders.LeaderConfig;
 import nex4x.leaders.LeaderConfigRegistry;
+import nex4x.managers.Nex4xManager;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Handles player wetwork contract purchases from a viceroy.
+ * Task 21e: target picker, credit deduction, MemoryManager contract entry.
+ */
 public class WetworkHandler {
-    public static final float DISCOVERY_REP_PENALTY = -0.25f;  // -25 rep if caught
 
+    public static final float DISCOVERY_REP_PENALTY = -0.25f;  // -25 rep if caught
+    public static final int   WETWORK_FEE            = 25000;
+
+    /**
+     * Prints flavor text and description.
+     * ViceroyDialog calls this before showing the target sub-menu.
+     */
     public static void open(InteractionDialogAPI dialog, MarketAPI market) {
         LeaderConfig cfg = LeaderConfigRegistry.get(market.getFactionId());
         if (!cfg.canSellWetwork) {
@@ -23,13 +40,75 @@ public class WetworkHandler {
             }
             return;
         }
-        dialog.getTextPanel().addPara("The " + cfg.viceroyTitle + " meets you in a side room.");
-        dialog.getTextPanel().addPara("Available targets: factions not currently at war with "
-                + market.getFaction().getDisplayName() + " and not aligned with them.");
-        dialog.getTextPanel().addPara("On completion: bounty paid quietly, no rep credit. "
-                + "If discovered: −25 rep with target faction, possible revenge. "
+        TextPanelAPI text = dialog.getTextPanel();
+        text.addPara("The " + cfg.viceroyTitle + " meets you in a side room.");
+        text.addPara("Contract fee: " + WETWORK_FEE + " credits. "
+                + "If discovered: −25 rep with target faction. "
                 + "The " + cfg.viceroyTitle + "'s faction will deny involvement.");
-        dialog.getTextPanel().addPara("(Target selection + contract intel — Phase 12)");
+        text.addPara("Select a target faction:");
+    }
+
+    /**
+     * Returns factions eligible as wetwork targets for the given market.
+     * Excludes: player faction, market faction, and factions currently hostile to market faction.
+     * Note: allied-faction filter is simplified to hostile-only for v1 (documented).
+     */
+    public static List<FactionAPI> getEligibleTargets(MarketAPI market) {
+        FactionAPI marketFaction = market.getFaction();
+        FactionAPI playerFaction = Global.getSector().getPlayerFaction();
+        List<FactionAPI> result = new ArrayList<FactionAPI>();
+        for (FactionAPI f : Global.getSector().getAllFactions()) {
+            if (f.isNeutralFaction()) continue;
+            if (f.getId().equals(playerFaction.getId())) continue;
+            if (f.getId().equals(marketFaction.getId())) continue;
+            if (marketFaction.isHostileTo(f)) continue;
+            result.add(f);
+        }
+        return result;
+    }
+
+    /**
+     * Executes the wetwork contract: deducts credits and creates memory entry.
+     *
+     * @param targetFactionId  Faction to be targeted.
+     */
+    public static void contract(InteractionDialogAPI dialog, MarketAPI market,
+                                 String targetFactionId) {
+        LeaderConfig cfg = LeaderConfigRegistry.get(market.getFactionId());
+        TextPanelAPI text = dialog != null ? dialog.getTextPanel() : null;
+
+        if (!cfg.canSellWetwork) {
+            if (text != null) text.addPara("This faction does not offer wetwork services.");
+            return;
+        }
+
+        MutableValue credits = Global.getSector().getPlayerFleet().getCargo().getCredits();
+        if (credits.get() < WETWORK_FEE) {
+            if (text != null) {
+                text.addPara("Insufficient credits. The contract fee is "
+                        + WETWORK_FEE + " credits.");
+            }
+            return;
+        }
+
+        credits.subtract(WETWORK_FEE);
+        AddRemoveCommodity.addCreditsLossText(WETWORK_FEE, text);
+
+        // Record the contract in MemoryManager using the wetwork_contract memory type.
+        try {
+            Nex4xManager.getOrCreateManager().getMemoryManager()
+                    .createMemory("wetwork_contract",
+                            market.getFactionId(),
+                            targetFactionId,
+                            "30d wetwork contract");
+        } catch (Throwable t) {
+            // Memory system unavailable; contract is still paid for but untracked.
+        }
+
+        if (text != null) {
+            text.addPara("Contract accepted. The "
+                    + cfg.viceroyTitle + " will deny all involvement.");
+        }
     }
 
     /** Called from wetwork-contract completion code once that ships. */

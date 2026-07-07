@@ -101,7 +101,10 @@ public class InfluenceManager implements Serializable {
             total += Math.max(0, m.getStability().getModifiedValue()) * cfg.stabilityRate;
             // Building-sourced income
             for (Map.Entry<String, Float> b : cfg.buildingIncome.entrySet()) {
-                if (m.hasIndustry(b.getKey())) total += b.getValue();
+                if (m.hasIndustry(b.getKey())
+                        && m.getIndustry(b.getKey()).isFunctional()) {
+                    total += b.getValue();
+                }
             }
             // AI core bonuses (via admin officer)
             if (m.getAdmin() != null) {

@@ -1,0 +1,12 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 8,
+  "complexity_total": 8,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["17a", "17b", "17c", "17d", "17e", "17f", "17g", "17h"],
+  "tasks_pending": [],
+  "notes": "Code complete + build green (2026-05-31). All display sites now route raw -1..1 through Nex4xRelations.toPercentInt (numeric) / toPercent (repBarAscii); diplo-history deltas x100. repBarAscii contract documented. Verification is visual in-game: faction browser / DiplomacyIntel relation numbers + bars + history deltas should match Nex's own values. NOTE: DiplomacyIntel + CoreUITabInjectorListener.buildFactionCardList are dead-but-harmless (slated for PRD-025 removal) — fixed anyway for consistency."
+}

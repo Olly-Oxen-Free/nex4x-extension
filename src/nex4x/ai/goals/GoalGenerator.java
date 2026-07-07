@@ -44,6 +44,10 @@ public class GoalGenerator {
         generateOpportunisticGoals(factionId, goals, currentTs);
         generateDiplomacyGoals(factionId, goals, currentTs);
 
+        // PRD-015 (15b): Post-pass — derive and set posture for all goals that have a target.
+        // Must run after all generators so grievance goals exist for parentGoalId wiring.
+        applyPosture(factionId, mgr.getCasusBelliManager(), goals);
+
         return goals;
     }
 
@@ -72,8 +76,20 @@ public class GoalGenerator {
                                                 List<StrategicGoal> goals, long currentTs) {
         List<CasusBelli> cbs = cbMgr.getAllCBsFor(factionId);
         for (CasusBelli cb : cbs) {
-            goals.add(new StrategicGoal(GoalType.PRESS_GRIEVANCE,
-                    cb.getTargetFactionId(), null, currentTs));
+            // Only create a grievance goal when this faction is the CB holder
+            if (!cb.getHolderFactionId().equals(factionId)) continue;
+
+            StrategicGoal goal = new StrategicGoal(GoalType.PRESS_GRIEVANCE,
+                    cb.getTargetFactionId(), null, currentTs);
+
+            // PRD-015 (15b Fix B): set obstacle severity from CB validity.
+            // Conditional CBs (validityDays == -1) are persistent grievances → higher severity.
+            // Timed CBs decay → moderate severity.
+            float obstacleSeverity = cb.getType().validityDays < 0 ? 60f : 40f;
+            goal.setObstacle(new Obstacle(ObstacleType.NO_CASUS_BELLI,
+                    cb.getTargetFactionId(), obstacleSeverity, cb.getType().displayName));
+
+            goals.add(goal);
         }
     }
 
@@ -155,6 +171,81 @@ public class GoalGenerator {
                             other.getId(), null, currentTs));
                 }
             }
+        }
+    }
+
+    // ── PRD-015 (15b) ─────────────────────────────────────────────────────────
+
+    /**
+     * Post-pass: derive and set posture for all goals with a non-null targetFactionId,
+     * then wire parentGoalId for END_WAR goals that correspond to a PRESS_GRIEVANCE goal.
+     */
+    private static void applyPosture(String factionId, CasusBelliManager cbMgr,
+                                     List<StrategicGoal> goals) {
+        // Build a lookup of grievance goals by targetFactionId for parentGoalId wiring
+        java.util.Map<String, StrategicGoal> grievanceByTarget =
+                new java.util.HashMap<String, StrategicGoal>();
+        for (StrategicGoal g : goals) {
+            if (g.type == GoalType.PRESS_GRIEVANCE && g.targetFactionId != null) {
+                grievanceByTarget.put(g.targetFactionId, g);
+            }
+        }
+
+        for (StrategicGoal goal : goals) {
+            if (goal.targetFactionId == null) continue;
+
+            // Fix A: derive and set posture
+            goal.setPosture(derivePosture(goal.type, goal.targetFactionId, factionId, cbMgr));
+
+            // Fix C: wire parentGoalId for END_WAR → PRESS_GRIEVANCE
+            if (goal.type == GoalType.END_WAR) {
+                StrategicGoal grievance = grievanceByTarget.get(goal.targetFactionId);
+                if (grievance != null) {
+                    goal.setParentGoalId(grievance.getKey());
+                }
+            }
+        }
+    }
+
+    /**
+     * Derive the appropriate DiplomaticPosture for a goal given goal type, target, and game state.
+     * PRD-015 (15b Fix A).
+     */
+    private static DiplomaticPosture derivePosture(GoalType type, String targetFactionId,
+                                                    String myFactionId,
+                                                    CasusBelliManager cbMgr) {
+        switch (type) {
+            case PRESS_GRIEVANCE:
+            case EXPLOIT_WEAKNESS:
+            case CLAIM_TERRITORY: {
+                // AGGRESSION-category goals: escalate to HOSTILE if rel < -0.3 or CB exists
+                FactionAPI us = Global.getSector().getFaction(myFactionId);
+                if (us != null) {
+                    float rel = us.getRelationship(targetFactionId);
+                    boolean hasCB = cbMgr.hasAnyCB(myFactionId, targetFactionId);
+                    if (rel < -0.3f || hasCB) return DiplomaticPosture.HOSTILE;
+                    if (rel < 0f) return DiplomaticPosture.PRESSURING;
+                }
+                return DiplomaticPosture.NEGOTIATING;
+            }
+
+            case END_WAR:
+                return DiplomaticPosture.NEGOTIATING; // conciliatory intent
+
+            case BUILD_ALLIANCE:
+            case SECURE_AGREEMENT:
+            case IMPROVE_RELATIONS:
+            case RENEW_AGREEMENT:
+                return DiplomaticPosture.NEGOTIATING;
+
+            case DEFEND_TERRITORY:
+            case COUNTER_PRESSURE:
+            case CONTAIN_RIVAL:
+            case SEEK_PROTECTION:
+                return DiplomaticPosture.DEFENSIVE;
+
+            default:
+                return DiplomaticPosture.NEGOTIATING;
         }
     }
 }

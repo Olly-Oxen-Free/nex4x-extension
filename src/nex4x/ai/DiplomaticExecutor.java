@@ -12,16 +12,26 @@ import nex4x.ai.goals.StrategicGoal;
 import nex4x.ai.posture.DiplomaticPosture;
 import nex4x.casusbelli.CasusBelli;
 import nex4x.casusbelli.CasusBelliManager;
+import nex4x.coalitions.CoalitionGovernance;
+import nex4x.coalitions.CoalitionVote;
+import nex4x.contracts.ContractAuctionManager;
+import nex4x.contracts.ContractType;
 import nex4x.data.TendencyId;
 import nex4x.data.TendencyProfile;
 import nex4x.data.TendencyProfileLoader;
+import nex4x.demands.Demand;
+import nex4x.demands.DemandManager;
 import nex4x.managers.Nex4xManager;
 import nex4x.policies.PolicyManager;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Daily diplomatic action execution. Fully replaces DiplomacyBrain's war/peace logic.
@@ -37,9 +47,27 @@ public class DiplomaticExecutor implements Serializable {
     private final String factionId;
     private int actionBudgetRemaining;
 
+    /**
+     * PRD-015 (15d): Per-day double-fire guard for peace treaty proposals.
+     * Cleared at the start of each advanceDay call. Prevents both Path A (Nex
+     * StrategicAI, currently disabled) and Path B (DiplomaticExecutor) from
+     * firing a peace treaty for the same target pair on the same day.
+     */
+    private transient Set<String> peaceProposedThisDay = new HashSet<String>();
+
+    /**
+     * PRD-022 (22b): Demand cooldown tracking. demandee factionId -> absolute day of last issued demand.
+     * Transient: resets on load (safe — just opens a brief window for a demand to be reissued).
+     */
+    private transient Map<String, Float> demandCooldowns = new HashMap<String, Float>();
+
     // Config
     private static int MAX_ACTIONS_PER_DAY = 2;
     private static boolean WAR_PEACE_EXEMPT = true;
+    // PRD-022 (22b): demand cooldown
+    private static float DEMAND_COOLDOWN_DAYS = 30f;
+    // PRD-022 (22h): default contract reserve price
+    private static long DEFAULT_CONTRACT_RESERVE_PRICE = 5000L;
 
     // War decision config
     private static float WAR_CB_BONUS = 40f;
@@ -81,6 +109,9 @@ public class DiplomaticExecutor implements Serializable {
             PEACE_SEEK_THRESHOLD = (float) peace.optDouble("seekPeaceThreshold", 80);
             PEACE_ACCEPT_THRESHOLD = (float) peace.optDouble("acceptThreshold", 50);
         }
+        // PRD-022 (22b/22h): demand and contract config
+        DEMAND_COOLDOWN_DAYS = (float) config.optDouble("demandCooldownDays", 30);
+        DEFAULT_CONTRACT_RESERVE_PRICE = config.optLong("contractReservePrice", 5000L);
     }
 
     public DiplomaticExecutor(String factionId) {
@@ -93,9 +124,20 @@ public class DiplomaticExecutor implements Serializable {
      */
     public void advanceDay(StrategicGoalManager goalMgr, GrandStrategyManager grandStrategy) {
         actionBudgetRemaining = MAX_ACTIONS_PER_DAY;
+        // PRD-015 (15d): reset per-day peace guard
+        if (peaceProposedThisDay == null) peaceProposedThisDay = new HashSet<String>();
+        peaceProposedThisDay.clear();
+        // PRD-022 (22b): ensure demandCooldowns is initialized after deserialization
+        if (demandCooldowns == null) demandCooldowns = new HashMap<String, Float>();
 
         List<StrategicGoal> goals = goalMgr.getActiveGoals();
         Archetype archetype = grandStrategy.getArchetype(factionId);
+
+        // PRD-022 (22d): evaluate incoming demands before war/peace (budget-exempt)
+        evaluateIncomingDemands(archetype);
+
+        // PRD-022 (22l): evaluate coalition votes (budget-exempt)
+        evaluateCoalitionVotes(archetype);
 
         // War/peace decisions first (budget-exempt)
         evaluateWarDecisions(goals, archetype);
@@ -106,6 +148,9 @@ public class DiplomaticExecutor implements Serializable {
             if (actionBudgetRemaining <= 0) break;
             executeDiplomaticAction(goal, archetype);
         }
+
+        // PRD-022 (22h): advance bidding on open contracts
+        advanceBidding();
     }
 
     // War Decision (AI spec §4.2)
@@ -251,6 +296,27 @@ public class DiplomaticExecutor implements Serializable {
             if (peaceWill > PEACE_SEEK_THRESHOLD) {
                 log.info("[Nex4x] " + factionId + " seeking peace with "
                         + goal.targetFactionId + " (willingness=" + Math.round(peaceWill) + ")");
+
+                // PRD-015 (15d): fire the real peace treaty effect.
+                // Guard: don't fire twice for the same target on the same day.
+                if (peaceProposedThisDay == null) peaceProposedThisDay = new HashSet<String>();
+                if (!peaceProposedThisDay.contains(goal.targetFactionId)) {
+                    peaceProposedThisDay.add(goal.targetFactionId);
+                    FactionAPI us = Global.getSector().getFaction(factionId);
+                    FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                    if (us != null && them != null && us.isHostileTo(them)) {
+                        // PRD-014 bridge is reliable; keep try/catch as defence-in-depth fallback.
+                        try {
+                            nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(us, them);
+                        } catch (Exception e) {
+                            log.warn("[Nex4x] Peace treaty bridge failed: " + e.getMessage());
+                            if (us.isHostileTo(them)) {
+                                us.setRelationship(goal.targetFactionId, 0f);
+                                them.setRelationship(factionId, 0f);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -283,9 +349,277 @@ public class DiplomaticExecutor implements Serializable {
                     proposeAgreementIfViable(goal);
                 }
                 break;
+
+            // PRD-022 (22c): wire PRESS_GRIEVANCE to demand issuance
+            case PRESS_GRIEVANCE:
+                if (goal.targetFactionId != null) {
+                    issueAIDemand(goal, archetype);
+                }
+                break;
+
+            // PRD-022 (22c/22h): wire EXPLOIT_WEAKNESS to demand + contract
+            case EXPLOIT_WEAKNESS:
+                if (goal.targetFactionId != null) {
+                    issueAIDemand(goal, archetype);
+                    postAIContract(goal, archetype);
+                }
+                break;
+
             default:
                 break;
         }
+    }
+
+    /** PRD-022 (22c): Issue an AI demand based on goal type and archetype. */
+    private void issueAIDemand(StrategicGoal goal, Archetype archetype) {
+        String targetId = goal.targetFactionId;
+        if (!canIssueDemand(targetId)) return;
+
+        // Spam guard: skip if 2+ pending demands already active from us
+        DemandManager demandMgr = DemandManager.getOrCreate();
+        int pendingCount = 0;
+        for (Demand d : demandMgr.getPending(factionId)) {
+            if (d.getDemanderId().equals(factionId)) pendingCount++;
+        }
+        if (pendingCount >= 2) {
+            log.info("[Nex4x] " + factionId + " demand spam guard: " + pendingCount
+                    + " pending demands already active, skipping");
+            return;
+        }
+
+        // Choose demand type based on goal type + archetype
+        Demand.DemandType type;
+        String payload = null;
+
+        if (goal.type == GoalType.PRESS_GRIEVANCE) {
+            if (archetype == Archetype.MILITARY_SUPREMACY
+                    || archetype == Archetype.TERRITORIAL_EXPANSION) {
+                type = Demand.DemandType.TRIBUTE_CREDITS;
+                payload = "50000";
+            } else if (archetype == Archetype.IDEOLOGICAL_CRUSADE) {
+                type = Demand.DemandType.BREAK_ALLIANCE;
+            } else {
+                type = Demand.DemandType.TRIBUTE_CREDITS;
+                payload = "50000";
+            }
+        } else {
+            // EXPLOIT_WEAKNESS: prefer CEDE_MARKET if target has a market, else TRIBUTE_CREDITS
+            com.fs.starfarer.api.campaign.econ.MarketAPI targetMarket =
+                    nex4x.util.FactionMarketUtil.firstMarketOfFaction(targetId);
+            if (targetMarket != null) {
+                type = Demand.DemandType.CEDE_MARKET;
+                payload = targetMarket.getId();
+            } else {
+                type = Demand.DemandType.TRIBUTE_CREDITS;
+                payload = "50000";
+            }
+        }
+
+        float pressureCost = 20f;
+        float influenceCost = 15f;
+
+        Demand result = demandMgr.issue(factionId, targetId, type, payload,
+                pressureCost, influenceCost);
+        if (result != null) {
+            recordDemandCooldown(targetId);
+            actionBudgetRemaining--;
+            log.info("[Nex4x] AI demand issued: " + factionId + " -> " + targetId
+                    + " type=" + type);
+        }
+    }
+
+    /** PRD-022 (22h): Post a covert contract for EXPLOIT_WEAKNESS goals. */
+    private void postAIContract(StrategicGoal goal, Archetype archetype) {
+        String targetId = goal.targetFactionId;
+
+        // Check pressure threshold
+        float pressure = nex4x.pressure.PressureManager.getOrCreate()
+                .getPressure(factionId, targetId);
+        if (pressure <= 40f) return;
+
+        // Check no existing open contract for this issuer-target pair
+        ContractAuctionManager contractMgr = ContractAuctionManager.getOrCreate();
+        for (nex4x.contracts.Contract c : contractMgr.getOpen()) {
+            if (factionId.equals(c.getIssuerFactionId())
+                    && targetId.equals(c.getTargetFactionId())) {
+                return; // already have an open contract
+            }
+        }
+
+        ContractType contractType = pickContractType(archetype);
+        contractMgr.post(factionId, targetId, contractType, DEFAULT_CONTRACT_RESERVE_PRICE);
+        log.info("[Nex4x] AI contract posted: " + factionId + " vs " + targetId
+                + " type=" + contractType);
+        // Contract posting is not budget-charged (it's a background action)
+    }
+
+    /** PRD-022 (22h): Pick a contract type based on archetype. */
+    private ContractType pickContractType(Archetype archetype) {
+        if (archetype == null) return ContractType.HARASS_FACTION;
+        switch (archetype) {
+            case MILITARY_SUPREMACY: return ContractType.RAID_FACTION;
+            case TERRITORIAL_EXPANSION: return ContractType.BLOCKADE_MARKET;
+            case IDEOLOGICAL_CRUSADE: return ContractType.ASSASSINATE_OFFICIAL;
+            default: return ContractType.HARASS_FACTION;
+        }
+    }
+
+    /** PRD-022 (22d): Evaluate all incoming demands directed at this faction. Budget-exempt. */
+    private void evaluateIncomingDemands(Archetype archetype) {
+        DemandManager demandMgr = DemandManager.getOrCreate();
+        for (Demand d : demandMgr.getPending(factionId)) {
+            // Only process demands targeted at us
+            if (!d.getTargetId().equals(factionId)) continue;
+
+            float acceptScore = 40f;
+
+            // Resistance: military factions resist tribute
+            if (archetype == Archetype.MILITARY_SUPREMACY
+                    && d.getType() == Demand.DemandType.TRIBUTE_CREDITS) {
+                acceptScore -= 30f;
+            }
+
+            // Compliance: federalist tendency
+            TendencyProfile profile = TendencyProfileLoader.getProfile(factionId);
+            if (profile != null) {
+                float federalistTendency = profile.get(TendencyId.FEDERALISTS);
+                if (federalistTendency > 0.5f) acceptScore += 15f;
+            }
+
+            // War weariness: already at war with demander → slight resistance
+            FactionAPI us = Global.getSector().getFaction(factionId);
+            FactionAPI demander = Global.getSector().getFaction(d.getDemanderId());
+            if (us != null && demander != null && us.isHostileTo(demander)) {
+                acceptScore -= 20f;
+            }
+
+            // Jitter
+            acceptScore += (float)(Math.random() * 40) - 20f;
+
+            if (acceptScore >= 60f) {
+                demandMgr.accept(d);
+            } else {
+                demandMgr.reject(d);
+            }
+        }
+    }
+
+    /** PRD-022 (22l): Cast coalition votes for pending votes involving this faction. Budget-exempt. */
+    private void evaluateCoalitionVotes(Archetype archetype) {
+        CoalitionGovernance gov = CoalitionGovernance.getOrCreate();
+        for (CoalitionVote vote : gov.getPendingVotes()) {
+            if (vote.isResolved()) continue;
+            // Skip if already voted
+            if (vote.getVotes().containsKey(factionId)) continue;
+
+            // Only vote if we're a coalition member of the proposer, or directly involved
+            Nex4xManager mgr = Nex4xManager.getManager();
+            if (mgr == null) continue;
+            List<String> members = mgr.getAgreementManager()
+                    .getCoalitionMembersFor(vote.getProposerFactionId());
+            boolean isCoalitionMember = members.contains(factionId)
+                    || factionId.equals(vote.getProposerFactionId())
+                    || factionId.equals(vote.getTargetFactionId());
+            if (!isCoalitionMember) continue;
+
+            boolean inFavor = calculateVoteScore(vote, archetype);
+            vote.castVote(factionId, inFavor);
+            log.info("[Nex4x] " + factionId + " voted " + (inFavor ? "YEA" : "NAY")
+                    + " on " + vote.getType() + " (target=" + vote.getTargetFactionId() + ")");
+        }
+    }
+
+    /** Determine whether this faction would vote in favor of a coalition vote. */
+    private boolean calculateVoteScore(CoalitionVote vote, Archetype archetype) {
+        FactionAPI us = Global.getSector().getFaction(factionId);
+        FactionAPI target = vote.getTargetFactionId() != null
+                ? Global.getSector().getFaction(vote.getTargetFactionId()) : null;
+
+        switch (vote.getType()) {
+            case DECLARE_WAR: {
+                // Favor if militaristic or already want war
+                boolean militaristic = archetype == Archetype.MILITARY_SUPREMACY
+                        || archetype == Archetype.TERRITORIAL_EXPANSION;
+                float warDesireBonus = 0f;
+                try {
+                    exerelin.campaign.DiplomacyManager dipMgr =
+                            exerelin.campaign.DiplomacyManager.getManager();
+                    if (dipMgr != null) {
+                        float weariness = dipMgr.getWarWeariness(factionId, true);
+                        // low weariness = warlike; high weariness = war-weary
+                        if (weariness < 1000f) warDesireBonus = 20f;
+                    }
+                } catch (Exception ignore) {}
+                return militaristic || warDesireBonus > 0f;
+            }
+            case MAKE_PEACE: {
+                // Favor if war-weary
+                try {
+                    exerelin.campaign.DiplomacyManager dipMgr =
+                            exerelin.campaign.DiplomacyManager.getManager();
+                    if (dipMgr != null) {
+                        float weariness = dipMgr.getWarWeariness(factionId, true);
+                        if (weariness > 5000f) return true;
+                    }
+                } catch (Exception ignore) {}
+                return archetype == Archetype.DEFENSIVE_CONSOLIDATION
+                        || archetype == Archetype.COALITION_BUILDER;
+            }
+            case ADD_MEMBER: {
+                if (us == null || target == null) return false;
+                return us.getRelationship(target.getId()) > 0.1f;
+            }
+            case KICK_MEMBER: {
+                if (us == null || target == null) return true; // default favor kicking enemies
+                return us.getRelationship(target.getId()) < -0.1f;
+            }
+            case DISSOLVE: {
+                // Favor dissolution if coalition tensions are high
+                List<String> members = new java.util.ArrayList<String>();
+                Nex4xManager mgr = Nex4xManager.getManager();
+                if (mgr != null) {
+                    members = mgr.getAgreementManager()
+                            .getCoalitionMembersFor(vote.getProposerFactionId());
+                }
+                CoalitionGovernance gov = CoalitionGovernance.getOrCreate();
+                return gov.getAverageTension(members) > CoalitionGovernance.DISSOLUTION_TENSION_THRESHOLD;
+            }
+            default:
+                return false;
+        }
+    }
+
+    /** PRD-022 (22h): Advance bidding — bid on open contracts targeting hostile factions. */
+    private void advanceBidding() {
+        ContractAuctionManager contractMgr = ContractAuctionManager.getOrCreate();
+        FactionAPI us = Global.getSector().getFaction(factionId);
+        if (us == null) return;
+        for (nex4x.contracts.Contract c : contractMgr.getOpen()) {
+            FactionAPI target = Global.getSector().getFaction(c.getTargetFactionId());
+            if (target == null) continue;
+            if (!us.isHostileTo(target)) continue;
+            // Don't bid on our own contracts
+            if (factionId.equals(c.getIssuerFactionId())) continue;
+            // Random bid in range 3000–8000
+            long bid = 3000L + (long)(Math.random() * 5000L);
+            contractMgr.bid(c, factionId, bid);
+            log.info("[Nex4x] " + factionId + " bids " + bid
+                    + " on contract " + c.getId() + " vs " + c.getTargetFactionId());
+        }
+    }
+
+    // PRD-022 (22b): Demand cooldown helpers
+
+    private boolean canIssueDemand(String targetId) {
+        if (demandCooldowns == null) demandCooldowns = new HashMap<String, Float>();
+        Float last = demandCooldowns.get(targetId);
+        if (last == null) return true;
+        return (nex4x.util.Nex4xClock.currentAbsoluteDay() - last) >= DEMAND_COOLDOWN_DAYS;
+    }
+
+    private void recordDemandCooldown(String targetId) {
+        if (demandCooldowns == null) demandCooldowns = new HashMap<String, Float>();
+        demandCooldowns.put(targetId, nex4x.util.Nex4xClock.currentAbsoluteDay());
     }
 
     private void proposeAgreementIfViable(StrategicGoal goal) {
@@ -299,6 +633,25 @@ public class DiplomaticExecutor implements Serializable {
         if (nextTier != null && aMgr.canPropose(factionId, goal.targetFactionId, nextTier)) {
             log.info("[Nex4x] " + factionId + " proposing " + nextTier.displayName
                     + " to " + goal.targetFactionId);
+
+            // PRD-015 (15e): actually create the agreement (previously log-only).
+            // Return on failure so we don't decrement the budget for a no-op.
+            try {
+                aMgr.createAgreement(factionId, goal.targetFactionId, nextTier);
+                if (nextTier == AgreementType.COALITION) {
+                    // Ensure the Nex Alliance shadow is created/joined.
+                    try {
+                        nex4x.integration.NexDiplomacyBridge.ensureAlliance(
+                                factionId, goal.targetFactionId);
+                    } catch (Exception bridgeEx) {
+                        log.warn("[Nex4x] ensureAlliance bridge failed: " + bridgeEx.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("[Nex4x] createAgreement failed: " + e.getMessage());
+                return; // don't decrement budget on failure
+            }
+
             actionBudgetRemaining--;
         }
     }

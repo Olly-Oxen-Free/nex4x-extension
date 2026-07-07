@@ -1,0 +1,135 @@
+prd: negotiation-catalog-gaps
+version: 1
+tasks:
+
+  - id: 20a
+    title: Add NegotiableItem.knowledge() and .prisoner() factory methods if absent; wire build() branches
+    description: |
+      Verify NegotiableItem.java has factory methods knowledge(String techId) and prisoner().
+      If either is missing, add minimal factory:
+        knowledge(): type=KNOWLEDGE, amount=1, displayLabel="Technology Share"
+        prisoner(): type=PRISONERS, amount=1, displayLabel="Prisoner Exchange"
+      Then in NegotiableItemCatalog.build() (NegotiableItemCatalog.java:65, after the
+      PREFIX_DECLARATION branch), add:
+        } else if (ID_KNOWLEDGE.equals(itemId)) {
+            item = NegotiableItem.knowledge();
+        } else if (ID_PRISONER.equals(itemId)) {
+            item = NegotiableItem.prisoner();
+        }
+      Verify: catalog.build("knowledge_share", 1) != null;
+              catalog.build("prisoner_exchange", 1) != null.
+    files:
+      - src/nex4x/negotiation/NegotiableItemCatalog.java
+      - src/nex4x/negotiation/NegotiableItem.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 20b
+    title: Fix territory loop filter order in idsForType(TERRITORY)
+    description: |
+      In NegotiableItemCatalog.idsForType (NegotiableItemCatalog.java:156-167),
+      move the count cap AFTER the hidden and ownership checks:
+
+      Current (buggy):
+          for (MarketAPI m : ...) {
+              if (count >= 5) break;          // line 160 — caps before filtering
+              if (m.isHidden()) continue;
+              if (targetFactionId.equals(m.getFactionId())) {
+                  out.add(PREFIX_TERRITORY + m.getId());
+                  count++;
+              }
+          }
+
+      Fixed:
+          for (MarketAPI m : ...) {
+              if (m.isHidden()) continue;
+              if (!targetFactionId.equals(m.getFactionId())) continue;
+              out.add(PREFIX_TERRITORY + m.getId());
+              count++;
+              if (count >= 5) break;          // cap AFTER valid market confirmed
+          }
+
+      Verify: with targetFactionId owning 3 markets and 10 hidden markets appearing first
+      in getMarketsCopy(), idsForType(TERRITORY,...) returns exactly those 3 market ids.
+    files:
+      - src/nex4x/negotiation/NegotiableItemCatalog.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 20c
+    title: Add NEX4X_REQUEST_PREFIX constant and catalog request-side dispatch in NegotiationPanel
+    description: |
+      In NegotiationPanel.java:
+      1. Add constant alongside NEX4X_ADD_PREFIX (line 92):
+           private static final String NEX4X_REQUEST_PREFIX = "nex4x_req_";
+      2. Add a second catalog-id map:
+           private final Map<String, String> buttonToCatalogIdReq = new HashMap<>();
+         (or re-use buttonToCatalogId with distinct key namespacing — confirm no collision).
+      3. In buttonPressed (after the NEX4X_ADD_PREFIX block, lines 285-304), add dispatch:
+           if (id.startsWith(NEX4X_REQUEST_PREFIX)) {
+               String catalogId = buttonToCatalogIdReq.get(id);
+               if (catalogId == null) {
+                   log.warn("[Nex4x] buttonPressed: no catalog-req mapping for: " + id);
+                   needsRefresh = true; return;
+               }
+               int qty = catalog.suggestedQty(catalogId, 1);
+               NegotiableItem item = catalog.build(catalogId, qty);
+               if (item != null) {
+                   deal.addRequest(item);
+                   dealProposal.applyMutation(DealMutation.addRequest(item.getId(), qty), catalog);
+                   log.info("[Nex4x] Catalog req: " + catalogId + " qty=" + qty);
+               } else {
+                   log.warn("[Nex4x] catalog.build returned null for req id: " + catalogId);
+               }
+               needsRefresh = true; return;
+           }
+      4. In createUI / buildCatalog, clear buttonToCatalogIdReq alongside buttonToCatalogId
+         (NegotiationPanel.java:159 area).
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 20d
+    title: Add Request button per row in addCatalogItemsThreeZone
+    description: |
+      In addCatalogItemsThreeZone (NegotiationPanel.java:520-548), for each catalogId,
+      render two buttons instead of one full-width button:
+        - Left button: "[+ Offer]" → NEX4X_ADD_PREFIX + encodedKey (existing, narrower)
+        - Right button: "[Request +]" → NEX4X_REQUEST_PREFIX + encodedKey (new)
+      Register the request button id in buttonToCatalogIdReq:
+        String reqBtnId = NEX4X_REQUEST_PREFIX + encodedKey;
+        buttonToCatalogIdReq.put(reqBtnId, catalogId);
+      Layout: split btnW * 3f total width into two halves with a center label, or use
+      addThreeZoneRow pattern (already in use at NegotiationPanel.java:551-560 for manual items)
+      if the catalog item key can be derived from catalogId. The simplest safe approach:
+        btnW_half = (btnW * 3f - pad) / 2f
+        info.addButton("[+ Offer]", btnId, ..., btnW_half, 20f, rowPad);
+        info.addButton("[Request +]", reqBtnId, factionColor, factionDark, btnW_half, 20f, 0f);
+      Verify panel does not overflow the scrollable info element; catalog height is computed
+      from scrollable TooltipMakerAPI so should auto-expand.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: [20c]
+
+  - id: 20e
+    title: Build green + smoke verification
+    description: |
+      Run ./build.sh. Confirm exit 0.
+      Via Nex4xDebugCommand runcode or manual play session:
+        1. Open negotiation panel, expand Knowledge → "Add to Offer" → item in YOUR OFFER.
+           Confirm no warn-log "catalog.build returned null".
+        2. Expand Prisoners → "Add to Offer" → item in YOUR OFFER.
+        3. Expand Territory → confirm listed markets are all owned by target faction.
+        4. Expand Commodities → click "Request +" on supplies → item in YOUR REQUESTS.
+           Confirm it appears with the request remove [✕] button.
+      All four checks must pass before task is marked done.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [20a, 20b, 20d]

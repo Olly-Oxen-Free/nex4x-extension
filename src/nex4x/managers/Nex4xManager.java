@@ -159,6 +159,9 @@ public class Nex4xManager implements EveryFrameScript, Serializable {
 
             // v3 — agent companion data + passive diplomat drip
             try {
+                // Ensure every live agent has a companion record with a populated owner id
+                // BEFORE buildup/passive/cascade run (they skip null-owner agents).
+                nex4x.agents.AgentOwnershipSweep.sweepAndWire(Nex4xAgentManager.getOrCreate());
                 Nex4xAgentManager.getOrCreate().advanceAll(elapsed, 1);
                 // Nex's CovertOpsManager handles agent action selection; nex4x reacts via
                 // Nex4xAgentActionReportListener (registered transient in onGameLoad).

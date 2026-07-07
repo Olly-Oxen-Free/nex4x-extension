@@ -1,0 +1,21 @@
+prd: day-math-unification
+waves:
+  - wave: 1
+    tasks: [23a]
+    note: Fix the canonical helper first — all other tasks depend on it.
+  - wave: 2
+    tasks: [23b, 23d, 23e, 23f, 23g, 23h, 23i, 23j]
+    note: |
+      All depend only on 23a and are independent of each other.
+      23b deletes Declaration helpers; do not run 23c until 23b compiles.
+  - wave: 3
+    tasks: [23c]
+    note: Must follow 23b (deleted Declaration.currentAbsoluteDay() callers).
+  - wave: 4
+    tasks: [23k]
+    note: Debug smoke — requires 23a (uses corrected helper).
+  - wave: 5
+    tasks: [23l]
+    note: Full build verification after all source changes.
+longest_chain: [23a, 23b, 23c, 23l]
+total_complexity: 13

@@ -213,7 +213,7 @@ public class DeclarationManager implements Serializable {
      *  @param elapsedDays days elapsed since last call (handles tick jitter and multi-day catch-up). */
     public void advanceDay(float elapsedDays) {
         if (elapsedDays <= 0f) elapsedDays = 1f;
-        float now = Declaration.currentAbsoluteDay();
+        float now = nex4x.util.Nex4xClock.currentAbsoluteDay();
         Iterator<Declaration> it = declarations.iterator();
         while (it.hasNext()) {
             Declaration d = it.next();

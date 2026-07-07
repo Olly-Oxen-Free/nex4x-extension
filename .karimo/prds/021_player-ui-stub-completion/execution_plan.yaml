@@ -1,0 +1,26 @@
+prd: player-ui-stub-completion
+waves:
+  - wave: 1
+    # Independent foundations — no mutual dependencies
+    tasks: [21a, 21d, 21f, 21g, 21h, 21i]
+    notes: >
+      21a (ViceroyDialog phase field) is the prerequisite for 21b/21c/21e.
+      21d (CommissionHandler), 21f (PeaceConferenceDialog counter-offer editor),
+      21g (PeaceConference.accept terms), 21h (NegotiationDealExecutor territory),
+      and 21i (NegotiationPanel deferred labels) all have no dependencies and can
+      run in parallel.
+  - wave: 2
+    # Handler implementations that require the ViceroyDialog phase work from 21a
+    tasks: [21b, 21c, 21e]
+    notes: >
+      21b (IntelPurchaseHandler), 21c (AiCoreHandler), 21e (WetworkHandler) all depend
+      on the sub-menu routing added in 21a. Run in parallel within this wave.
+  - wave: 3
+    tasks: [21j]
+    notes: >
+      21j (smokeStubs debug command) depends on all functional tasks being complete.
+      Run after wave 2 finishes.
+
+longest_chain: [21a, 21b, 21j]
+# 21a (complexity 2) → 21b (complexity 2) → 21j (complexity 2) = 6 steps
+total_complexity: 17

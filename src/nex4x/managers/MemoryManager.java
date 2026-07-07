@@ -42,9 +42,7 @@ public class MemoryManager implements Serializable {
         float beliefMult = calculateBeliefMultiplier(targetFaction, typeDef);
         float traitDecayMult = calculateTraitDecayModifier(targetFaction, typeId);
 
-        float gameDays = Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+        float gameDays = nex4x.util.Nex4xClock.currentAbsoluteDay();
 
         FactionMemory memory = new FactionMemory(typeId, sourceFaction, targetFaction,
                 beliefMult, traitDecayMult, gameDays, details);

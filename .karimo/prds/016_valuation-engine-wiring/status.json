@@ -1,0 +1,38 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 9,
+  "complexity_total": 14,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["16a", "16b", "16c", "16d", "16e", "16f", "16g", "16h", "16i"],
+  "notes": {
+    "pseudocode_to_real_api_adaptations": [
+      "BaseValueTable has no CEASEFIRE/PEACE_TREATY in the 'agreements' JSON block — they are read at root level via o.optInt('agreements_ceasefire',...). Fields are NON_AGGRESSION_PACT (not NAP), ALLIANCE, TRADE_PACT, CEASEFIRE, PEACE_TREATY. Used BaseValueTable.NON_AGGRESSION_PACT where pseudocode said BaseValueTable.NAP.",
+      "BaseValueTable.BLUEPRINT_MULT is an int (10), STAR_CHART is an int (750). Product is int arithmetic (7500), cast to float fine for ItemValuator.getKnowledgeValue return.",
+      "BaseValueTable.INTEL default is 500, not 2000 (was INTEL_BASE=2000 in old code). NegotiableItemCatalog.estimatedUnitValue now returns 500 for ID_INTEL_BASIC and 2500 for ID_INTEL_DEEP, matching ItemValuator.",
+      "DealPackage.getLeaderBalance uses getOffers()/getRequests() (not getProposerOffers()/getReceiverOffers()) — those are on DealProposal, not DealPackage.",
+      "BalanceCalculator.evaluate takes DealProposal, not DealPackage. AutoBalanceSolver already used DealProposal — pseudocode was correct for that file; no API change needed there.",
+      "AutoBalanceSolver had no direct 'new AutoNegotiator(new DealEvaluator())' pattern — it takes an evaluator from outside. The two AutoNegotiator call sites (AIProposalManager:99, NegotiationPanel:628) already pass the evaluator through, so they automatically benefit from the leader-aware evaluator once the caller is updated.",
+      "NegotiationPanel constructor assigned 'this.evaluator' (line 112) BEFORE 'this.leader' (line 123). Reordered: leader is now assigned first so it can be passed to the DealEvaluator constructor.",
+      "DeclarationType.RIVALRY exists — DENOUNCE || RIVALRY → DENOUNCEMENT_DECLARATION mapping implemented as specified.",
+      "Valuator.scarcityMod(String leaderFactionId, String itemId) signature confirmed correct — used as-is in 16i.",
+      "LeaderProfile(factionId, Personality) constructor confirmed — synthetic profiles in 16i use it directly.",
+      "Nex4xDebugCommand.smokeTest() calls BalanceCalculator.evaluate(deal, heg, 500) — BalanceCalculator is deprecated but NOT deleted, so smokeTest() compiles unchanged. This was the least-churn approach per PRD instructions."
+    ],
+    "base_value_table_fields_added": "None — all required fields (NON_AGGRESSION_PACT, TRADE_PACT, CEASEFIRE, PEACE_TREATY, INTEL, STAR_CHART, BLUEPRINT_MULT) already existed in BaseValueTable.",
+    "fields_removed_from_item_valuator": [
+      "CEASEFIRE_BASE (replaced by BaseValueTable.CEASEFIRE)",
+      "PEACE_TREATY_BASE (replaced by BaseValueTable.PEACE_TREATY)",
+      "INTEL_BASE (replaced by BaseValueTable.INTEL)",
+      "NAP_BASE (replaced by BaseValueTable.NON_AGGRESSION_PACT)",
+      "TRADE_AGREEMENT_BASE (replaced by BaseValueTable.TRADE_PACT)"
+    ],
+    "smoke_runcode": "runcode nex4x.debug.Nex4xDebugCommand.auditValuation()",
+    "smoke_expected_output": "[Nex4x] MERCANTILE leader values trade_agreement item: XXXX\n[Nex4x] RUTHLESS leader values trade_agreement item: YYYY\n[Nex4x] Personality diff: >=20.0% — PASS\n[Nex4x] scarcityMod(hegemony, fuel): Z.ZZ",
+    "pass_mechanism": "MERCANTILE gets personalityWeight=1.25 for TRADE_PACT category (now reachable via fixed mapCategory), RUTHLESS gets 1.0, producing a 25% difference — exceeds the 20% threshold.",
+    "build_green_confirmed": "BUILD SUCCESSFUL — 205 source files compiled, 4 pre-existing -source 7 warnings only, 0 errors.",
+    "valuator_on_live_path": "YES — DealEvaluator.evaluate() and quickBalance() now route through DealPackage.getLeaderBalance() → ItemValuator.valueForLeader() → Valuator.valueTo() when constructed with a LeaderProfile. NegotiationPanel, AIProposalManager now use the leader-aware constructor."
+  }
+}

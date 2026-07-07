@@ -70,19 +70,13 @@ public class Nex4xModPlugin extends BaseModPlugin {
         // Politics tab removed: anchoring on "Fleet" NPEs Ashlib CommandTabTracker when other mods
         // rewrite the command bar. Factions tab registers in onGameLoad instead.
 
-        // Plug nex4x concerns/actions into Nex's StrategicAI def manager.
-        try {
-            nex4x.integration.Nex4xStrategicAIConcerns.register();
-        } catch (Throwable t) {
-            log.warn("[Nex4x] Strategic AI concern registration: " + t.getMessage(), t);
-        }
+        // NOTE: Nex4xStrategicAIConcerns.register() removed (PRD-015 15a).
+        // strategicAIConfig.json is the sole registration source for nex4x concern/action defs.
 
-        // Register nex4x covert action defs with Nex CovertOpsManager.
-        try {
-            nex4x.agents.actions.Nex4xCovertActionRegistry.register();
-        } catch (Throwable t) {
-            log.warn("[Nex4x] Covert action registration: " + t.getMessage(), t);
-        }
+        // NOTE: covert action registration is deferred to onGameLoad. Touching
+        // CovertOpsManager.actionDefsById here triggers Nex's static initializer, which
+        // calls Global.getSector().getAllFactions() — null at application load — and the
+        // resulting ExceptionInInitializerError was silently swallowed (0/7 defs registered).
     }
 
     @Override
@@ -98,6 +92,11 @@ public class Nex4xModPlugin extends BaseModPlugin {
             FactionBeliefsLoader.loadForLiveFactions();
         } catch (Throwable t) {
             log.warn("[Nex4x] onNewGameAfterEconomyLoad seed failed: " + t.getMessage(), t);
+        }
+        try {
+            nex4x.industries.IndustrySeeder.seedAll();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] IndustrySeeder.seedAll failed: " + t.getMessage(), t);
         }
     }
 
@@ -140,6 +139,16 @@ public class Nex4xModPlugin extends BaseModPlugin {
 
         // Initialize or retrieve persisted manager
         Nex4xManager.getOrCreateManager();
+
+        // Register nex4x covert action defs with Nex CovertOpsManager (onGameLoad).
+        // Deferred from onApplicationLoad: Nex's CovertOpsManager static init dereferences
+        // Global.getSector(), which is null at app-load. Idempotent on reload.
+        try {
+            log.info("[Nex4x] Covert action registration (onGameLoad)");
+            nex4x.agents.actions.Nex4xCovertActionRegistry.register();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] Covert action registration: " + t.getMessage(), t);
+        }
 
         // Load belief JSONs for any modded factions present in this save.
         try {

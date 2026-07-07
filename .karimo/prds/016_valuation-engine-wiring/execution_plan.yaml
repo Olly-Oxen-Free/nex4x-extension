@@ -1,0 +1,12 @@
+prd: valuation-engine-wiring
+waves:
+  - wave: 1
+    tasks: [16a, 16b]          # independent: base-value consolidation + mapCategory fix
+  - wave: 2
+    tasks: [16c, 16d, 16g]     # 16c+16d compile together (mutual dependency); 16g depends only on 16a
+  - wave: 3
+    tasks: [16e, 16f, 16h]     # depend on 16c/16d being complete
+  - wave: 4
+    tasks: [16i]               # smoke depends on all wiring done
+longest_chain: [16a, 16c, 16e, 16i]
+total_complexity: 14

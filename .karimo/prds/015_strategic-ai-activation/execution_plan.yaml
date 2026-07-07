@@ -1,0 +1,34 @@
+prd: strategic-ai-activation
+version: 2
+waves:
+  - wave: 1
+    tasks: [15a, 15b, 15d, 15e]
+    # 15a: remove orphan Java registrations (no deps)
+    # 15b: posture/obstacle wiring in GoalGenerator (no deps)
+    # 15d: evaluatePeaceDecisions effect wiring (no deps on other tasks)
+    # 15e: proposeAgreementIfViable effect wiring (no deps on other tasks)
+  - wave: 2
+    tasks: [15c]
+    # 15c: Threat injection in StrategicGoalManager (depends on 15b for posture to be set)
+  - wave: 3
+    tasks: [15f]
+    # 15f: smoke audit command (depends on all prior tasks)
+
+longest_chain: [15b, 15c, 15f]
+# Length 3: 15b (posture wiring) -> 15c (Threat injection, needs posture) -> 15f (smoke)
+# All other chains are length 2.
+
+total_complexity: 11
+# 15a=1, 15b=3, 15c=2, 15d=2, 15e=2, 15f=1  →  1+3+2+2+2+1 = 11
+
+notes:
+  - 15d and 15e both edit DiplomaticExecutor.java — assign to the same implementer or serialize
+    them to avoid merge conflicts. They are logically independent (different methods) but share
+    a file.
+  - 15b and 15c both depend on StrategicGoal.Obstacle being a proper inner class (not a stub).
+    Verify Obstacle has a float severity field before starting 15b; add it if missing.
+  - Tasks 15d and 15e note a dependency on PRD-014 for reliable bridge behaviour. If PRD-014 is
+    still in "planned" status when this PRD is executed, implementers must include the fallback
+    blocks described in the task descriptions.
+  - 15a removes the Java registration call. Confirm no other src/ file references the orphan ids
+    "nex4x_goal_wrap" or "nex4x_propose_tiered_agreement" before deleting.

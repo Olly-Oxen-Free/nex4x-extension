@@ -1,0 +1,145 @@
+prd: industries-wiring
+version: 1
+tasks:
+  - id: 18a
+    title: "Add PATH_INDUSTRY_SEEDING constant to Nex4xConstants"
+    description: |
+      In src/nex4x/Nex4xConstants.java, add:
+        public static final String PATH_INDUSTRY_SEEDING = "data/config/nex4x/industry_seeding.json";
+      Place after the existing PATH_MARKET_SECURITY constant (line 32).
+      No other changes to this file.
+    files:
+      - src/nex4x/Nex4xConstants.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 18b
+    title: "Create data/config/nex4x/industry_seeding.json"
+    description: |
+      New file: data/config/nex4x/industry_seeding.json
+      Content (require-review boundary — data/**):
+      {
+          "_comment": "Controls which AI faction markets receive nex4x industries at new-game start.",
+          "diplomaticEmbassy": {
+              "industryId": "nex4x_diplomatic_embassy",
+              "minMarketSize": 3
+          },
+          "intelligenceBureau": {
+              "industryId": "nex4x_intelligence_bureau",
+              "minMarketSize": 4
+          },
+          "excludeFactions": ["pirates", "remnants", "derelict", "neutral"],
+          "excludeMarketTags": []
+      }
+      minMarketSize values match the tooltip descriptions in DiplomaticEmbassy and IntelligenceBureau.
+      excludeFactions is conservative; reviewers may tune.
+    files:
+      - data/config/nex4x/industry_seeding.json
+    complexity: 1
+    priority: must
+    depends_on: [18a]
+
+  - id: 18c
+    title: "Implement IndustrySeeder.seedAll()"
+    description: |
+      New file: src/nex4x/industries/IndustrySeeder.java
+      package nex4x.industries;
+
+      Static utility. One public method: seedAll().
+        1. Load data/config/nex4x/industry_seeding.json via Nex4xConstants.PATH_INDUSTRY_SEEDING.
+        2. Parse diplomaticEmbassy and intelligenceBureau entries (industryId, minMarketSize).
+        3. Parse excludeFactions and excludeMarketTags arrays.
+        4. Iterate Global.getSector().getEconomy().getMarketsCopy().
+           For each market m:
+             - Skip if m.getFaction() == null or m.getFaction().isPlayerFaction().
+             - Skip if m.getFactionId() is in excludeFactions.
+             - Skip if any market tag is in excludeMarketTags.
+             - For each industry entry: if m.getSize() >= minMarketSize and
+               !m.hasIndustry(industryId), call
+               exerelin.campaign.ColonyManager.buildIndustry(m, industryId, true).
+        5. Log "[Nex4x] IndustrySeeder seeded N embassy, M bureau across K markets".
+      Wrap the entire method in try/catch(Exception) — log error and return cleanly.
+      Uses: Nex4xConstants.PATH_INDUSTRY_SEEDING, ColonyManager.buildIndustry(market, id, instant).
+    files:
+      - src/nex4x/industries/IndustrySeeder.java
+    complexity: 2
+    priority: must
+    depends_on: [18a, 18b]
+
+  - id: 18d
+    title: "Call IndustrySeeder.seedAll() from onNewGameAfterEconomyLoad"
+    description: |
+      In src/nex4x/Nex4xModPlugin.java (require-review boundary), inside
+      onNewGameAfterEconomyLoad() (line 94), after the existing Nex4xManager.getOrCreateManager()
+      and FactionBeliefsLoader.loadForLiveFactions() calls, add:
+        try {
+            nex4x.industries.IndustrySeeder.seedAll();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] IndustrySeeder.seedAll failed: " + t.getMessage(), t);
+        }
+      Must NOT be called from onGameLoad — new-game only, for save compatibility.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: [18c]
+
+  - id: 18e
+    title: "Add isFunctional() guard in InfluenceManager.calculateCycleIncome"
+    description: |
+      In src/nex4x/influence/InfluenceManager.java, method calculateCycleIncome (line 94),
+      the building income loop (lines 103-105) currently reads:
+        for (Map.Entry<String, Float> b : cfg.buildingIncome.entrySet()) {
+            if (m.hasIndustry(b.getKey())) total += b.getValue();
+        }
+      Change to:
+        for (Map.Entry<String, Float> b : cfg.buildingIncome.entrySet()) {
+            if (m.hasIndustry(b.getKey())
+                    && m.getIndustry(b.getKey()).isFunctional()) {
+                total += b.getValue();
+            }
+        }
+      This gates all buildingIncome entries (including vanilla highcommand, militarybase, etc.)
+      behind isFunctional(), which returns false when isDisrupted() == true.
+      No other changes to InfluenceManager.java.
+    files:
+      - src/nex4x/influence/InfluenceManager.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 18f
+    title: "Add auditIndustries runcode to Nex4xDebugCommand"
+    description: |
+      In src/nex4x/debug/Nex4xDebugCommand.java, add a new case "auditIndustries" (or
+      equivalent command dispatch pattern used in this file):
+        - Iterates all markets.
+        - Prints each market name, faction, size, and whether it has nex4x_diplomatic_embassy
+          and nex4x_intelligence_bureau.
+        - Prints total counts: "Embassy: N markets, Bureau: M markets".
+        - Also prints for any embassy/bureau that isDisrupted(): "[DISRUPTED] <market name>".
+      This supports the acceptance smoke tests described in the PRD.
+      Follow the existing command-dispatch style in Nex4xDebugCommand.java (read before editing).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [18c, 18e]
+
+  - id: 18g
+    title: "Build + smoke verify"
+    description: |
+      1. Run ./build.sh — must exit 0.
+      2. In-game (or via runcode):
+         a. Call IndustrySeeder.seedAll() manually via runcode.
+         b. Run auditIndustries command — confirm at least one AI market has Embassy.
+         c. Disrupt an Embassy on a test market (setDisrupted(60, true)).
+         d. Manually call InfluenceManager.getOrCreate().calculateCycleIncome(factionId, config)
+            — compare with pre-disruption value; building contribution must be absent.
+      3. Check starsector.log for any NPE or [Nex4x] error lines during the above.
+      Document findings in a comment on this task or in briefs/18g-smoke.md.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [18d, 18e, 18f]

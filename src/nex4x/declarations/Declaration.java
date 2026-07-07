@@ -1,7 +1,5 @@
 package nex4x.declarations;
 
-import com.fs.starfarer.api.Global;
-
 import java.io.Serializable;
 
 /**
@@ -28,7 +26,7 @@ public class Declaration implements Serializable {
         this.declarerFactionId = declarerFactionId;
         this.targetFactionId = targetFactionId;
         this.type = type;
-        this.creationDay = getCurrentDay();
+        this.creationDay = nex4x.util.Nex4xClock.currentAbsoluteDay();
         this.expiryDay = type.defaultDurationDays > 0
                 ? creationDay + type.defaultDurationDays
                 : -1;
@@ -59,12 +57,12 @@ public class Declaration implements Serializable {
     /** Days remaining. -1 if permanent. */
     public float getDaysRemaining() {
         if (expiryDay < 0) return -1;
-        return expiryDay - getCurrentDay();
+        return expiryDay - nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 
     public boolean isExpired() {
         // -1 sentinel = permanent; any non-negative expiryDay (including 0) is a real value.
-        return expiryDay >= 0 && getCurrentDay() >= expiryDay;
+        return expiryDay >= 0 && nex4x.util.Nex4xClock.currentAbsoluteDay() >= expiryDay;
     }
 
     /** Withdraw / cancel this declaration. */
@@ -91,19 +89,4 @@ public class Declaration implements Serializable {
     public boolean isCbUnlocked() { return cbUnlocked; }
     public void setCbUnlocked(boolean b) { this.cbUnlocked = b; }
 
-    /**
-     * Absolute day count from cycle 206 epoch.
-     * Public for use by DeclarationManager and other Phase 4 components.
-     */
-    public static float currentAbsoluteDay() {
-        return Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
-    }
-
-    private static float getCurrentDay() {
-        return Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
-    }
 }

@@ -62,6 +62,10 @@ public class NegotiableItemCatalog {
                         nex4x.declarations.DeclarationType.valueOf(
                                 itemId.substring(PREFIX_DECLARATION.length())));
             } catch (IllegalArgumentException ignore) { /* unknown declaration type */ }
+        } else if (ID_KNOWLEDGE.equals(itemId)) {
+            item = NegotiableItem.knowledge("generic");
+        } else if (ID_PRISONER.equals(itemId)) {
+            item = NegotiableItem.prisoner("exchange");
         }
         if (item != null) item.setId(itemId);
         return item;
@@ -88,12 +92,13 @@ public class NegotiableItemCatalog {
         if (itemId == null) return 0;
         if (ID_CREDITS.equals(itemId) || ID_WAR_REPARATIONS.equals(itemId)) return 1;
         if (ID_TRIBUTE.equals(itemId)) return 12;       // 1cr/cycle ≈ 12cr value annualized
-        if (ID_INTEL_BASIC.equals(itemId)) return 5000;
-        if (ID_INTEL_DEEP.equals(itemId)) return 25000;
-        if (ID_PRISONER.equals(itemId)) return 15000;
-        if (ID_KNOWLEDGE.equals(itemId)) return 50000;
-        if (ID_CEASEFIRE.equals(itemId)) return 30000;
-        if (ID_PEACE_TREATY.equals(itemId)) return 100000;
+        // PRD-016 16g: align with ItemValuator/BaseValueTable to eliminate split-table divergence.
+        if (ID_INTEL_BASIC.equals(itemId))  return BaseValueTable.INTEL;
+        if (ID_INTEL_DEEP.equals(itemId))   return BaseValueTable.INTEL * 5;
+        if (ID_PRISONER.equals(itemId))     return 3000;   // no BaseValueTable field; keep literal
+        if (ID_KNOWLEDGE.equals(itemId))    return BaseValueTable.STAR_CHART * BaseValueTable.BLUEPRINT_MULT;
+        if (ID_CEASEFIRE.equals(itemId))    return BaseValueTable.CEASEFIRE;
+        if (ID_PEACE_TREATY.equals(itemId)) return BaseValueTable.PEACE_TREATY;
         if (itemId.startsWith(PREFIX_COMMODITY)) {
             try {
                 String c = itemId.substring(PREFIX_COMMODITY.length());
@@ -157,12 +162,11 @@ public class NegotiableItemCatalog {
                     int count = 0;
                     for (com.fs.starfarer.api.campaign.econ.MarketAPI m
                             : com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
-                        if (count >= 5) break;
                         if (m.isHidden()) continue;
-                        if (targetFactionId.equals(m.getFactionId())) {
-                            out.add(PREFIX_TERRITORY + m.getId());
-                            count++;
-                        }
+                        if (!targetFactionId.equals(m.getFactionId())) continue;
+                        out.add(PREFIX_TERRITORY + m.getId());
+                        count++;
+                        if (count >= 5) break;
                     }
                 }
                 break;

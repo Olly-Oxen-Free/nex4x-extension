@@ -118,7 +118,7 @@ public class FactionBrowserPanelModel implements Serializable {
 
     private void addFactionRow(TooltipMakerAPI info, FactionAPI f, String playerId) {
         float rel = f.getRelationship(playerId);
-        String relStr = String.format("%+.0f", rel);
+        String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));
         Color relColor = rel >= 0 ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor();
 
         String archetypeStr = getArchetypeDisplay(f.getId());
@@ -256,7 +256,7 @@ public class FactionBrowserPanelModel implements Serializable {
 
         String playerId = Global.getSector().getPlayerFaction().getId();
         float rel = f.getRelationship(playerId);
-        String relStr = String.format("%+.0f", rel);
+        String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));
         info.addPara("Relation: %s", 10f, Misc.getHighlightColor(), relStr);
 
         try {
@@ -525,14 +525,14 @@ public class FactionBrowserPanelModel implements Serializable {
         for (FactionAPI o : others) {
             if (o.getId().equals(f.getId())) continue;
             float r = f.getRelationship(o.getId());
-            String rStr = String.format("%+.0f", r);
+            String rStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(r));
             Color relCol = r >= 0 ? Misc.getPositiveHighlightColor() : Misc.getNegativeHighlightColor();
 
             TooltipMakerAPI card = info.beginImageWithText(o.getCrest(), 48f);
             LabelAPI head = card.addPara(o.getDisplayName() + "   " + rStr, 3f);
             head.setHighlight(rStr);
             head.setHighlightColor(relCol);
-            card.addPara(repBarAscii(r), relCol, 2f);
+            card.addPara(repBarAscii(nex4x.util.Nex4xRelations.toPercent(r)), relCol, 2f);
             info.addImageWithText(4f);
 
             info.addButton(" ", BUTTON_FACTION_PREFIX + o.getId(),
@@ -541,6 +541,8 @@ public class FactionBrowserPanelModel implements Serializable {
         }
     }
 
+    /** @param relationship relation in PERCENT scale [-100..100] — callers must convert
+     *  raw -1..1 via {@link nex4x.util.Nex4xRelations#toPercent(float)} first. */
     static String repBarAscii(float relationship) {
         float t = (relationship + 100f) / 200f;
         if (t < 0f) t = 0f;

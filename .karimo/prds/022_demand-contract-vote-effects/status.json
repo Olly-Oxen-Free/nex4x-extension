@@ -1,0 +1,25 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "implemented_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 14,
+  "complexity_total": 23,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["22a","22b","22c","22d","22e","22f","22g","22h","22i","22j","22k","22l","22m","22n"],
+  "tasks_deferred": [],
+  "build": "SUCCESSFUL",
+  "notes": {
+    "contract_payoff_model": "AI factions use influence transfer at CONTRACT_INFLUENCE_RATE=0.1 (credits * 0.1 = influence) via InfluenceManager.addLump(winnerId, influence, InfluenceSource.CONTRACT_PAYOFF). Player faction receives literal credits via CargoAPI.getCredits().add(pay). The real InfluenceManager.addLump(String, float, InfluenceSource) method was confirmed at InfluenceManager.java:48.",
+    "influence_source_addition": "Added CONTRACT_PAYOFF to InfluenceSource enum at end (preserves ordinals). Existing CONTRACT entry remained; CONTRACT_PAYOFF is distinct (payoff vs. cost-to-issue).",
+    "ai_demand_issuance_hook": "Wired in DiplomaticExecutor.executeDiplomaticAction() switch — added cases PRESS_GRIEVANCE and EXPLOIT_WEAKNESS both calling issueAIDemand(). The PRD correctly noted these goal types were silently dropped in the default branch. PRESS_GRIEVANCE maps archetype to TRIBUTE_CREDITS (military/territorial) or BREAK_ALLIANCE (ideological). EXPLOIT_WEAKNESS prefers CEDE_MARKET if target has a market, else TRIBUTE_CREDITS. Both gate on canIssueDemand() cooldown (30-day default) and pending-demand spam guard (>=2 blocks issuance).",
+    "covert_dispatch_limitation": "Nex AgentIntel.getAgent() returns PersonAPI which has no setTarget/setAction methods. No public Nex API exists to programmatically queue a covert action from outside. dispatchContractAction() confirms the agent exists and the def is registered, then logs the intent. Influence is still transferred; actual Nex covert launch is deferred pending a public API. TODO: wire when Nex exposes CovertOpsManager.queueActionForAgent() or similar.",
+    "coalition_vote_resolution": "CoalitionGovernance.advanceDay() now resolves expired pending votes using real member count from AgreementManager.getCoalitionMembersFor(proposerFactionId). DECLARE_WAR fires per-member war declarations. MAKE_PEACE fires NexDiplomacyBridge.firePeaceTreaty(). ADD_MEMBER/KICK_MEMBER/DISSOLVE log results but full agreement teardown is deferred to avoid circular dependency on AgreementManager from CoalitionGovernance.",
+    "fireCoalitionWarDeclaration_absent": "NexDiplomacyBridge.fireCoalitionWarDeclaration() does not exist. DECLARE_WAR is handled by iterating members and calling DiplomacyManager.createDiplomacyEvent(member, target, 'declare_war', null) per member.",
+    "resolve_string_bypass": "CoalitionVote.resolve(String) now throws UnsupportedOperationException. Grep confirmed zero external callers.",
+    "propose_vote_wiring": "Option A chosen: AgreementManager.createAgreement() COALITION path now proposes an ADD_MEMBER vote when members.size() > 2 (upgrade path). Both proposing parties cast immediate YEA votes. Added AgreementManager.getCoalitionMembersFor(String) single-faction overload delegating to getCoalitionMembers(factionId, factionId).",
+    "smoke_runcode": "auditDemandContractVote() added to Nex4xDebugCommand. Tests: (1) demand issue+accept, (2) contract bid+complete+influence delta, (3) coalition vote resolve with quorum pass, (4) quorum enforcement with 0 votes vs 4 members. Also added auditDemands(), auditContracts(), auditVotes() audit methods.",
+    "build_green_confirmation": "BUILD SUCCESSFUL — 0 compile errors, 4 pre-existing -source 7 warnings only, 208 source files compiled."
+  }
+}

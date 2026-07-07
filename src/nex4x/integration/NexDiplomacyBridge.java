@@ -42,9 +42,18 @@ public final class NexDiplomacyBridge {
             return;
         }
         try {
-            DiplomacyManager.createDiplomacyEventV2(declarer, target, "respect", null);
-            log.info("NexDiplomacyBridge.fireRespectEvent: fired respect event "
-                    + declarer.getId() + " -> " + target.getId());
+            exerelin.campaign.intel.diplomacy.DiplomacyIntel intel =
+                    DiplomacyManager.createDiplomacyEventV2(declarer, target, "respect", null);
+            if (intel == null) {
+                // Nex returns null (not an exception) when the stage is missing or no market
+                // is available — the catch never fires, so apply the fallback here too.
+                log.warn("NexDiplomacyBridge.fireRespectEvent: null return — fallback for "
+                        + declarer.getId() + " -> " + target.getId());
+                declarer.adjustRelationship(target.getId(), repPercent / 100f);
+            } else {
+                log.info("NexDiplomacyBridge.fireRespectEvent: fired respect event "
+                        + declarer.getId() + " -> " + target.getId());
+            }
         } catch (Throwable t) {
             log.warn("NexDiplomacyBridge.fireRespectEvent: Nex API unavailable ("
                     + t.getClass().getSimpleName() + "), using fallback for "
@@ -67,9 +76,16 @@ public final class NexDiplomacyBridge {
             return;
         }
         try {
-            DiplomacyManager.createDiplomacyEventV2(declarer, target, "insult", null);
-            log.info("NexDiplomacyBridge.fireInsultEvent: fired insult event "
-                    + declarer.getId() + " -> " + target.getId());
+            exerelin.campaign.intel.diplomacy.DiplomacyIntel intel =
+                    DiplomacyManager.createDiplomacyEventV2(declarer, target, "insult", null);
+            if (intel == null) {
+                log.warn("NexDiplomacyBridge.fireInsultEvent: null return — fallback for "
+                        + declarer.getId() + " -> " + target.getId());
+                declarer.adjustRelationship(target.getId(), -Math.abs(repPercent) / 100f);
+            } else {
+                log.info("NexDiplomacyBridge.fireInsultEvent: fired insult event "
+                        + declarer.getId() + " -> " + target.getId());
+            }
         } catch (Throwable t) {
             log.warn("NexDiplomacyBridge.fireInsultEvent: Nex API unavailable ("
                     + t.getClass().getSimpleName() + "), using fallback for "
@@ -91,9 +107,18 @@ public final class NexDiplomacyBridge {
             return;
         }
         try {
-            DiplomacyManager.createDiplomacyEvent(a, b, "peace_treaty", null);
-            log.info("NexDiplomacyBridge.firePeaceTreaty: fired peace treaty "
-                    + a.getId() + " <-> " + b.getId());
+            exerelin.campaign.ExerelinReputationAdjustmentResult result =
+                    DiplomacyManager.createDiplomacyEvent(a, b, "peace_treaty", null);
+            if (result == null) {
+                // Null (not exception) when no market is available or the event is blocked.
+                log.warn("NexDiplomacyBridge.firePeaceTreaty: null return — fallback (no markets or blocked) for "
+                        + a.getId() + " <-> " + b.getId());
+                if (a.isHostileTo(b)) a.setRelationship(b.getId(), 0f);
+                if (b.isHostileTo(a)) b.setRelationship(a.getId(), 0f);
+            } else {
+                log.info("NexDiplomacyBridge.firePeaceTreaty: fired peace treaty "
+                        + a.getId() + " <-> " + b.getId());
+            }
         } catch (Throwable t) {
             log.warn("NexDiplomacyBridge.firePeaceTreaty: Nex API unavailable ("
                     + t.getClass().getSimpleName() + "), using fallback for "
@@ -143,18 +168,27 @@ public final class NexDiplomacyBridge {
             MemoryAPI mem = Global.getSector().getFaction(declarer.getId()).getMemoryWithoutUpdate();
             float beforeBadboy = mem != null ? mem.getFloat(DiplomacyManager.MEM_KEY_BADBOY) : 0f;
 
-            DiplomacyManager.createDiplomacyEvent(declarer, target, "declare_war", null);
+            exerelin.campaign.ExerelinReputationAdjustmentResult result =
+                    DiplomacyManager.createDiplomacyEvent(declarer, target, "declare_war", null);
 
-            float afterBadboy = mem != null ? mem.getFloat(DiplomacyManager.MEM_KEY_BADBOY) : 0f;
-            float delta = afterBadboy - beforeBadboy;
-
-            if (delta > 0f && mem != null) {
-                mem.set(DiplomacyManager.MEM_KEY_BADBOY, beforeBadboy, 0f);
-                log.info("[Nex4x] Justified war (cb=" + cbId + ") — undid badboy delta " + delta
-                        + " for " + declarer.getId());
+            if (result == null) {
+                // No event fired (null, not exception) — no badboy was applied, so nothing to
+                // reverse. Apply the relationship drop directly so the war still takes effect.
+                log.warn("[Nex4x] fireJustifiedWar (cb=" + cbId + "): null return — fallback "
+                        + "(no markets or blocked) for " + declarer.getId() + " -> " + target.getId());
+                declarer.setRelationship(target.getId(), -1f);
             } else {
-                log.info("[Nex4x] Justified war (cb=" + cbId + ") — no badboy change, delta="
-                        + delta + " for " + declarer.getId());
+                float afterBadboy = mem != null ? mem.getFloat(DiplomacyManager.MEM_KEY_BADBOY) : 0f;
+                float delta = afterBadboy - beforeBadboy;
+
+                if (delta > 0f && mem != null) {
+                    mem.set(DiplomacyManager.MEM_KEY_BADBOY, beforeBadboy, 0f);
+                    log.info("[Nex4x] Justified war (cb=" + cbId + ") — undid badboy delta " + delta
+                            + " for " + declarer.getId());
+                } else {
+                    log.info("[Nex4x] Justified war (cb=" + cbId + ") — no badboy change, delta="
+                            + delta + " for " + declarer.getId());
+                }
             }
         } catch (Throwable t) {
             log.warn("[Nex4x] fireJustifiedWar: Nex API unavailable ("

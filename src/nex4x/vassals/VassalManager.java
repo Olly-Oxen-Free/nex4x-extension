@@ -22,8 +22,7 @@ public class VassalManager implements Serializable {
 
     public VassalRelation vassalize(String overlordId, String vassalId, VassalTier tier) {
         freeVassal(vassalId);
-        float day = Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
         VassalRelation rel = new VassalRelation(overlordId, vassalId, tier, day);
         relations.add(rel);
         log.info("[Nex4x] Vassalized: " + overlordId + " -> " + vassalId + " (" + tier.displayName + ")");
