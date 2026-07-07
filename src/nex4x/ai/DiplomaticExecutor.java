@@ -48,6 +48,13 @@ public class DiplomaticExecutor implements Serializable {
     private int actionBudgetRemaining;
 
     /**
+     * 2026-07-07 audit: absolute day of this faction's last AI war declaration.
+     * Persisted (non-transient primitive) so the 60-day declaration cooldown survives
+     * save/load. -1 = never declared.
+     */
+    private float lastWarDeclarationDay = -1f;
+
+    /**
      * PRD-015 (15d): Per-day double-fire guard for peace treaty proposals.
      * Cleared at the start of each advanceDay call. Prevents both Path A (Nex
      * StrategicAI, currently disabled) and Path B (DiplomaticExecutor) from
@@ -77,6 +84,8 @@ public class DiplomaticExecutor implements Serializable {
     private static float WAR_DECLARE_THRESHOLD = 100f;
     private static float WAR_CONSIDER_THRESHOLD = 70f;
     private static float WAR_RANDOM_RANGE = 20f;
+    // 2026-07-07 audit: per-faction cooldown between AI war declarations (days)
+    private static float WAR_DECLARE_COOLDOWN_DAYS = 60f;
 
     // Peace decision config
     private static float PEACE_BASE = 30f;
@@ -84,6 +93,10 @@ public class DiplomaticExecutor implements Serializable {
     private static float PEACE_SCOPE_ACHIEVED_BONUS = 40f;
     private static float PEACE_SEEK_THRESHOLD = 80f;
     private static float PEACE_ACCEPT_THRESHOLD = 50f;
+    // 2026-07-07 audit: war-state signals that unlock PEACE_SCOPE_ACHIEVED_BONUS
+    private static float PEACE_GOAL_SPAWN_WEARINESS = 5000f;
+    private static float PEACE_STALEMATE_DAYS = 60f;
+    private static float PEACE_SCOPE_WARSCORE = 40f;
 
     public static void loadConfig(JSONObject config) {
         JSONObject budget = config.optJSONObject("actionBudget");
@@ -100,6 +113,7 @@ public class DiplomaticExecutor implements Serializable {
             WAR_DECLARE_THRESHOLD = (float) war.optDouble("declareThreshold", 100);
             WAR_CONSIDER_THRESHOLD = (float) war.optDouble("considerThreshold", 70);
             WAR_RANDOM_RANGE = (float) war.optDouble("randomRange", 20);
+            WAR_DECLARE_COOLDOWN_DAYS = (float) war.optDouble("declareCooldownDays", 60);
         }
         JSONObject peace = config.optJSONObject("peaceDecision");
         if (peace != null) {
@@ -108,6 +122,9 @@ public class DiplomaticExecutor implements Serializable {
             PEACE_SCOPE_ACHIEVED_BONUS = (float) peace.optDouble("scopeAchievedBonus", 40);
             PEACE_SEEK_THRESHOLD = (float) peace.optDouble("seekPeaceThreshold", 80);
             PEACE_ACCEPT_THRESHOLD = (float) peace.optDouble("acceptThreshold", 50);
+            PEACE_GOAL_SPAWN_WEARINESS = (float) peace.optDouble("goalSpawnWeariness", 5000);
+            PEACE_STALEMATE_DAYS = (float) peace.optDouble("stalemateDays", 60);
+            PEACE_SCOPE_WARSCORE = (float) peace.optDouble("scopeWarScore", 40);
         }
         // PRD-022 (22b/22h): demand and contract config
         DEMAND_COOLDOWN_DAYS = (float) config.optDouble("demandCooldownDays", 30);
@@ -171,6 +188,8 @@ public class DiplomaticExecutor implements Serializable {
             float warDesire = calculateWarDesire(goal, archetype, mgr);
 
             if (warDesire > WAR_DECLARE_THRESHOLD) {
+                // 2026-07-07 audit: gate declarations on cooldown + alliance/pact hard blocks.
+                if (!canDeclareWar(goal.targetFactionId, mgr)) continue;
                 declareWar(goal.targetFactionId, goal, mgr);
             } else if (warDesire > WAR_CONSIDER_THRESHOLD) {
                 log.info("[Nex4x] " + factionId + " CONSIDERING war on "
@@ -209,7 +228,12 @@ public class DiplomaticExecutor implements Serializable {
     }
 
     private float calculateDoctrineScore(boolean isWarVote, String target) {
-        TendencyProfile profile = TendencyProfileLoader.getProfile(factionId);
+        return calculateDoctrineScore(isWarVote, factionId, target);
+    }
+
+    /** 2026-07-07 audit: doctrine score for an explicit faction (used for counterparty consent). */
+    private float calculateDoctrineScore(boolean isWarVote, String forFactionId, String target) {
+        TendencyProfile profile = TendencyProfileLoader.getProfile(forFactionId);
         if (profile == null) return 0;
 
         float score = 0;
@@ -241,6 +265,65 @@ public class DiplomaticExecutor implements Serializable {
         } catch (Exception e) {
             log.error("[Nex4x] Failed to emit WarDeclarationIntel: " + e.getMessage());
         }
+
+        // 2026-07-07 audit: stamp the declaration day so the 60-day cooldown applies.
+        lastWarDeclarationDay = nex4x.util.Nex4xClock.currentAbsoluteDay();
+    }
+
+    /**
+     * 2026-07-07 audit: gate an AI war declaration against {@code targetId}.
+     * <ul>
+     *   <li>(a) 60-day per-faction declaration cooldown (persisted {@link #lastWarDeclarationDay}).</li>
+     *   <li>(b) HARD block if we share a Nex alliance with the target.</li>
+     *   <li>(b) HARD block if an active (non-expired) NAP or Defensive Pact exists with the target.</li>
+     * </ul>
+     * Only gates DECLARATIONS — ongoing war logic is untouched.
+     */
+    private boolean canDeclareWar(String targetId, Nex4xManager mgr) {
+        // (a) declaration cooldown
+        if (lastWarDeclarationDay >= 0f) {
+            float since = nex4x.util.Nex4xClock.currentAbsoluteDay() - lastWarDeclarationDay;
+            if (since < WAR_DECLARE_COOLDOWN_DAYS) {
+                log.info("[Nex4x] " + factionId + " war on " + targetId
+                        + " blocked: declaration cooldown (" + Math.round(since) + "/"
+                        + Math.round(WAR_DECLARE_COOLDOWN_DAYS) + "d)");
+                return false;
+            }
+        }
+
+        // (b) alliance-mate hard block (mirror NexDiplomacyBridge alliance checks)
+        try {
+            exerelin.campaign.alliances.Alliance ours =
+                    exerelin.campaign.AllianceManager.getFactionAlliance(factionId);
+            exerelin.campaign.alliances.Alliance theirs =
+                    exerelin.campaign.AllianceManager.getFactionAlliance(targetId);
+            if (ours != null && ours == theirs) {
+                log.info("[Nex4x] " + factionId + " war on " + targetId
+                        + " blocked: shared alliance");
+                return false;
+            }
+        } catch (Throwable t) {
+            log.warn("[Nex4x] canDeclareWar alliance check failed: " + t.getMessage());
+        }
+
+        // (b) active non-aggression / defensive agreement hard block
+        AgreementManager aMgr = mgr.getAgreementManager();
+        for (nex4x.agreements.Agreement a : aMgr.getAgreementsOfType(factionId, AgreementType.NAP)) {
+            if (a.involves(targetId)) {
+                log.info("[Nex4x] " + factionId + " war on " + targetId
+                        + " blocked: active non-aggression pact");
+                return false;
+            }
+        }
+        for (nex4x.agreements.Agreement a : aMgr.getAgreementsOfType(factionId, AgreementType.DEFENSIVE_PACT)) {
+            if (a.involves(targetId)) {
+                log.info("[Nex4x] " + factionId + " war on " + targetId
+                        + " blocked: active defensive pact");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** Player-driven war declaration path (no StrategicGoal context). */
@@ -294,8 +377,20 @@ public class DiplomaticExecutor implements Serializable {
             float peaceWill = calculatePeaceWillingness(goal, archetype);
 
             if (peaceWill > PEACE_SEEK_THRESHOLD) {
+                // 2026-07-07 audit: require two-sided consent. Compute the counterparty's
+                // willingness toward us and require it > PEACE_ACCEPT_THRESHOLD before firing,
+                // so the treaty only lands when the other faction would also accept.
+                float theirWill = counterpartyPeaceWillingness(goal.targetFactionId);
+                if (theirWill <= PEACE_ACCEPT_THRESHOLD) {
+                    log.info("[Nex4x] " + factionId + " wants peace with " + goal.targetFactionId
+                            + " (willingness=" + Math.round(peaceWill) + ") but counterparty declines"
+                            + " (theirs=" + Math.round(theirWill) + " <= " + Math.round(PEACE_ACCEPT_THRESHOLD) + ")");
+                    continue;
+                }
+
                 log.info("[Nex4x] " + factionId + " seeking peace with "
-                        + goal.targetFactionId + " (willingness=" + Math.round(peaceWill) + ")");
+                        + goal.targetFactionId + " (willingness=" + Math.round(peaceWill)
+                        + ", counterparty=" + Math.round(theirWill) + ")");
 
                 // PRD-015 (15d): fire the real peace treaty effect.
                 // Guard: don't fire twice for the same target on the same day.
@@ -322,20 +417,101 @@ public class DiplomaticExecutor implements Serializable {
     }
 
     private float calculatePeaceWillingness(StrategicGoal goal, Archetype archetype) {
+        String target = goal.targetFactionId;
         float willingness = PEACE_BASE;
 
+        float weariness = getWarWeariness(factionId);
+        willingness += weariness * PEACE_WEARINESS_WEIGHT;
+
+        // 2026-07-07 audit: honour PEACE_SCOPE_ACHIEVED_BONUS. Without it, willingness only
+        // crosses PEACE_SEEK_THRESHOLD (80) near ~9,000 weariness, while END_WAR spawns at
+        // 5,000 — so peace almost never fired. Grant the bonus when the war's objectives are
+        // achieved (clear war-score lead) or the war is a stalemate (long war + weariness past
+        // the END_WAR spawn threshold). This lets peace realistically fire in the 5,000–10,000
+        // weariness band. War age falls back to the END_WAR goal's own age when no WarGoal exists.
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr != null) {
+            float warDays = Math.max(goal.getAgeDays(),
+                    warDurationDaysBetween(factionId, target, mgr));
+            if (isScopeAchievedOrStalemated(factionId, target, weariness, warDays, mgr)) {
+                willingness += PEACE_SCOPE_ACHIEVED_BONUS;
+            }
+        }
+
+        willingness += calculateDoctrineScore(false, factionId, target);
+        willingness += (float)(Math.random() * 30) - 15;
+
+        return willingness;
+    }
+
+    /**
+     * 2026-07-07 audit: deterministic peace willingness of {@code them} toward us, used to
+     * gate two-sided consent. No random jitter (this is a consent estimate, not a decision).
+     */
+    private float counterpartyPeaceWillingness(String them) {
+        float willingness = PEACE_BASE;
+
+        float weariness = getWarWeariness(them);
+        willingness += weariness * PEACE_WEARINESS_WEIGHT;
+
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr != null) {
+            float warDays = warDurationDaysBetween(them, factionId, mgr);
+            if (isScopeAchievedOrStalemated(them, factionId, weariness, warDays, mgr)) {
+                willingness += PEACE_SCOPE_ACHIEVED_BONUS;
+            }
+        }
+
+        willingness += calculateDoctrineScore(false, them, factionId);
+        return willingness;
+    }
+
+    /** War weariness for a faction, or 0 if Nex's DiplomacyManager is unavailable. */
+    private float getWarWeariness(String forFactionId) {
         try {
             exerelin.campaign.DiplomacyManager dipMgr =
                     exerelin.campaign.DiplomacyManager.getManager();
             if (dipMgr != null) {
-                willingness += dipMgr.getWarWeariness(factionId, true) * PEACE_WEARINESS_WEIGHT;
+                return dipMgr.getWarWeariness(forFactionId, true);
             }
         } catch (Exception e) { /* Nex not available */ }
+        return 0f;
+    }
 
-        willingness += calculateDoctrineScore(false, goal.targetFactionId);
-        willingness += (float)(Math.random() * 30) - 15;
+    /**
+     * 2026-07-07 audit: true when {@code self}'s war objectives against {@code target} are
+     * achieved (clear war-score lead) or the war is a drawn-out stalemate (age past
+     * {@code PEACE_STALEMATE_DAYS} and weariness past the END_WAR spawn threshold).
+     */
+    private boolean isScopeAchievedOrStalemated(String self, String target, float weariness,
+                                                float warDurationDays, Nex4xManager mgr) {
+        // Scope achieved: a clear war-score lead means our war aims are effectively met.
+        try {
+            float score = mgr.getWarScoreTracker().getWarScore(self, target);
+            if (score >= PEACE_SCOPE_WARSCORE) return true;
+        } catch (Exception ignore) { /* war score unavailable */ }
 
-        return willingness;
+        // Stalemate: sustained war plus weariness past the point that spawned the END_WAR goal.
+        return warDurationDays > PEACE_STALEMATE_DAYS
+                && weariness > PEACE_GOAL_SPAWN_WEARINESS;
+    }
+
+    /**
+     * Best-effort elapsed days of the war between {@code a} and {@code b}, using the earliest
+     * WarGoal declaredDay in either direction. Returns 0 when no WarGoal exists (AI wars may
+     * be declared without one) — callers pair this with a goal-age fallback.
+     */
+    private float warDurationDaysBetween(String a, String b, Nex4xManager mgr) {
+        float earliest = Float.MAX_VALUE;
+        nex4x.wargoals.WarScoreTracker wst = mgr.getWarScoreTracker();
+        for (nex4x.wargoals.WarGoal g : wst.getWarGoals(a, b)) {
+            earliest = Math.min(earliest, g.getDeclaredDay());
+        }
+        for (nex4x.wargoals.WarGoal g : wst.getWarGoals(b, a)) {
+            earliest = Math.min(earliest, g.getDeclaredDay());
+        }
+        if (earliest == Float.MAX_VALUE) return 0f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay() - earliest;
     }
 
     // Budgeted diplomatic actions

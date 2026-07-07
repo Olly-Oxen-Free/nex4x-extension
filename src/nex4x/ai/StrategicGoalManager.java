@@ -202,6 +202,30 @@ public class StrategicGoalManager implements Serializable {
                 }
             }
 
+            // 2026-07-07 audit: pre-war aggressor. A faction not yet hostile but with
+            // hostile-leaning relations (< -0.5) and a clear military edge (> 1.5x our power)
+            // is a soon-to-attack threat that the hostile-only gates above miss. Register it at
+            // reduced weight (half the effective priority) so it surfaces as a crisis early
+            // without over-dominating genuinely active wars.
+            if (candidate == null) {
+                FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                if (them != null && !us.isHostileTo(them)) {
+                    float rel = us.getRelationship(goal.targetFactionId);
+                    if (rel < -0.5f) {
+                        float ourStr = factionMilitaryStrength(factionId);
+                        float theirStr = factionMilitaryStrength(goal.targetFactionId);
+                        if (ourStr > 0f && theirStr / ourStr > 1.5f) {
+                            float severity = Math.min(100f, goal.getEffectivePriority() * 0.5f);
+                            boolean existential = severity > 70f;
+                            candidate = new StrategicFocus.Threat(
+                                    StrategicFocus.Threat.ThreatType.MILITARY_AGGRESSION,
+                                    goal.targetFactionId, severity, existential);
+                            candidatesChecked++;
+                        }
+                    }
+                }
+            }
+
             if (candidate != null) {
                 if (best == null || candidate.severity > best.severity) {
                     best = candidate;
@@ -212,6 +236,18 @@ public class StrategicGoalManager implements Serializable {
         }
 
         return best;
+    }
+
+    /**
+     * 2026-07-07 audit: live military-strength estimate (faction market-size sum), mirroring
+     * FeasibilityChecker. Returns 0 on failure so callers treat it as "unknown / no edge".
+     */
+    private static float factionMilitaryStrength(String factionId) {
+        try {
+            return exerelin.utilities.NexUtilsFaction.getFactionMarketSizeSum(factionId);
+        } catch (Exception e) {
+            return 0f;
+        }
     }
 
     private Archetype threatToArchetype(StrategicFocus.Threat threat) {

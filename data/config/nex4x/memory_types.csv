@@ -24,3 +24,10 @@ bounty_completed,"Bounty Completed",2,60,MILITARY,#
 commission_change,"Commission Change",-5,180,POLITICAL,#
 covert_operation,"Covert Operation",-6,120,MILITARY|POLITICAL,#
 wetwork_contract,"Wetwork Contract",-10,30,MILITARY|POLITICAL,#
+tribute_obligation,"Tribute Obligation",3,360,ECONOMIC|POLITICAL,#
+tribute_completed,"Tribute Fulfilled",8,360,ECONOMIC|POLITICAL,#
+tribute_defaulted,"Tribute Defaulted",-15,360,ECONOMIC|POLITICAL,#
+tech_transfer,"Technology Transfer",6,360,ECONOMIC|POLITICAL,#
+intel_exchange,"Intel Exchange",4,180,POLITICAL,#
+prisoner_exchange,"Prisoner Exchange",5,240,POLITICAL,#
+contract,"Contract Agreement",3,180,ECONOMIC|POLITICAL,#

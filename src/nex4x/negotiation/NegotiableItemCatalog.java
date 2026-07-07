@@ -28,6 +28,7 @@ public class NegotiableItemCatalog {
     public static final String PREFIX_AGREEMENT  = "agreement:";   // agreement:<AgreementType>
     public static final String PREFIX_DECLARATION = "declaration:";// declaration:<DeclarationType>
     public static final String PREFIX_TERRITORY  = "territory:";   // territory:<marketId>
+    public static final String PREFIX_CONCESSION = "concession:"; // concession:<subType>:<thirdFactionId>
 
     public NegotiableItem build(String itemId, int quantity) {
         if (itemId == null) return null;
@@ -50,6 +51,15 @@ public class NegotiableItemCatalog {
             item = NegotiableItem.commodity(itemId.substring(PREFIX_COMMODITY.length()), quantity);
         } else if (itemId.startsWith(PREFIX_TERRITORY)) {
             item = NegotiableItem.territory(itemId.substring(PREFIX_TERRITORY.length()));
+        } else if (itemId.startsWith(PREFIX_CONCESSION)) {
+            // concession:<subType>:<thirdFactionId>
+            String rest = itemId.substring(PREFIX_CONCESSION.length());
+            int idx = rest.indexOf(':');
+            if (idx > 0 && idx < rest.length() - 1) {
+                String sub   = rest.substring(0, idx);
+                String third = rest.substring(idx + 1);
+                item = NegotiableItem.concession(third, sub);
+            }
         } else if (itemId.startsWith(PREFIX_AGREEMENT)) {
             try {
                 item = NegotiableItem.agreement(
@@ -107,6 +117,7 @@ public class NegotiableItemCatalog {
                 if (spec != null) return Math.max(1, (int) spec.getBasePrice());
             } catch (Throwable ignore) {}
         }
+        if (itemId.startsWith(PREFIX_CONCESSION)) return 4000; // matches ItemValuator.getConcessionValue
         return 0;
     }
 
@@ -142,6 +153,18 @@ public class NegotiableItemCatalog {
      * @return an unmodifiable list of catalog IDs for the given type
      */
     public java.util.List<String> idsForType(NegotiableItemType type, boolean atWar, String targetFactionId) {
+        // Backwards-compatible default: request-side (target-owned) listing.
+        return idsForType(type, atWar, targetFactionId, false);
+    }
+
+    /**
+     * Direction-aware variant. {@code isOffer} selects the side of the table:
+     * for {@code TERRITORY}, offer lists the <em>player's</em> markets (what the player can cede)
+     * while request lists the {@code targetFactionId}'s markets (what the player can demand).
+     * All other categories are direction-agnostic.
+     */
+    public java.util.List<String> idsForType(NegotiableItemType type, boolean atWar,
+                                             String targetFactionId, boolean isOffer) {
         java.util.List<String> out = new java.util.ArrayList<String>();
         if (type == null) return java.util.Collections.unmodifiableList(out);
         switch (type) {
@@ -157,19 +180,35 @@ public class NegotiableItemCatalog {
                     out.add(PREFIX_COMMODITY + c);
                 }
                 break;
-            case TERRITORY:
-                if (targetFactionId != null && com.fs.starfarer.api.Global.getSector() != null) {
+            case TERRITORY: {
+                // Offer side lists player-owned markets; request side lists target-owned markets.
+                String ownerId = isOffer
+                        ? com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId()
+                        : targetFactionId;
+                if (ownerId != null && com.fs.starfarer.api.Global.getSector() != null) {
                     int count = 0;
                     for (com.fs.starfarer.api.campaign.econ.MarketAPI m
                             : com.fs.starfarer.api.Global.getSector().getEconomy().getMarketsCopy()) {
                         if (m.isHidden()) continue;
-                        if (!targetFactionId.equals(m.getFactionId())) continue;
+                        if (!ownerId.equals(m.getFactionId())) continue;
                         out.add(PREFIX_TERRITORY + m.getId());
                         count++;
                         if (count >= 5) break;
                     }
                 }
                 break;
+            }
+            case CONCESSIONS: {
+                // Reachable: the giver agrees to worsen ties with a third party as a favour.
+                // Enumerate sub-types against the third party the target is most hostile toward.
+                String third = mostHostileThirdParty(targetFactionId);
+                if (third != null) {
+                    out.add(PREFIX_CONCESSION + "embargo:" + third);
+                    out.add(PREFIX_CONCESSION + "denounce:" + third);
+                    out.add(PREFIX_CONCESSION + "sever:" + third);
+                }
+                break;
+            }
             case AGREEMENTS:
                 for (nex4x.agreements.AgreementType at : nex4x.agreements.AgreementType.values()) {
                     if (at.isAllianceTrack()) {
@@ -198,12 +237,42 @@ public class NegotiableItemCatalog {
                 }
                 break;
             case WAR_DECLARATION:
+                // Deferred: requires a dedicated target-faction picker (handled via the
+                // Declarations panel section, not the negotiable-item catalog).
             case CONTRACTS:
-            case CONCESSIONS:
+                // Intentionally empty: mercenary/arms/security contracts are owned by
+                // ContractAuctionManager (a separate auction flow), not the negotiation table.
             default:
-                break; // deferred: require additional picker context
+                break;
         }
         return java.util.Collections.unmodifiableList(out);
+    }
+
+    /**
+     * Returns the faction the given {@code factionId} is most hostile toward (lowest relationship,
+     * and only if actually hostile), for use as a concession third-party. {@code null} if none.
+     */
+    private static String mostHostileThirdParty(String factionId) {
+        if (factionId == null || com.fs.starfarer.api.Global.getSector() == null) return null;
+        com.fs.starfarer.api.campaign.FactionAPI f =
+                com.fs.starfarer.api.Global.getSector().getFaction(factionId);
+        if (f == null) return null;
+        String playerId = com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId();
+        String worst = null;
+        float worstRel = 0f;
+        for (com.fs.starfarer.api.campaign.FactionAPI other
+                : com.fs.starfarer.api.Global.getSector().getAllFactions()) {
+            if (other.isNeutralFaction()) continue;
+            String oid = other.getId();
+            if (oid.equals(factionId) || oid.equals(playerId)) continue;
+            if (oid.equals("derelict") || oid.equals("nex_derelict")) continue;
+            float rel = f.getRelationship(oid);
+            if (f.isHostileTo(other) && rel < worstRel) {
+                worstRel = rel;
+                worst = oid;
+            }
+        }
+        return worst;
     }
 
     public String getDisplayName(String itemId) {
@@ -228,6 +297,17 @@ public class NegotiableItemCatalog {
         }
         if (itemId.startsWith(PREFIX_TERRITORY)) {
             return "Territory: " + itemId.substring(PREFIX_TERRITORY.length());
+        }
+        if (itemId.startsWith(PREFIX_CONCESSION)) {
+            // concession:<subType>:<thirdFactionId>
+            String rest = itemId.substring(PREFIX_CONCESSION.length());
+            int idx = rest.indexOf(':');
+            if (idx > 0 && idx < rest.length() - 1) {
+                String sub   = rest.substring(0, idx);
+                String third = rest.substring(idx + 1);
+                return "Concession: " + sub + " vs " + third;
+            }
+            return "Concession: " + rest;
         }
         return itemId;
     }

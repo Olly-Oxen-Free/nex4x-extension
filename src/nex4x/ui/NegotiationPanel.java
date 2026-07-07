@@ -358,6 +358,30 @@ public class NegotiationPanel extends BasePopUpDialog {
     public void applyConfirmScript() {
         if (deal.isEmpty()) return;
 
+        // Exploit guard: the player is always the proposer, so offers are what the player gives up.
+        // Sum player-offered credits (lump credits + war reparations) and block the deal if the
+        // player cannot actually cover it — otherwise the executor clamps and under-pays for free.
+        long offeredCredits = 0L;
+        for (NegotiableItem item : deal.getOffers()) {
+            if (item.getType() == NegotiableItemType.CREDITS) {
+                offeredCredits += (long) item.getAmount();
+            } else if (item.getType() == NegotiableItemType.PEACE_TERMS
+                    && "reparations".equals(item.getSecondaryId())) {
+                offeredCredits += (long) item.getAmount();
+            }
+        }
+        long playerCredits = (long) Global.getSector().getPlayerFleet().getCargo().getCredits().get();
+        if (offeredCredits > playerCredits) {
+            Global.getSector().getCampaignUI().addMessage(
+                    "You cannot afford this offer: it commits "
+                            + Misc.getDGSCredits(offeredCredits) + " but you have only "
+                            + Misc.getDGSCredits(playerCredits) + ".",
+                    Misc.getNegativeHighlightColor());
+            log.info("[Nex4x] Confirm blocked: offered credits " + offeredCredits
+                    + " > player credits " + playerCredits);
+            return;
+        }
+
         DealEvaluator.EvaluationResult result = evaluator.evaluate(deal);
         FactionAPI targetFaction = Global.getSector().getFaction(targetFactionId);
         if (targetFaction == null) {
@@ -552,20 +576,29 @@ public class NegotiationPanel extends BasePopUpDialog {
                                           float btnW, float btnH, float pad,
                                           Color playerColor, Color playerDark,
                                           Color factionColor, Color factionDark) {
-        List<String> ids = catalog.idsForType(type, atWar, targetFactionId);
+        // Direction-aware lists: offer side (what the player gives) vs request side (what the
+        // player asks for). Identical for every category except TERRITORY, where offer lists the
+        // player's own markets and request lists the target faction's markets.
+        List<String> offerIds = catalog.idsForType(type, atWar, targetFactionId, true);
+        List<String> reqIds   = catalog.idsForType(type, atWar, targetFactionId, false);
+        boolean directional = type == NegotiableItemType.TERRITORY;
 
-        if (ids.isEmpty()) {
+        if (offerIds.isEmpty() && reqIds.isEmpty()) {
             // Deferred categories: show honest "coming soon" label instead of misleading placeholder.
             String deferredLabel;
             switch (type) {
                 case CONTRACTS:
-                    deferredLabel = "Contracts (mercenary/arms) — coming in a future build";
+                    deferredLabel = "Contracts (mercenary/arms) are handled by the contract auction, "
+                            + "not the negotiation table.";
                     break;
                 case CONCESSIONS:
-                    deferredLabel = "Concessions (third-party diplomatic actions) — coming in a future build";
+                    deferredLabel = "Concessions — no eligible third-party faction to act against.";
+                    break;
+                case TERRITORY:
+                    deferredLabel = "Territory — neither side holds an eligible market.";
                     break;
                 case WAR_DECLARATION:
-                    deferredLabel = "War Declaration — requires target picker; coming in a future build";
+                    deferredLabel = "War Declaration — use the Declarations section below.";
                     break;
                 default:
                     deferredLabel = "(coming soon — not available in this build)";
@@ -577,11 +610,33 @@ public class NegotiationPanel extends BasePopUpDialog {
 
         float totalW   = btnW * 3f;
         float btnHalf  = (totalW - pad) / 2f;
+
+        if (directional) {
+            // Offer-only buttons (player markets) then request-only buttons (target markets).
+            float rowPad = pad;
+            for (String catalogId : offerIds) {
+                String label = catalogLabel(catalogId);
+                String btnId = NEX4X_ADD_PREFIX + catalogId.replace(':', '_').replace('-', '_');
+                buttonToCatalogId.put(btnId, catalogId);
+                info.addButton("[+ Offer] " + label, btnId,
+                        playerColor, playerDark, Alignment.MID, CutStyle.ALL, totalW, 20f, rowPad);
+                rowPad = 3f;
+            }
+            for (String catalogId : reqIds) {
+                String label = catalogLabel(catalogId);
+                String reqBtnId = NEX4X_REQUEST_PREFIX + catalogId.replace(':', '_').replace('-', '_');
+                buttonToCatalogIdReq.put(reqBtnId, catalogId);
+                info.addButton("[Request +] " + label, reqBtnId,
+                        factionColor, factionDark, Alignment.MID, CutStyle.ALL, totalW, 20f, rowPad);
+                rowPad = 3f;
+            }
+            return;
+        }
+
+        // Symmetric categories: paired offer/request rows share one catalog id.
         float rowPad = pad;
-        for (String catalogId : ids) {
-            String displayName = catalog.getDisplayName(catalogId);
-            int unitVal = catalog.estimatedUnitValue(catalogId, leader, playerFactionId);
-            String label = unitVal > 0 ? displayName + " (~" + unitVal + ")" : displayName;
+        for (String catalogId : reqIds) {
+            String label = catalogLabel(catalogId);
 
             // Encode a stable button id: replace ':' and '-' with '_' then store the mapping.
             String encodedKey = catalogId.replace(':', '_').replace('-', '_');
@@ -600,6 +655,13 @@ public class NegotiationPanel extends BasePopUpDialog {
                     btnHalf, 20f, 0f);
             rowPad = 3f; // tighter spacing after first row
         }
+    }
+
+    /** Display label with estimated unit value suffix for a catalog id. */
+    private String catalogLabel(String catalogId) {
+        String displayName = catalog.getDisplayName(catalogId);
+        int unitVal = catalog.estimatedUnitValue(catalogId, leader, playerFactionId);
+        return unitVal > 0 ? displayName + " (~" + unitVal + ")" : displayName;
     }
 
     private void addThreeZoneRow(TooltipMakerAPI info, String label, String itemKey,

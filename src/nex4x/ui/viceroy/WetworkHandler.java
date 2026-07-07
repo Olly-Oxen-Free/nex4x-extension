@@ -7,6 +7,8 @@ import com.fs.starfarer.api.campaign.TextPanelAPI;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.AddRemoveCommodity;
 import com.fs.starfarer.api.util.MutableValue;
+import nex4x.agents.wetwork.WetworkExecutionScript;
+import nex4x.integration.NexDiplomacyBridge;
 import nex4x.leaders.LeaderConfig;
 import nex4x.leaders.LeaderConfigRegistry;
 import nex4x.managers.Nex4xManager;
@@ -105,15 +107,49 @@ public class WetworkHandler {
             // Memory system unavailable; contract is still paid for but untracked.
         }
 
+        // Schedule the actual outcome: a self-terminating persistent script that resolves
+        // success/discovery 7-14 days out and reports back via intel.
+        try {
+            String contractId = "wet_" + market.getFactionId() + "_" + targetFactionId
+                    + "_" + Long.toString((long) (Math.random() * 1000000000L));
+            WetworkExecutionScript script = new WetworkExecutionScript(
+                    market.getFactionId(), targetFactionId, contractId);
+            Global.getSector().addScript(script);
+        } catch (Throwable t) {
+            Global.getLogger(WetworkHandler.class)
+                    .warn("[Nex4x] Failed to schedule wetwork execution: " + t.getMessage(), t);
+        }
+
         if (text != null) {
             text.addPara("Contract accepted. The "
-                    + cfg.viceroyTitle + " will deny all involvement.");
+                    + cfg.viceroyTitle + " will deny all involvement. "
+                    + "You will hear word within a couple of weeks.");
         }
     }
 
-    /** Called from wetwork-contract completion code once that ships. */
+    /**
+     * Discovery consequences: applied when a contract is exposed (the operative is caught).
+     * Fires a Nexerelin-consistent insult event player -> target (with an adjustRelationship
+     * fallback via {@link NexDiplomacyBridge}), and records the target faction's memory of the
+     * player's espionage. Called from {@link WetworkExecutionScript} on a failed contract.
+     */
     public static void onDiscovered(String targetFactionId) {
         FactionAPI player = Global.getSector().getPlayerFaction();
-        player.adjustRelationship(targetFactionId, DISCOVERY_REP_PENALTY);
+        FactionAPI target = Global.getSector().getFaction(targetFactionId);
+        if (player == null || target == null) return;
+
+        // Nex-consistent rep hit (DISCOVERY_REP_PENALTY is -0.25 raw = -25 percent points).
+        NexDiplomacyBridge.fireInsultEvent(player, target, Math.abs(DISCOVERY_REP_PENALTY) * 100f);
+
+        // The target now remembers the player's espionage.
+        try {
+            Nex4xManager.getOrCreateManager().getMemoryManager()
+                    .createMemory("espionage_discovered",
+                            player.getId(),
+                            targetFactionId,
+                            "Wetwork contract exposed");
+        } catch (Throwable t) {
+            // Memory system unavailable; rep hit still applied.
+        }
     }
 }
