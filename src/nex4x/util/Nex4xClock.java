@@ -38,14 +38,4 @@ public final class Nex4xClock {
         if (c == null) return 0f;
         return c.getCycle() * 360f + (c.getMonth() - 1) * 30f + c.getDay();
     }
-
-    /**
-     * Heuristic: pre-fix, several fields stored raw timestamp (seconds since epoch ~ 5e6+)
-     * as a "day count". Real day counts are tiny floats. Anything with magnitude > 1e6 is
-     * almost certainly a legacy raw-timestamp value loaded from an older save.
-     * Epoch: cycle 0 (post-fix). At cycle 206 the absolute day is ~74 000, well below 1e6.
-     */
-    public static boolean isLegacyDayValue(double v) {
-        return Math.abs(v) > 1e6;
-    }
 }

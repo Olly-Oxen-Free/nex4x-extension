@@ -63,8 +63,12 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     public void init() {
         this.setImportant(true);
         Global.getSector().getIntelManager().addIntel(this);
+        // Keep the intel's own timed-lifecycle script non-transient: the accept/reject
+        // countdown (5–7 game-days) must keep advancing across save/load.
         Global.getSector().addScript(this);
-        Global.getSector().addScript(new PopupDialogScript(this));
+        // PopupDialogScript is a one-shot UI-popup driver — no need to serialize it into
+        // the save. Transient avoids save bloat and cross-load accumulation.
+        Global.getSector().addTransientScript(new PopupDialogScript(this));
         log.info("[Nex4x] AI proposal from " + factionId + " added to intel");
     }
 

@@ -527,7 +527,6 @@ public class Nex4xDebugCommand {
         float absDay = nex4x.util.Nex4xClock.currentAbsoluteDay();
         sb.append("  now timestamp = ").append(ts).append("\n");
         sb.append("  current absolute day = ").append(absDay).append(" (cycle-0 epoch, 360 days/cycle)\n");
-        sb.append("  isLegacyDayValue(ts) = ").append(nex4x.util.Nex4xClock.isLegacyDayValue(ts)).append("\n");
         com.fs.starfarer.api.Global.getSector().getCampaignUI().addMessage(sb.toString());
         return sb.toString();
     }

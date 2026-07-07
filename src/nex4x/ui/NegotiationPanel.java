@@ -36,6 +36,11 @@ public class NegotiationPanel extends BasePopUpDialog {
     private static final Logger log = Global.getLogger(NegotiationPanel.class);
     private static NegotiationPanel activeInstance = null;
 
+    /** Null the singleton on game load so a stale handle can't lock out the panel. */
+    public static void resetActiveInstance() {
+        activeInstance = null;
+    }
+
     /** Opens the negotiation popup with size derived from the current screen (reduces clipping). */
     public static void openScaled(String targetFactionId, boolean viceroyMode) {
         if (activeInstance != null) return; // only one panel at a time

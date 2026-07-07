@@ -3,7 +3,13 @@ package nex4x.coalitions;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FactionAPI;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import exerelin.campaign.AllianceManager;
+import exerelin.campaign.alliances.Alliance;
 import nex4x.Nex4xConstants;
+import nex4x.agreements.Agreement;
+import nex4x.agreements.AgreementManager;
+import nex4x.agreements.AgreementType;
+import nex4x.integration.NexDiplomacyBridge;
 import nex4x.managers.Nex4xManager;
 import org.apache.log4j.Logger;
 
@@ -19,6 +25,12 @@ public class CoalitionGovernance implements Serializable {
 
     public static final float TENSION_DECAY_PER_DAY = 0.2f;
     public static final float DISSOLUTION_TENSION_THRESHOLD = 70f;
+    /**
+     * Minimum raw relationship enforced between coalition members when a new member is
+     * admitted. Coalition is the top alliance tier, so this mirrors the friendly floor
+     * used by MILITARY_PARTNERSHIP in {@code AgreementManager.relationFloorFor}.
+     */
+    public static final float COALITION_RELATION_FLOOR = 0.50f;
 
     private final List<CoalitionTension> tensions = new ArrayList<CoalitionTension>();
     private final List<CoalitionVote> pendingVotes = new ArrayList<CoalitionVote>();
@@ -130,9 +142,12 @@ public class CoalitionGovernance implements Serializable {
 
     /**
      * Apply the in-world effect of a passed vote.
-     * MUST: DECLARE_WAR and MAKE_PEACE are fully wired.
-     * SHOULD: ADD_MEMBER / KICK_MEMBER / DISSOLVE log results but full agreement teardown
-     * is deferred (would require circular dep into AgreementManager on cancel path).
+     *
+     * <p>A coalition has no standalone data structure: its membership is the transitive
+     * closure of active {@link AgreementType#COALITION} pairwise agreements held by
+     * {@link AgreementManager}, mirrored into a Nex {@link Alliance} via
+     * {@link NexDiplomacyBridge#syncCoalitionToAlliance}. All five vote types therefore act
+     * through those two backings (agreements + shadow alliance) plus vanilla diplomacy events.
      */
     private void applyVoteEffect(CoalitionVote vote, List<String> members) {
         try {
@@ -167,28 +182,121 @@ public class CoalitionGovernance implements Serializable {
                     }
                     break;
                 }
-                case ADD_MEMBER:
-                    // SHOULD: call AgreementManager.createAgreement for each existing-member <-> new-member pair
-                    // Deferred: avoiding circular dependency on AgreementManager at this abstraction level.
-                    // TODO: wire full agreement creation when AgreementManager accessor is available here.
-                    log.info("[Nex4x] Coalition vote ADD_MEMBER passed: "
-                            + vote.getTargetFactionId()
-                            + " (agreement creation deferred — TODO PRD-022 follow-up)");
+                case ADD_MEMBER: {
+                    // Ratify the newcomer into the coalition. The pairwise COALITION agreement
+                    // that made them reachable was already created at proposal time
+                    // (AgreementManager.createAgreement); the passed vote confirms it by
+                    // (a) folding the member into the shadow Nex alliance and
+                    // (b) enforcing a friendly relation floor with every existing member.
+                    // We deliberately do NOT call createAgreement here: it re-proposes an
+                    // ADD_MEMBER vote whenever members.size() > 2, which would loop forever.
+                    String newMember = vote.getTargetFactionId();
+                    List<String> full = new ArrayList<String>(members);
+                    if (newMember != null && !full.contains(newMember)) full.add(newMember);
+
+                    if (newMember != null) {
+                        for (String existing : members) {
+                            if (existing.equals(newMember)) continue;
+                            try {
+                                NexDiplomacyBridge.enforceNonAggression(
+                                        existing, newMember, COALITION_RELATION_FLOOR);
+                            } catch (Throwable t) {
+                                log.warn("[Nex4x] ADD_MEMBER relation floor " + existing
+                                        + " <-> " + newMember + ": " + t.getMessage());
+                            }
+                        }
+                    }
+                    try {
+                        NexDiplomacyBridge.syncCoalitionToAlliance(buildCoalitionId(full), full);
+                    } catch (Throwable t) {
+                        log.warn("[Nex4x] ADD_MEMBER alliance sync failed: " + t.getMessage(), t);
+                    }
+                    log.info("[Nex4x] Coalition vote ADD_MEMBER applied: " + newMember
+                            + " admitted to coalition of " + full.size() + " members");
                     break;
-                case KICK_MEMBER:
-                    // SHOULD: cancel all coalition agreements involving the kicked member.
-                    // Deferred: same circular-dep concern.
-                    // TODO: wire AgreementManager.cancelWithConsequences for each coalition pair.
-                    log.info("[Nex4x] Coalition vote KICK_MEMBER passed: "
-                            + vote.getTargetFactionId()
-                            + " (agreement cancellation deferred — TODO PRD-022 follow-up)");
+                }
+                case KICK_MEMBER: {
+                    // Expel the target: cancel every active COALITION agreement it holds, which
+                    // (via AgreementManager.maybeSyncCoalitionLeave) also drops it from the shadow
+                    // Nex alliance once it has no remaining coalition ties. Each cancellation is
+                    // attributed to the remaining party so the expelled faction gains a
+                    // TREATY_VIOLATION casus belli (the grievance of being kicked).
+                    String kicked = vote.getTargetFactionId();
+                    AgreementManager am = getAgreementManager();
+                    int cancelled = 0;
+                    if (am != null && kicked != null) {
+                        for (Agreement a : am.getAgreementsOfType(kicked, AgreementType.COALITION)) {
+                            String canceller = a.getOtherFaction(kicked);
+                            if (canceller == null) canceller = vote.getProposerFactionId();
+                            try {
+                                am.cancelWithConsequences(a, canceller);
+                                cancelled++;
+                            } catch (Throwable t) {
+                                log.warn("[Nex4x] KICK_MEMBER cancel failed for " + kicked
+                                        + ": " + t.getMessage());
+                            }
+                        }
+                    }
+                    // Belt-and-suspenders: mirror DemandManager's explicit alliance leave in case
+                    // the agreement teardown above left a stale alliance membership.
+                    leaveAllianceQuietly(kicked);
+                    log.info("[Nex4x] Coalition vote KICK_MEMBER applied: " + kicked
+                            + " expelled (" + cancelled + " coalition agreement(s) cancelled)");
                     break;
-                case DISSOLVE:
-                    // SHOULD: cancel all coalition agreements among members.
-                    // Deferred.
-                    log.info("[Nex4x] Coalition vote DISSOLVE passed"
-                            + " (full dissolution deferred — TODO PRD-022 follow-up)");
+                }
+                case DISSOLVE: {
+                    // Tear the whole coalition down: capture the shadow alliance, cancel every
+                    // COALITION agreement among the members (plain cancel — dissolution is mutual,
+                    // so no faction is blamed with a CB), then dissolve the Nex alliance outright
+                    // and purge intra-coalition tension records.
+                    AgreementManager am = getAgreementManager();
+                    Alliance alliance = null;
+                    for (String fid : members) {
+                        try {
+                            Alliance a = AllianceManager.getFactionAlliance(fid);
+                            if (a != null) { alliance = a; break; }
+                        } catch (Throwable t) {
+                            log.warn("[Nex4x] DISSOLVE alliance lookup for " + fid
+                                    + ": " + t.getMessage());
+                        }
+                    }
+
+                    int cancelled = 0;
+                    if (am != null) {
+                        List<Agreement> toCancel = new ArrayList<Agreement>();
+                        for (String fid : members) {
+                            for (Agreement a : am.getAgreementsOfType(fid, AgreementType.COALITION)) {
+                                if (!toCancel.contains(a)) toCancel.add(a);
+                            }
+                        }
+                        for (Agreement a : toCancel) {
+                            try {
+                                a.cancel();
+                                cancelled++;
+                            } catch (Throwable t) {
+                                log.warn("[Nex4x] DISSOLVE agreement cancel failed: " + t.getMessage());
+                            }
+                        }
+                    }
+
+                    if (alliance != null) {
+                        try {
+                            AllianceManager.getManager().dissolveAlliance(alliance);
+                            log.info("[Nex4x] DISSOLVE: dissolved Nex alliance " + alliance.getName());
+                        } catch (Throwable t) {
+                            // Fallback: no direct dissolve — have every member leave individually.
+                            log.warn("[Nex4x] DISSOLVE: dissolveAlliance failed (" + t.getMessage()
+                                    + ") — leaving per member");
+                            for (String fid : members) leaveAllianceQuietly(fid);
+                        }
+                    }
+
+                    clearTensionsAmong(members);
+                    log.info("[Nex4x] Coalition vote DISSOLVE applied: coalition of "
+                            + members.size() + " members disbanded (" + cancelled
+                            + " agreement(s) cancelled)");
                     break;
+                }
                 default:
                     log.warn("[Nex4x] applyVoteEffect: unhandled vote type " + vote.getType());
                     break;
@@ -215,6 +323,55 @@ public class CoalitionGovernance implements Serializable {
         List<String> fallback = new ArrayList<String>();
         fallback.add(anyMemberId);
         return fallback;
+    }
+
+    /** Resolve the shared AgreementManager, or null if the Nex4x manager is unavailable. */
+    private AgreementManager getAgreementManager() {
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr != null) {
+            try {
+                return mgr.getAgreementManager();
+            } catch (Throwable t) {
+                log.warn("[Nex4x] getAgreementManager failed: " + t.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /** Remove {@code factionId} from its Nex alliance if it belongs to one. Never throws. */
+    private void leaveAllianceQuietly(String factionId) {
+        if (factionId == null) return;
+        try {
+            Alliance alliance = AllianceManager.getFactionAlliance(factionId);
+            if (alliance != null) {
+                AllianceManager.getManager().leaveAlliance(factionId, alliance);
+                log.info("[Nex4x] Coalition leave: " + factionId
+                        + " left Nex alliance " + alliance.getName());
+            }
+        } catch (Throwable t) {
+            log.warn("[Nex4x] leaveAllianceQuietly for " + factionId + ": " + t.getMessage(), t);
+        }
+    }
+
+    /** Drop every tracked tension entry that sits between two of the given members. */
+    private void clearTensionsAmong(List<String> memberIds) {
+        if (memberIds == null || memberIds.isEmpty()) return;
+        Iterator<CoalitionTension> it = tensions.iterator();
+        while (it.hasNext()) {
+            CoalitionTension t = it.next();
+            if (memberIds.contains(t.getFactionA()) && memberIds.contains(t.getFactionB())) {
+                it.remove();
+            }
+        }
+    }
+
+    /** Stable coalition id derived from a sorted member list (logging only). */
+    private static String buildCoalitionId(List<String> members) {
+        List<String> sorted = new ArrayList<String>(members);
+        java.util.Collections.sort(sorted);
+        StringBuilder sb = new StringBuilder("coalition");
+        for (String m : sorted) sb.append('_').append(m);
+        return sb.toString();
     }
 
     public boolean shouldDissolve(List<String> memberIds) {

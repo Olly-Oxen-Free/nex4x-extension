@@ -38,6 +38,15 @@ public class CoreUITabInjectorListener implements CoreUITabListener {
     private static UIPanelAPI lastIntelPanel;
     private static CustomPanelAPI lastOverlay;
 
+    /**
+     * Null the static overlay refs. Called from Nex4xModPlugin.onGameLoad so stale
+     * panel handles from a previous session don't leak across save/load.
+     */
+    public static void resetStatics() {
+        lastIntelPanel = null;
+        lastOverlay = null;
+    }
+
     @Override
     public void reportAboutToOpenCoreTab(CoreUITabId tab, Object param) {
         if (tab != CoreUITabId.INTEL) return;

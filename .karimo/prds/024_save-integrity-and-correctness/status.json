@@ -1,10 +1,12 @@
 {
-  "status": "planned",
+  "status": "complete",
   "created_date": "2026-05-31",
-  "source": "2026-05-31 nex4x flaw audit",
+  "completed_date": "2026-07-07",
+  "source": "2026-05-31 nex4x flaw audit; 2026-07-07 verification audit (section D)",
   "severity": "P1/P2",
   "tasks_total": 11,
   "complexity_total": 16,
   "execution_mode": "karimo-implementer-per-task",
-  "tasks_completed": []
+  "tasks_completed": ["all"],
+  "notes": "Save-integrity backlog resolved (2026-07-07). Decision: SAVE-BREAK accepted for the day-math epoch change (Starsector 360-day calendar) — no migration provided; isLegacyDayValue heuristic removed. Transient static leaks fixed: CoreUITabInjectorListener.resetStatics, PeaceConferenceDialog/NegotiationPanel.resetActiveInstance, FactionPowerRankings.invalidate all invoked from Nex4xModPlugin.onGameLoad. AIProposalIntel PopupDialogScript switched to addTransientScript (intel timer kept non-transient so the accept/reject countdown survives save/load). CHANGELOG updated with SAVE-BREAK notice."
 }

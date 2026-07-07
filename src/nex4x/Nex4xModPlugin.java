@@ -124,6 +124,18 @@ public class Nex4xModPlugin extends BaseModPlugin {
     public void onGameLoad(boolean newGame) {
         log.info("[Nex4x] onGameLoad (newGame=" + newGame + ")");
 
+        // Reset transient statics carried over from a prior session in this JVM (PRD-024).
+        // Static caches/singletons survive save->load, so clear them before anything
+        // re-registers listeners or opens UI this session.
+        try {
+            nex4x.ui.CoreUITabInjectorListener.resetStatics();
+            nex4x.ui.PeaceConferenceDialog.resetActiveInstance();
+            nex4x.ui.NegotiationPanel.resetActiveInstance();
+            nex4x.util.FactionPowerRankings.invalidate();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] onGameLoad reset transient statics: " + t.getMessage(), t);
+        }
+
         try {
             Global.getSector().getListenerManager().removeListenerOfClass(
                     nex4x.ui.PoliticsTabListener.class);

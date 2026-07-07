@@ -37,6 +37,11 @@ public class PeaceConferenceDialog extends BasePopUpDialog {
      */
     private List<Integer> survivingIndices = new ArrayList<Integer>();
 
+    /** Null the singleton on game load so a stale handle can't lock out the dialog. */
+    public static void resetActiveInstance() {
+        activeInstance = null;
+    }
+
     public static void openScaled(PeaceConference pc) {
         if (activeInstance != null) return;
         float sw = Global.getSettings().getScreenWidth();

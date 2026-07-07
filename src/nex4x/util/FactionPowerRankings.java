@@ -15,8 +15,8 @@ public final class FactionPowerRankings {
 
     /**
      * Caches are static but explicitly invalidated by Nex4xModPlugin.beforeGameSave()
-     * and rebuilt on demand by callers. Treat them as transient — never trust without
-     * a fresh rebuild() in the current session.
+     * and Nex4xModPlugin.onGameLoad(), and rebuilt on demand by callers. Treat them as
+     * transient — never trust without a fresh rebuild() in the current session.
      */
     private static final Map<String, Float> economic = new HashMap<String, Float>();
     private static final Map<String, Float> military = new HashMap<String, Float>();
@@ -26,7 +26,7 @@ public final class FactionPowerRankings {
 
     private FactionPowerRankings() {}
 
-    /** Clear all cached scores. Called from beforeGameSave to prevent cross-session pollution. */
+    /** Clear all cached scores. Called from beforeGameSave and onGameLoad to prevent cross-session pollution. */
     public static void invalidate() {
         economic.clear();
         military.clear();

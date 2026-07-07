@@ -2,6 +2,25 @@
 
 All notable changes to nex4x-extension.
 
+## [Unreleased] — 2026-07-07
+
+### Changed — SAVE-BREAK
+
+- **Day-math epoch changed** to Starsector's real 360-day calendar (12 months
+  × 30 days per cycle). Time and day-index math now derive from
+  `CampaignClockAPI` cycle/month/day instead of a raw timestamp epoch.
+  **Saves created before this version are NOT compatible — start a new game.**
+  No migration is provided; the legacy raw-timestamp heuristic
+  (`Nex4xClock.isLegacyDayValue`) has been removed.
+
+### Fixed — save integrity (PRD-024)
+
+- Reset transient static caches on game load: `CoreUITabInjectorListener`
+  overlay refs, `PeaceConferenceDialog`/`NegotiationPanel` singletons, and
+  `FactionPowerRankings` denom cache — prevents cross-session pollution.
+- `AIProposalIntel` popup driver switched to a transient script to avoid
+  serializing UI drivers into saves.
+
 ## [Unreleased] — 2026-05-11
 
 Full code-piping audit (110 findings) + complete Nexerelin integration
@@ -35,8 +54,7 @@ campaign delivered via 12 KARIMO PRDs.
 
 - **Nex4xRelations** — single conversion point between Nex's raw -1..1
   relation and nex4x's percent (-100..100) scale.
-- **Nex4xClock** — game-time helpers (`now`, `daysSince`, `currentAbsoluteDay`,
-  `isLegacyDayValue`).
+- **Nex4xClock** — game-time helpers (`now`, `daysSince`, `currentAbsoluteDay`).
 
 ### Added — State machines + features
 
