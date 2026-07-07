@@ -13,7 +13,9 @@ NEX="$STARSECTOR/mods/Nexerelin-0.12.1d/jars/ExerelinCore.jar"
 ASHLIB="$STARSECTOR/mods/Ashlib-2.1.2/jars/ashlib.jar"
 LAZYLIB="$STARSECTOR/mods/LazyLib-3.0.0/jars/LazyLib.jar"
 LWJGL="$STARSECTOR/lwjgl.jar"
-CLASSPATH="$API:$LOG4J:$JSON:$NEX:$ASHLIB:$LAZYLIB:$LWJGL"
+WRAPUI="$STARSECTOR/mods/WrapUI-0.4.0/jars/main/native_ui.jar"
+ROLFLECTION="$STARSECTOR/mods/WrapUI-0.4.0/jars/libs/RolflectionLib.jar"
+CLASSPATH="$API:$LOG4J:$JSON:$NEX:$ASHLIB:$LAZYLIB:$LWJGL:$WRAPUI:$ROLFLECTION"
 
 echo "=== Nexerelin 4X Expansion Build ==="
 

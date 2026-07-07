@@ -17,8 +17,9 @@ import exerelin.campaign.ui.PopupDialogScript.PopupDialog;
 import nex4x.agreements.AgreementType;
 import nex4x.managers.Nex4xManager;
 import nex4x.negotiation.DealPackage;
-import nex4x.negotiation.NegotiableItem;
 import nex4x.negotiation.ItemValuator;
+import nex4x.negotiation.NegotiableItem;
+import nex4x.negotiation.NegotiationDealExecutor;
 import org.apache.log4j.Logger;
 import org.lazywizard.lazylib.MathUtils;
 import org.lwjgl.input.Keyboard;
@@ -62,8 +63,12 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     public void init() {
         this.setImportant(true);
         Global.getSector().getIntelManager().addIntel(this);
+        // Keep the intel's own timed-lifecycle script non-transient: the accept/reject
+        // countdown (5–7 game-days) must keep advancing across save/load.
         Global.getSector().addScript(this);
-        Global.getSector().addScript(new PopupDialogScript(this));
+        // PopupDialogScript is a one-shot UI-popup driver — no need to serialize it into
+        // the save. Transient avoids save bloat and cross-load accumulation.
+        Global.getSector().addTransientScript(new PopupDialogScript(this));
         log.info("[Nex4x] AI proposal from " + factionId + " added to intel");
     }
 
@@ -101,54 +106,82 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     private void executeDeal() {
         Nex4xManager mgr = Nex4xManager.getManager();
         if (mgr == null) return;
-
-        String playerFactionId = Global.getSector().getPlayerFaction().getId();
-
-        // AI's offers = what AI gives to player
-        for (NegotiableItem item : aiDeal.getOffers()) {
-            executeItem(item, factionId, playerFactionId, mgr);
-        }
-        // AI's requests = what player gives to AI
-        for (NegotiableItem item : aiDeal.getRequests()) {
-            executeItem(item, playerFactionId, factionId, mgr);
-        }
-    }
-
-    private void executeItem(NegotiableItem item, String giver, String receiver,
-                              Nex4xManager mgr) {
-        String playerFactionId = Global.getSector().getPlayerFaction().getId();
-        switch (item.getType()) {
-            case AGREEMENTS:
-                if (item.getAgreementType() != null) {
-                    mgr.getAgreementManager().createAgreement(
-                            playerFactionId, factionId, item.getAgreementType());
-                }
-                break;
-            case PEACE_TERMS:
-                if (item.isCeasefire()) {
-                    try {
-                        FactionAPI playerFac = Global.getSector().getFaction(playerFactionId);
-                        FactionAPI targetFac = Global.getSector().getFaction(factionId);
-                        exerelin.campaign.DiplomacyManager.createDiplomacyEventV2(
-                                playerFac, targetFac, "ceasefire", null);
-                    } catch (Exception e) {
-                        Global.getSector().getFaction(playerFactionId)
-                                .setRelationship(factionId, 0);
-                    }
-                }
-                break;
-            default:
-                break;
-        }
+        NegotiationDealExecutor.executeDeal(aiDeal, mgr, false);
     }
 
     // ── Intel description (shown in intel tab) ────────────────
+
+    /** Derive the appropriate Situation for the leader dialogue line from the deal's items. */
+    private nex4x.leaders.Situation deriveProposalSituation() {
+        // Check offers (what AI gives) for peace items
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getOffers()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.PEACE_TERMS) {
+                return nex4x.leaders.Situation.PEACE_PROPOSED_BY_AI;
+            }
+        }
+        // Check requests (what AI wants) for peace items
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getRequests()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.PEACE_TERMS) {
+                return nex4x.leaders.Situation.PEACE_PROPOSED_BY_AI;
+            }
+        }
+        // Check offers and requests for agreement types
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getOffers()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.AGREEMENTS
+                    && item.getAgreementType() != null) {
+                return agreementTypeToSituation(item.getAgreementType());
+            }
+        }
+        for (nex4x.negotiation.NegotiableItem item : aiDeal.getRequests()) {
+            if (item.getType() == nex4x.negotiation.NegotiableItemType.AGREEMENTS
+                    && item.getAgreementType() != null) {
+                return agreementTypeToSituation(item.getAgreementType());
+            }
+        }
+        // Default: generic alliance proposal
+        return nex4x.leaders.Situation.ALLIANCE_PROPOSED;
+    }
+
+    private nex4x.leaders.Situation agreementTypeToSituation(
+            nex4x.agreements.AgreementType agType) {
+        if (agType == nex4x.agreements.AgreementType.NAP) {
+            return nex4x.leaders.Situation.NAP_PROPOSED;
+        }
+        if (agType == nex4x.agreements.AgreementType.TRADE_AGREEMENT) {
+            return nex4x.leaders.Situation.TRADE_PACT_PROPOSED;
+        }
+        // DEFENSIVE_PACT, MILITARY_PARTNERSHIP, ECONOMIC_PARTNERSHIP, COALITION
+        return nex4x.leaders.Situation.ALLIANCE_PROPOSED;
+    }
 
     @Override
     public void createGeneralDescription(TooltipMakerAPI info, float width, float opad) {
         FactionAPI faction = Global.getSector().getFaction(factionId);
         FactionAPI playerFaction = Global.getSector().getFaction(
                 PlayerFactionStore.getPlayerFactionId());
+
+        // v5 — leader portrait header
+        nex4x.leaders.LeaderProfile leader = nex4x.managers.Nex4xManager
+                .getOrCreateManager().getLeaderRegistry().getProfile(factionId);
+        String sprite = leader.portraitSprite();
+        if (sprite != null) {
+            info.beginImageWithText(sprite, 72f);
+            info.addPara(leader.displayName(), 4f);
+            info.addPara(faction.getDisplayName(), 2f);
+            info.addImageWithText(4f);
+        } else {
+            info.addPara(leader.displayName() + " — " + faction.getDisplayName(), opad);
+        }
+        // Derive situation from deal content
+        nex4x.leaders.Situation sit = deriveProposalSituation();
+        float rel = faction.getRelationship(playerFaction.getId());
+        nex4x.leaders.ReputationTier tier = nex4x.leaders.ReputationTier.fromRawRelation(rel);
+        java.util.Map<String,String> ctx = new java.util.HashMap<String,String>();
+        ctx.put("player", playerFaction.getDisplayName());
+        ctx.put("leader", leader.displayName());
+        ctx.put("faction", faction.getDisplayName());
+        String proposalLine = nex4x.leaders.DialogueSystem.get().resolve(leader, sit, tier, ctx);
+        info.addPara("\"" + proposalLine + "\"", opad);
 
         info.addImages(width, 96, opad, opad, faction.getLogo(), playerFaction.getLogo());
 
@@ -221,7 +254,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
     public void buttonPressConfirmed(Object buttonId, IntelUIAPI ui) {
         if (BUTTON_COUNTER.equals(buttonId)) {
             // Open negotiation table pre-filled with AI's deal
-            NegotiationPopUpDialog popup = new NegotiationPopUpDialog(factionId, aiDeal);
+            NegotiationPanel popup = new NegotiationPanel(factionId, aiDeal);
             BasePopUpDialog.popUpDialog(popup, 620, 560);
             // Treat as rejection of this specific proposal (player is now counter-proposing)
             reject();
@@ -281,7 +314,7 @@ public class AIProposalIntel extends TimedDiplomacyIntel implements PopupDialog 
             accept();
             endAfterDelay();
         } else if (optionData == DIALOG_OPT_COUNTER) {
-            NegotiationPopUpDialog popup = new NegotiationPopUpDialog(factionId, aiDeal);
+            NegotiationPanel popup = new NegotiationPanel(factionId, aiDeal);
             BasePopUpDialog.popUpDialog(popup, 620, 560);
             reject();
             endAfterDelay();

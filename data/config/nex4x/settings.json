@@ -9,5 +9,16 @@
     "beliefStrength1DecayMod": 0.8,
     "beliefStrength2DecayMod": 0.5,
     "beliefStrength3DecayMod": 0.1,
-    "showLegacyNexIntels": false
+    "showLegacyNexIntels": false,
+    "showLegacyFactionBrowserIntel": false,
+    "commandTabPlaceNearButton": "income",
+    "aiProposalCooldownDays": 60,
+    "aiProposalUrgentCooldownDays": 30,
+    "aiProposalMinGameDays": 0,
+    "aiProposalRequirePlayerMarket": true,
+    "aiNapFriendlyRelMin": 22,
+    "aiNapWaryRelMin": -25,
+    "aiNapWaryRelMax": 12,
+    "aiNapDefensiveDesperationMin": 25,
+    "aiNapDefensivePressureMin": 20
 }

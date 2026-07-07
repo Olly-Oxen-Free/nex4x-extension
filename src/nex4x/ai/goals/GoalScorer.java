@@ -68,7 +68,7 @@ public class GoalScorer {
         }
 
         // Historical weight — how long has this goal existed (max 10)
-        float ageDays = getCurrentDay() - goal.getCreatedDay();
+        float ageDays = goal.getAgeDays();
         score += Math.min(1f, ageDays / 90f) * 10f;
 
         return Math.max(0, Math.min(100, score));
@@ -209,7 +209,4 @@ public class GoalScorer {
         return goal.getParentGoalId() != null ? 0.5f : 0.1f;
     }
 
-    private static float getCurrentDay() {
-        return com.fs.starfarer.api.Global.getSector().getClock().getTimestamp();
-    }
 }

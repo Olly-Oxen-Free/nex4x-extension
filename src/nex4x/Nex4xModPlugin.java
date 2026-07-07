@@ -1,19 +1,29 @@
 package nex4x;
 
 import com.fs.starfarer.api.BaseModPlugin;
+import com.fs.starfarer.api.EveryFrameScript;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignEventListener;
 import com.fs.starfarer.api.campaign.FactionAPI;
+import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
 import nex4x.ai.DiplomaticExecutor;
 import nex4x.ai.StrategicGoalManager;
 import nex4x.ai.archetype.GrandStrategyManager;
 import exerelin.campaign.DiplomacyManager;
+import exerelin.campaign.ai.StrategicAI;
 import exerelin.utilities.NexConfig;
 import nex4x.data.*;
+import nex4x.leaders.DialogueSystem;
 import nex4x.integration.FactionCompatibility;
+import nex4x.agents.Nex4xAgentActionReportListener;
 import nex4x.listeners.Nex4xEventListener;
+import nex4x.listeners.Nex4xInvasionBridge;
+import nex4x.listeners.Nex4xRaidBridge;
 import nex4x.managers.Nex4xManager;
+import nex4x.ui.AgreementManagerIntel;
+import nex4x.ui.DoctrineSetupDialog;
+import nex4x.ui.IntelReflectionUtil;
 import nex4x.ui.ProfileExtender;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
@@ -27,16 +37,22 @@ public class Nex4xModPlugin extends BaseModPlugin {
         log.info("[Nex4x] onApplicationLoad — loading data definitions");
 
         Nex4xSettings.load();
+        nex4x.leaders.LeaderAccessConfig.load();
         BeliefRegistry.load();
         FactionBeliefsLoader.load();
         MemoryTypeRegistry.load();
         TendencyProfileLoader.loadProfiles();
+        DialogueSystem.load();
+        nex4x.leaders.LeaderConfigRegistry.load();
+        nex4x.declarations.DeclarationConfig.load();
+        nex4x.negotiation.BaseValueTable.load();
 
         // Load v1 AI engine configs
         try {
             JSONObject grandStratConfig = Global.getSettings().loadJSON(
                     "data/config/nex4x/grand_strategy.json");
             GrandStrategyManager.loadConfig(grandStratConfig);
+            nex4x.ai.archetype.ArchetypeOverrideRegistry.load();
 
             JSONObject goalConfig = Global.getSettings().loadJSON(
                     "data/config/nex4x/goal_weights.json");
@@ -51,24 +67,131 @@ public class Nex4xModPlugin extends BaseModPlugin {
             log.error("[Nex4x] Failed to load AI engine configs: " + e.getMessage(), e);
         }
 
-        // Register Ashlib Politics tab via ListenerManager (reflection — Ashlib optional dep)
+        // Politics tab removed: anchoring on "Fleet" NPEs Ashlib CommandTabTracker when other mods
+        // rewrite the command bar. Factions tab registers in onGameLoad instead.
+
+        // NOTE: Nex4xStrategicAIConcerns.register() removed (PRD-015 15a).
+        // strategicAIConfig.json is the sole registration source for nex4x concern/action defs.
+
+        // NOTE: covert action registration is deferred to onGameLoad. Touching
+        // CovertOpsManager.actionDefsById here triggers Nex's static initializer, which
+        // calls Global.getSector().getAllFactions() — null at application load — and the
+        // resulting ExceptionInInitializerError was silently swallowed (0/7 defs registered).
+    }
+
+    @Override
+    public void onNewGame() {
+        log.info("[Nex4x] onNewGame");
+    }
+
+    @Override
+    public void onNewGameAfterEconomyLoad() {
+        log.info("[Nex4x] onNewGameAfterEconomyLoad — seeding manager early so procgen can reach it");
         try {
-            Object tabListener = Class.forName("nex4x.ui.PoliticsTabListener")
-                    .newInstance();
-            Global.getSector().getListenerManager().addListener(tabListener);
-            log.info("[Nex4x] Registered Politics tab via Ashlib");
-        } catch (Exception e) {
-            // Sector not available during onApplicationLoad, or Ashlib absent
-            log.info("[Nex4x] Deferring Politics tab registration to onGameLoad");
+            Nex4xManager.getOrCreateManager();
+            FactionBeliefsLoader.loadForLiveFactions();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] onNewGameAfterEconomyLoad seed failed: " + t.getMessage(), t);
         }
+        try {
+            nex4x.industries.IndustrySeeder.seedAll();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] IndustrySeeder.seedAll failed: " + t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void beforeGameSave() {
+        log.info("[Nex4x] beforeGameSave");
+        try {
+            nex4x.util.FactionPowerRankings.invalidate();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] beforeGameSave: " + t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void afterGameSave() {
+        log.info("[Nex4x] afterGameSave");
+    }
+
+    @Override
+    public void onGameSaveFailed() {
+        log.warn("[Nex4x] onGameSaveFailed — save failed; check XStream errors above");
     }
 
     @Override
     public void onGameLoad(boolean newGame) {
         log.info("[Nex4x] onGameLoad (newGame=" + newGame + ")");
 
+        // Reset transient statics carried over from a prior session in this JVM (PRD-024).
+        // Static caches/singletons survive save->load, so clear them before anything
+        // re-registers listeners or opens UI this session.
+        try {
+            nex4x.ui.CoreUITabInjectorListener.resetStatics();
+            nex4x.ui.PeaceConferenceDialog.resetActiveInstance();
+            nex4x.ui.NegotiationPanel.resetActiveInstance();
+            nex4x.util.FactionPowerRankings.invalidate();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] onGameLoad reset transient statics: " + t.getMessage(), t);
+        }
+
+        try {
+            Global.getSector().getListenerManager().removeListenerOfClass(
+                    nex4x.ui.PoliticsTabListener.class);
+        } catch (Throwable t) {
+            log.warn("[Nex4x] Legacy Politics tab listener sweep: " + t.getMessage());
+        }
+        try {
+            Global.getSector().getListenerManager().removeListenerOfClass(
+                    nex4x.ui.FactionsTabListener.class);
+        } catch (Throwable t) {
+            log.warn("[Nex4x] FactionsTabListener sweep: " + t.getMessage());
+        }
+
         // Initialize or retrieve persisted manager
         Nex4xManager.getOrCreateManager();
+
+        // Register nex4x covert action defs with Nex CovertOpsManager (onGameLoad).
+        // Deferred from onApplicationLoad: Nex's CovertOpsManager static init dereferences
+        // Global.getSector(), which is null at app-load. Idempotent on reload.
+        try {
+            log.info("[Nex4x] Covert action registration (onGameLoad)");
+            nex4x.agents.actions.Nex4xCovertActionRegistry.register();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] Covert action registration: " + t.getMessage(), t);
+        }
+
+        // Load belief JSONs for any modded factions present in this save.
+        try {
+            FactionBeliefsLoader.loadForLiveFactions();
+        } catch (Throwable t) {
+            log.warn("[Nex4x] FactionBeliefsLoader.loadForLiveFactions: " + t.getMessage(), t);
+        }
+
+        // Backfill Nex Alliance shadows for in-flight COALITION agreements (PRD-009 9g).
+        try {
+            nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getManager();
+            if (mgr != null) {
+                nex4x.agreements.AgreementManager am = mgr.getAgreementManager();
+                int backfilled = 0;
+                for (nex4x.agreements.Agreement a : am.getAllAgreements()) {
+                    if (!a.isActive()) continue;
+                    if (a.getType() != nex4x.agreements.AgreementType.COALITION) continue;
+                    if (nex4x.integration.NexDiplomacyBridge.ensureAlliance(
+                            a.getFactionIdA(), a.getFactionIdB()) != null) {
+                        backfilled++;
+                    }
+                }
+                if (backfilled > 0) {
+                    log.info("[Nex4x] Backfilled " + backfilled + " coalition alliances on load");
+                }
+            }
+        } catch (Throwable t) {
+            log.warn("[Nex4x] COALITION backfill: " + t.getMessage(), t);
+        }
+
+        applyNex4xAuthorityOverNexDiplomacy();
 
         // Register campaign event listener (transient — re-registered each load)
         boolean listenerExists = false;
@@ -83,16 +206,7 @@ public class Nex4xModPlugin extends BaseModPlugin {
             log.info("[Nex4x] Registered event listener");
         }
 
-        // Register Ashlib Politics tab if not registered in onApplicationLoad (reflection)
-        try {
-            Class<?> tabListenerClass = Class.forName("nex4x.ui.PoliticsTabListener");
-            if (!Global.getSector().getListenerManager().hasListenerOfClass(tabListenerClass)) {
-                Global.getSector().getListenerManager().addListener(tabListenerClass.newInstance());
-                log.info("[Nex4x] Registered Politics tab via Ashlib (deferred)");
-            }
-        } catch (Exception e) {
-            log.warn("[Nex4x] Could not register Politics tab: " + e.getMessage());
-        }
+        registerNexCampaignBridges();
 
         // Ensure all factions have nex4x profiles (auto-derive if missing)
         for (FactionAPI faction : Global.getSector().getAllFactions()) {
@@ -101,14 +215,78 @@ public class Nex4xModPlugin extends BaseModPlugin {
             }
         }
 
-        // Strip v0-era ProfileExtender dossiers left in saves (superseded by FactionBrowserIntel)
+        // Strip v0-era ProfileExtender dossiers left in saves
         removeLegacyDossierIntels();
 
-        // Create unified Faction Browser intel (one per game)
-        createFactionBrowserIntel();
+        sweepNullImmigrationModifiers();
+
+        IntelReflectionUtil.init();
+
+        registerCommandTabs();
+
+        registerIntelTabInjector();
+
+        // Ensure the player's agreements dashboard is always reachable
+        createAgreementManagerIntel();
 
         // Suppress replaced Nex intels — FactionBrowserIntel covers their function
         suppressLegacyNexIntels();
+    }
+
+    /**
+     * Nex4x owns diplomacy AI: disable Nex StrategicAI and block Nex DiplomacyManager brains
+     * for all live factions.
+     */
+    private static void applyNex4xAuthorityOverNexDiplomacy() {
+        try {
+            NexConfig.enableStrategicAI = false;
+            NexConfig.showStrategicAI = false;
+            StrategicAI.removeAIs();
+        } catch (Exception e) {
+            Global.getLogger(Nex4xModPlugin.class).warn("[Nex4x] StrategicAI shutdown: " + e.getMessage());
+        }
+        try {
+            java.util.List<String> disallowed = DiplomacyManager.disallowedFactions;
+            for (String fid : exerelin.campaign.SectorManager.getLiveFactionIdsCopy()) {
+                if (!disallowed.contains(fid)) {
+                    disallowed.add(fid);
+                }
+            }
+        } catch (Exception e) {
+            Global.getLogger(Nex4xModPlugin.class).warn("[Nex4x] disallowedFactions seed: " + e.getMessage());
+        }
+    }
+
+    private static void registerNexCampaignBridges() {
+        try {
+            // Purge any persistent entries from legacy saves (pre-fix, registered without transient flag).
+            com.fs.starfarer.api.campaign.listeners.ListenerManagerAPI lm =
+                    Global.getSector().getListenerManager();
+            if (lm.hasListenerOfClass(Nex4xInvasionBridge.class)) {
+                lm.removeListenerOfClass(Nex4xInvasionBridge.class);
+                log.info("[Nex4x] Purged stale persistent Nex4xInvasionBridge");
+            }
+            if (lm.hasListenerOfClass(Nex4xRaidBridge.class)) {
+                lm.removeListenerOfClass(Nex4xRaidBridge.class);
+                log.info("[Nex4x] Purged stale persistent Nex4xRaidBridge");
+            }
+            if (lm.hasListenerOfClass(Nex4xAgentActionReportListener.class)) {
+                lm.removeListenerOfClass(Nex4xAgentActionReportListener.class);
+                log.info("[Nex4x] Purged stale persistent Nex4xAgentActionReportListener");
+            }
+            // Register transient (true = not saved with sector). Re-runs each onGameLoad.
+            lm.addListener(new Nex4xInvasionBridge(), true);
+            lm.addListener(new Nex4xRaidBridge(), true);
+            lm.addListener(new Nex4xAgentActionReportListener(), true);
+            // Sanity assert
+            if (!lm.hasListenerOfClass(Nex4xInvasionBridge.class)
+                    || !lm.hasListenerOfClass(Nex4xRaidBridge.class)
+                    || !lm.hasListenerOfClass(Nex4xAgentActionReportListener.class)) {
+                log.warn("[Nex4x] registerNexCampaignBridges: post-register assert failed");
+            }
+        } catch (Exception e) {
+            Global.getLogger(Nex4xModPlugin.class).warn("[Nex4x] registerNexCampaignBridges: " + e.getMessage(), e);
+        }
     }
 
     private void removeLegacyDossierIntels() {
@@ -124,6 +302,33 @@ public class Nex4xModPlugin extends BaseModPlugin {
         } catch (Exception e) {
             log.warn("[Nex4x] Failed to sweep legacy dossiers: " + e.getMessage());
         }
+    }
+
+    private void sweepNullImmigrationModifiers() {
+        try {
+            int removed = 0;
+            for (com.fs.starfarer.api.campaign.econ.MarketAPI m :
+                    Global.getSector().getEconomy().getMarketsCopy()) {
+                removed += sweepNullsFromModifierSet(m.getImmigrationModifiers());
+                removed += sweepNullsFromModifierSet(m.getTransientImmigrationModifiers());
+            }
+            if (removed > 0) {
+                log.warn("[Nex4x] Removed " + removed + " null immigration modifier(s) from markets");
+            }
+        } catch (Exception e) {
+            log.warn("[Nex4x] sweepNullImmigrationModifiers: " + e.getMessage());
+        }
+    }
+
+    private static int sweepNullsFromModifierSet(
+            java.util.LinkedHashSet<com.fs.starfarer.api.campaign.econ.MarketImmigrationModifier> set) {
+        if (set == null) return 0;
+        int count = 0;
+        java.util.Iterator<com.fs.starfarer.api.campaign.econ.MarketImmigrationModifier> it = set.iterator();
+        while (it.hasNext()) {
+            if (it.next() == null) { it.remove(); count++; }
+        }
+        return count;
     }
 
     public static void suppressLegacyNexIntels() {
@@ -146,20 +351,40 @@ public class Nex4xModPlugin extends BaseModPlugin {
         }
     }
 
-    private void createFactionBrowserIntel() {
+    private void registerIntelTabInjector() {
         try {
-            Class<?> browserClass = Class.forName("nex4x.ui.FactionBrowserIntel");
-            if (!Global.getSector().getIntelManager().getIntel(browserClass).isEmpty()) {
+            if (!Global.getSector().getListenerManager().hasListenerOfClass(
+                    nex4x.ui.CoreUITabInjectorListener.class)) {
+                Global.getSector().getListenerManager().addListener(
+                        new nex4x.ui.CoreUITabInjectorListener(), true);
+                log.info("[Nex4x] Registered CoreUITabInjectorListener");
+            }
+        } catch (Exception e) {
+            log.error("[Nex4x] registerIntelTabInjector: " + e.getMessage(), e);
+        }
+    }
+
+    private void registerCommandTabs() {
+        try {
+            if (!Global.getSector().getListenerManager().hasListenerOfClass(nex4x.ui.DiplomacyTabListener.class)) {
+                Global.getSector().getListenerManager().addListener(new nex4x.ui.DiplomacyTabListener(), true);
+                log.info("[Nex4x] Registered DiplomacyTabListener");
+            }
+        } catch (Exception e) {
+            log.error("[Nex4x] registerCommandTabs: " + e.getMessage(), e);
+        }
+    }
+
+    private void createAgreementManagerIntel() {
+        try {
+            if (!Global.getSector().getIntelManager().getIntel(AgreementManagerIntel.class).isEmpty()) {
                 return;
             }
-            IntelInfoPlugin browser = (IntelInfoPlugin) browserClass
-                    .getConstructor().newInstance();
-            Global.getSector().getIntelManager().addIntel(browser, true);
-            log.info("[Nex4x] Created Faction Browser intel");
-        } catch (ClassNotFoundException e) {
-            log.info("[Nex4x] FactionBrowserIntel not available — skipping");
-        } catch (Exception e) {
-            log.warn("[Nex4x] Could not create FactionBrowserIntel: " + e.getMessage());
+            AgreementManagerIntel intel = new AgreementManagerIntel();
+            Global.getSector().getIntelManager().addIntel(intel, true);
+            log.info("[Nex4x] Created Agreement Manager intel");
+        } catch (Throwable t) {
+            log.error("[Nex4x] Could not create AgreementManagerIntel: " + t.getMessage(), t);
         }
     }
 
@@ -173,10 +398,43 @@ public class Nex4xModPlugin extends BaseModPlugin {
             return;
         }
 
-        // Player has a custom faction — auto-derive for v0
-        // (Interactive DoctrineSetupDialog is v1 — requires CustomUIPanelPlugin for sliders)
-        Nex4xManager mgr = Nex4xManager.getOrCreateManager();
-        mgr.setPlayerDoctrine(TendencyProfileLoader.getProfile(playerFactionId));
+        // Custom player faction — open doctrine dialog once a campaign UI dialog exists.
+        // Fallback timeout below is real game-time (runWhilePaused=false), so it does not
+        // fire while the player is reading the opening bar dialog. Extended from 8s to 60s
+        // to give the player ample time to reach an interaction dialog naturally.
+        Global.getSector().addTransientScript(new EveryFrameScript() {
+            private float wait;
+            private boolean done;
+
+            @Override
+            public boolean isDone() {
+                return done;
+            }
+
+            @Override
+            public boolean runWhilePaused() {
+                return false;
+            }
+
+            @Override
+            public void advance(float amount) {
+                if (done) return;
+                wait += amount;
+                if (wait < 0.2f) return;
+                InteractionDialogAPI d = Global.getSector().getCampaignUI().getCurrentInteractionDialog();
+                if (d != null) {
+                    d.showCustomDialog(720, 600, new DoctrineSetupDialog());
+                    done = true;
+                    return;
+                }
+                if (wait > 60f) {
+                    log.warn("[Nex4x] Doctrine dialog never opened (60s game-time) — applying default profile");
+                    Nex4xManager mgr = Nex4xManager.getOrCreateManager();
+                    mgr.setPlayerDoctrine(TendencyProfileLoader.getProfile("player"));
+                    done = true;
+                }
+            }
+        });
     }
 
 }

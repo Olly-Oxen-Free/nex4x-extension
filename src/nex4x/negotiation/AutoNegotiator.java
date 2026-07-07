@@ -1,8 +1,12 @@
 package nex4x.negotiation;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionAPI;
 import nex4x.agreements.AgreementType;
+import nex4x.data.Nex4xSettings;
 import nex4x.evaluation.DealEvaluator;
+import nex4x.evaluation.DesperationCalculator;
+import nex4x.pressure.PressureManager;
 import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
@@ -119,26 +123,59 @@ public class AutoNegotiator {
      */
     public DealPackage generateAIProposal(String aiFactionId, String playerFactionId,
                                           AgreementType currentTier) {
-        NegotiationStyle style = NegotiationStyle.deriveFromProfile(aiFactionId);
+        FactionAPI ai = Global.getSector().getFaction(aiFactionId);
+        FactionAPI player = Global.getSector().getFaction(playerFactionId);
+        if (ai == null || player == null) return null;
+        if (player.isHostileTo(ai) || ai.isHostileTo(player)) return null;
 
-        // Check what the AI most wants based on tendency priorities
-        // For v1a, the simplest valuable proposal: offer what AI has, ask for what it wants
-        // Full AI proposal logic depends on wiring to Nex market/fleet APIs (v1b+)
-
-        // Default: propose an agreement upgrade if available
         AgreementType nextTier = currentTier.getNextAllianceTier();
-        if (nextTier != null) {
-            float rel = Global.getSector().getFaction(aiFactionId)
-                    .getRelationship(playerFactionId);
-            if (rel >= nextTier.relationThreshold / 100f) {
-                DealPackage deal = new DealPackage(aiFactionId, playerFactionId);
-                deal.addOffer(NegotiableItem.agreement(nextTier));
-                deal.addRequest(NegotiableItem.agreement(nextTier));
-                return deal;
+        if (nextTier == null) return null;
+
+        float rel = ai.getRelationship(playerFactionId);
+
+        if (nextTier == AgreementType.NAP) {
+            if (!eligibleForAiNapProposal(aiFactionId, playerFactionId, rel)) {
+                return null;
             }
+            return agreementUpgradeDeal(aiFactionId, playerFactionId, nextTier);
+        }
+
+        if (rel >= nextTier.relationThreshold) {
+            return agreementUpgradeDeal(aiFactionId, playerFactionId, nextTier);
         }
 
         return null;
+    }
+
+    private static DealPackage agreementUpgradeDeal(String aiFactionId, String playerFactionId,
+                                                    AgreementType nextTier) {
+        DealPackage deal = new DealPackage(aiFactionId, playerFactionId);
+        deal.addOffer(NegotiableItem.agreement(nextTier));
+        deal.addRequest(NegotiableItem.agreement(nextTier));
+        return deal;
+    }
+
+    /**
+     * NAP from AI: either genuinely warm relations, or cool/slightly negative relations backed by
+     * defensive motive (weariness / pressure from the player), not a flat relation threshold alone.
+     */
+    private static boolean eligibleForAiNapProposal(String aiFactionId, String playerFactionId,
+                                                    float rel) {
+        if (rel >= Nex4xSettings.aiNapFriendlyRelMin) {
+            return true;
+        }
+        if (rel >= Nex4xSettings.aiNapWaryRelMin && rel < Nex4xSettings.aiNapWaryRelMax) {
+            return defensiveMotiveWantsStability(aiFactionId, playerFactionId);
+        }
+        return false;
+    }
+
+    private static boolean defensiveMotiveWantsStability(String aiFactionId, String playerFactionId) {
+        float desperation = DesperationCalculator.calculate(aiFactionId);
+        float pressureFromPlayer = PressureManager.getOrCreate()
+                .getPressure(playerFactionId, aiFactionId);
+        return desperation >= Nex4xSettings.aiNapDefensiveDesperationMin
+                || pressureFromPlayer >= Nex4xSettings.aiNapDefensivePressureMin;
     }
 
     private boolean isImpossibleRequest(NegotiableItem item, String factionId, ItemValuator valuator) {

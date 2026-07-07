@@ -47,7 +47,7 @@ public class TendencyProfile implements Serializable {
 
     public TendencyId getDominant() {
         TendencyId best = null;
-        float bestVal = 0;
+        float bestVal = -Float.MAX_VALUE;
         for (Map.Entry<TendencyId, Float> e : weights.entrySet()) {
             if (e.getValue() > bestVal) {
                 bestVal = e.getValue();

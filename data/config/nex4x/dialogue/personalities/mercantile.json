@@ -1,0 +1,16 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Even the lost can turn a profit. What?"],
+    "NEUTRAL":     ["Time is credits. What's the opportunity?"],
+    "FAVORABLE":   ["Let's count the credits together."],
+    "COOPERATIVE": ["Old partner. Let's make the numbers sing."]
+  },
+  "trade_pact_proposed": {
+    "NEUTRAL":     ["Naturally. Let's crunch the margins."],
+    "FAVORABLE":   ["Trade pact? Obvious yes. The question is how much each way."]
+  },
+  "negotiation_reject": {
+    "NEUTRAL":     ["Math doesn't work for us. Sweeten it."],
+    "FAVORABLE":   ["Numbers are a little shy. Tilt them our way and we sign."]
+  }
+}

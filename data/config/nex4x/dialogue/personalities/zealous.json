@@ -1,0 +1,14 @@
+{
+  "greeting": {
+    "HOSTILE":     ["The faithless may speak, but not be heard."],
+    "NEUTRAL":     ["Providence brought you. What message do you bear?"],
+    "COOPERATIVE": ["A brother in doctrine. Speak freely."]
+  },
+  "negotiation_reject": {
+    "NEUTRAL":     ["The doctrine forbids. We cannot."],
+    "HOSTILE":     ["Heresy dressed as commerce. Removed."]
+  },
+  "alliance_proposed": {
+    "FAVORABLE":   ["If your cause is righteous -- yes."]
+  }
+}

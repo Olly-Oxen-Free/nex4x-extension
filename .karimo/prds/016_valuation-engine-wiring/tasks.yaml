@@ -1,0 +1,332 @@
+prd: valuation-engine-wiring
+version: 1
+tasks:
+
+  - id: 16a
+    title: Drive ItemValuator base constants from BaseValueTable
+    description: |
+      Replace every inline base-value constant in ItemValuator with a read of the
+      corresponding BaseValueTable field. The fields are already populated by
+      BaseValueTable.load() at startup.
+
+      In src/nex4x/negotiation/ItemValuator.java:
+        - Remove private static final fields CEASEFIRE_BASE (line 79), PEACE_TREATY_BASE
+          (80), INTEL_BASE (81), PRISONER_BASE (82), NAP_BASE (94), DEFENSIVE_PACT_BASE
+          (95), PARTNERSHIP_BASE (96-97), COALITION_BASE (98), TRADE_AGREEMENT_BASE (99).
+        - In getPeaceTermValue: replace CEASEFIRE_BASE → BaseValueTable.CEASEFIRE,
+          PEACE_TREATY_BASE → BaseValueTable.PEACE_TREATY.
+        - In getAgreementValue case NAP: → BaseValueTable.NON_AGGRESSION_PACT.
+          case TRADE_AGREEMENT: → BaseValueTable.TRADE_PACT.
+          (DEFENSIVE_PACT, MILITARY_PARTNERSHIP, ECONOMIC_PARTNERSHIP, COALITION remain
+          as inline literals for now — BaseValueTable has ALLIANCE for COALITION.)
+        - In getKnowledgeValue: return BaseValueTable.STAR_CHART * BaseValueTable.BLUEPRINT_MULT.
+          (This gives configurable blueprint value instead of hardcoded 5000.)
+        - Verify BaseValueTable.load() is called before valuation in
+          src/nex4x/Nex4xModPlugin.java (search for "BaseValueTable.load"). If absent,
+          add it to onApplicationLoad or onNewGame/onGameLoad (whichever fires first).
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/negotiation/ItemValuator.java
+      - src/nex4x/negotiation/BaseValueTable.java
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 16b
+    title: Fix mapCategory — produce TRADE_PACT and NAP for sub-typed AGREEMENTS items
+    description: |
+      In src/nex4x/negotiation/ItemValuator.java, method mapCategory (line 279):
+      The current AGREEMENTS case (line 288) always returns ItemCategory.ALLIANCE.
+      Replace it with sub-type discrimination using item.getAgreementType():
+
+        case AGREEMENTS:
+            nex4x.agreements.AgreementType at = item.getAgreementType();
+            if (at == null) return nex4x.negotiation.ItemCategory.ALLIANCE;
+            switch (at) {
+                case NAP:
+                    return nex4x.negotiation.ItemCategory.NAP;
+                case TRADE_AGREEMENT:
+                    return nex4x.negotiation.ItemCategory.TRADE_PACT;
+                case DEFENSIVE_PACT:
+                case MILITARY_PARTNERSHIP:
+                case ECONOMIC_PARTNERSHIP:
+                case COALITION:
+                default:
+                    return nex4x.negotiation.ItemCategory.ALLIANCE;
+            }
+
+      Also fix DECLARATIONS case (line 292) to distinguish
+      DeclarationType.DENOUNCE → ItemCategory.DENOUNCEMENT_DECLARATION,
+      all others → ItemCategory.FRIENDSHIP_DECLARATION:
+
+        case DECLARATIONS:
+            nex4x.declarations.DeclarationType dt = item.getDeclarationType();
+            if (dt == nex4x.declarations.DeclarationType.DENOUNCE
+                    || dt == nex4x.declarations.DeclarationType.RIVALRY)
+                return nex4x.negotiation.ItemCategory.DENOUNCEMENT_DECLARATION;
+            return nex4x.negotiation.ItemCategory.FRIENDSHIP_DECLARATION;
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/negotiation/ItemValuator.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 16c
+    title: Add leader-aware DealEvaluator constructor and wire Valuator into balance path
+    description: |
+      The core wiring task. DealEvaluator needs to know who is evaluating the deal so
+      it can call ItemValuator.valueForLeader (which calls Valuator.valueTo).
+
+      In src/nex4x/evaluation/DealEvaluator.java:
+        1. Add fields:
+             private final LeaderProfile targetLeader;   // null = legacy fallback
+             private final String proposerFactionId;     // used by valueForLeader
+        2. Add constructor:
+             public DealEvaluator(LeaderProfile targetLeader, String proposerFactionId) {
+                 this.valuator = new ItemValuator();
+                 this.targetLeader = targetLeader;
+                 this.proposerFactionId = proposerFactionId;
+             }
+        3. Existing no-arg constructor becomes:
+             public DealEvaluator() {
+                 this.valuator = new ItemValuator();
+                 this.targetLeader = null;
+                 this.proposerFactionId = null;
+                 log.warn("[Nex4x] DealEvaluator constructed without leader — personality/goal/scarcity disabled");
+             }
+        4. Replace the balance call in evaluate() (line 49):
+             Before: float balance = deal.getBalance(valuator);
+             After:  float balance = targetLeader != null
+                         ? deal.getLeaderBalance(targetLeader, proposerFactionId)
+                         : deal.getBalance(valuator);
+        5. Replace quickBalance (line 83):
+             Before: return deal.getBalance(valuator);
+             After:  return targetLeader != null
+                         ? deal.getLeaderBalance(targetLeader, proposerFactionId)
+                         : deal.getBalance(valuator);
+
+      Build: ./build.sh — will fail until task 16d adds DealPackage.getLeaderBalance.
+      That is expected — both tasks must be in the same build wave.
+    files:
+      - src/nex4x/evaluation/DealEvaluator.java
+    complexity: 2
+    priority: must
+    depends_on: [16a, 16b]
+
+  - id: 16d
+    title: Add DealPackage.getLeaderBalance — leader-aware balance overload
+    description: |
+      In src/nex4x/negotiation/DealPackage.java, add a new method after getBalance (line 94):
+
+        /**
+         * Leader-aware balance: uses ItemValuator.valueForLeader so personality,
+         * goal alignment, relation, and scarcity all apply.
+         * Positive = favorable to target (leader's faction).
+         */
+        public float getLeaderBalance(nex4x.leaders.LeaderProfile targetLeader,
+                                      String proposerFactionId) {
+            float receivedValue = 0f;
+            for (NegotiableItem item : offers) {
+                receivedValue += ItemValuator.valueForLeader(item, targetLeader, proposerFactionId);
+            }
+            float givenValue = 0f;
+            for (NegotiableItem item : requests) {
+                givenValue += ItemValuator.valueForLeader(item, targetLeader, proposerFactionId);
+            }
+            return receivedValue - givenValue;
+        }
+
+      No changes to the existing getBalance(ItemValuator) overload — it remains for
+      CounterOfferGenerator and legacy callers.
+
+      Build: ./build.sh — expected: green (completes the 16c compile break).
+    files:
+      - src/nex4x/negotiation/DealPackage.java
+    complexity: 1
+    priority: must
+    depends_on: [16a, 16b]
+
+  - id: 16e
+    title: Wire NegotiationPanel to use leader-aware DealEvaluator
+    description: |
+      NegotiationPanel already holds `this.leader` (LeaderProfile, line 123) and
+      `this.playerFactionId` (line 106). Both are set before `new DealEvaluator()`.
+
+      In src/nex4x/ui/NegotiationPanel.java line 112:
+        Before: this.evaluator = new DealEvaluator();
+        After:  this.evaluator = new DealEvaluator(leader, playerFactionId);
+
+      The `valuator` field is set from `evaluator.getValuator()` at line 113 and used
+      for display-only calls at lines 365, 409, 434. These calls use the plain
+      `valuator.evaluate(item, targetFactionId)` path (not valueForLeader), which means
+      the display numbers may differ slightly from the accept/reject value. Fix lines
+      409 and 434 to call the leader-aware path:
+
+        Before (line 409): float val = valuator.evaluate(item, targetFactionId);
+        After:             float val = ItemValuator.valueForLeader(item, leader, playerFactionId);
+
+        Before (line 434): float val = valuator.evaluate(item, targetFactionId);
+        After:             float val = ItemValuator.valueForLeader(item, leader, playerFactionId);
+
+      Balance bar (line 365) calls deal.getBalance(valuator). Replace with:
+        Before: float rawBalance = deal.getBalance(valuator);
+        After:  float rawBalance = deal.getLeaderBalance(leader, playerFactionId);
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: [16c, 16d]
+
+  - id: 16f
+    title: Wire AIProposalManager and AutoNegotiator to leader-aware DealEvaluator
+    description: |
+      Two remaining callers construct plain DealEvaluator():
+
+      1. src/nex4x/managers/AIProposalManager.java line 98:
+           Before: DealEvaluator evaluator = new DealEvaluator();
+           After:
+             LeaderProfile targetLeader = Nex4xManager.getOrCreateManager()
+                     .getLeaderRegistry().getProfile(playerFactionId);
+             DealEvaluator evaluator = (targetLeader != null)
+                     ? new DealEvaluator(targetLeader, aiFactionId)
+                     : new DealEvaluator();
+
+      2. src/nex4x/negotiation/AutoNegotiator.java: the class holds `this.evaluator`
+         (set via constructor at line 30). AutoNegotiator callers must pass a
+         leader-aware DealEvaluator. Find all `new AutoNegotiator(...)` calls:
+           grep -rn "new AutoNegotiator" src/ --include="*.java"
+         For each call site, change:
+           Before: new AutoNegotiator(new DealEvaluator())
+           After:  new AutoNegotiator(new DealEvaluator(leaderProfile, proposerFactionId))
+         where leaderProfile = LeaderRegistry.getProfile(targetFactionId).
+         If the call site has no leader available, use the no-arg DealEvaluator fallback
+         (which logs a warning — acceptable for now).
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/managers/AIProposalManager.java
+      - src/nex4x/negotiation/AutoNegotiator.java
+    complexity: 2
+    priority: must
+    depends_on: [16c]
+
+  - id: 16g
+    title: Align NegotiableItemCatalog.estimatedUnitValue to ItemValuator base values
+    description: |
+      In src/nex4x/negotiation/NegotiableItemCatalog.java, method estimatedUnitValue
+      (line 87). Current values diverge from ItemValuator:
+        - ID_INTEL_BASIC: 5000 vs ItemValuator INTEL_BASE → BaseValueTable.INTEL (500)
+        - ID_INTEL_DEEP: 25000 (no counterpart in ItemValuator; keep as 5×INTEL)
+        - ID_PRISONER: 15000 vs ItemValuator PRISONER_BASE (3000)
+        - ID_KNOWLEDGE: 50000 vs ItemValuator KNOWLEDGE (BaseValueTable.STAR_CHART * BLUEPRINT_MULT = 7500)
+        - ID_CEASEFIRE: 30000 vs BaseValueTable.CEASEFIRE (5000)
+        - ID_PEACE_TREATY: 100000 vs BaseValueTable.PEACE_TREATY (8000)
+
+      Replace hardcoded returns with BaseValueTable reads and a consistent multiplier
+      for "deep" variants:
+        if (ID_INTEL_BASIC.equals(itemId))   return BaseValueTable.INTEL;
+        if (ID_INTEL_DEEP.equals(itemId))    return BaseValueTable.INTEL * 5;
+        if (ID_PRISONER.equals(itemId))      return 3000;   // no BaseValueTable field; keep literal
+        if (ID_KNOWLEDGE.equals(itemId))     return BaseValueTable.STAR_CHART * BaseValueTable.BLUEPRINT_MULT;
+        if (ID_CEASEFIRE.equals(itemId))     return BaseValueTable.CEASEFIRE;
+        if (ID_PEACE_TREATY.equals(itemId))  return BaseValueTable.PEACE_TREATY;
+
+      Note: AutoBalanceSolver.pickBestAdd uses estimatedUnitValue to pick the best
+      chip to add. After this fix, it will select chips with values consistent with
+      what the evaluator sees, eliminating the case where a "cheap" item (e.g. ceasefire
+      at 5 000) was being scored as 30 000 for balancing purposes.
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/negotiation/NegotiableItemCatalog.java
+    complexity: 1
+    priority: must
+    depends_on: [16a]
+
+  - id: 16h
+    title: Migrate Nex4xDebugCommand and AutoBalanceSolver off dead BalanceCalculator path
+    description: |
+      Two live callers use BalanceCalculator (which does reach Valuator, but only from
+      dead code paths):
+
+      1. src/nex4x/debug/Nex4xDebugCommand.java lines 115-116:
+           Before: nex4x.negotiation.BalanceCalculator.Result r =
+                       nex4x.negotiation.BalanceCalculator.evaluate(deal, heg, 500);
+           After:  // Obtain leader from registry
+                   nex4x.leaders.LeaderProfile heg = nex4x.managers.Nex4xManager
+                       .getOrCreateManager().getLeaderRegistry().getProfile("hegemony");
+                   int r = nex4x.negotiation.ItemValuator.valueForLeader(
+                       someItem, heg, "player");
+                   // (Keep the audit pattern; adapt to the auditValuation smoke below)
+
+      2. src/nex4x/negotiation/AutoBalanceSolver.java lines 19, 31:
+           Both call BalanceCalculator.evaluate(deal, leader, acceptanceThreshold).balance.
+           Replace with:
+             int balance = 0;
+             for (NegotiableItem i : deal.getProposerOffers())
+                 balance += ItemValuator.valueForLeader(i, leader, deal.getProposer());
+             for (NegotiableItem i : deal.getReceiverOffers())
+                 balance -= ItemValuator.valueForLeader(i, leader, deal.getProposer());
+           (This is what BalanceCalculator.evaluate did, now inlined.)
+           Remove the BalanceCalculator import from AutoBalanceSolver.
+
+      Deprecate (do not delete) BalanceCalculator and BalanceSurface:
+        In BalanceCalculator.java line 1 (after package): add
+          /** @deprecated Use ItemValuator.valueForLeader + DealEvaluator. See PRD-016. */
+          @Deprecated
+        Same for BalanceSurface.java.
+
+      Build: ./build.sh — expected: green.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+      - src/nex4x/negotiation/AutoBalanceSolver.java
+      - src/nex4x/negotiation/BalanceCalculator.java
+      - src/nex4x/negotiation/BalanceSurface.java
+    complexity: 2
+    priority: must
+    depends_on: [16b, 16d]
+
+  - id: 16i
+    title: Add auditValuation() smoke to Nex4xDebugCommand
+    description: |
+      In src/nex4x/debug/Nex4xDebugCommand.java, add a new runcode target
+      "audit_valuation" that:
+
+      1. Constructs a TRADE_AGREEMENT NegotiableItem:
+           NegotiableItem tradeItem = NegotiableItem.agreement(
+               nex4x.agreements.AgreementType.TRADE_AGREEMENT);
+
+      2. Creates two synthetic LeaderProfiles with different personalities:
+           LeaderProfile mercantile = new LeaderProfile("hegemony", nex4x.leaders.Personality.MERCANTILE);
+           LeaderProfile ruthless   = new LeaderProfile("hegemony", nex4x.leaders.Personality.RUTHLESS);
+
+      3. Computes:
+           int valMercantile = ItemValuator.valueForLeader(tradeItem, mercantile, "player");
+           int valRuthless   = ItemValuator.valueForLeader(tradeItem, ruthless,   "player");
+
+      4. Logs:
+           "[Nex4x] MERCANTILE leader values trade_agreement item: " + valMercantile
+           "[Nex4x] RUTHLESS leader values trade_agreement item: " + valRuthless
+           float diff = Math.abs(valMercantile - valRuthless) / (float) Math.max(1, valMercantile);
+           String pass = diff >= 0.20f ? "PASS" : "FAIL";
+           "[Nex4x] Personality diff: " + String.format("%.1f%%", diff * 100f) + " — " + pass
+
+      5. Computes scarcity smoke (only if sector is available):
+           float scarcity = Valuator.scarcityMod("hegemony", "fuel");
+           "[Nex4x] scarcityMod(hegemony, fuel): " + scarcity
+
+      Build: ./build.sh — expected: green.
+      Manual: in game console type "runcode nex4x.debug.Nex4xDebugCommand.auditValuation()"
+      (exact invocation depends on DebugCommand routing; adapt as needed for existing
+      dispatch pattern in that file).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [16e, 16f, 16g, 16h]

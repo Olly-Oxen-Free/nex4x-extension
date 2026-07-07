@@ -24,12 +24,34 @@ public class MediationManager implements Serializable {
     private final List<MediationSession> sessions = new ArrayList<MediationSession>();
 
     private static float now() {
-        return Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 
     public MediationSession propose(String mediatorId, String belligerentA, String belligerentB,
                                     float influenceInvested) {
+        if (mediatorId == null || belligerentA == null || belligerentB == null) {
+            log.warn("[Nex4x] Mediation propose: null arg rejected");
+            return null;
+        }
+        if (belligerentA.equals(belligerentB)) {
+            log.warn("[Nex4x] Mediation propose: self-belligerent rejected");
+            return null;
+        }
+        if (mediatorId.equals(belligerentA) || mediatorId.equals(belligerentB)) {
+            log.warn("[Nex4x] Mediation propose: mediator must not be a belligerent");
+            return null;
+        }
+        if (influenceInvested <= 0f) {
+            log.warn("[Nex4x] Mediation propose: zero/negative investment rejected");
+            return null;
+        }
+        // Mediation only makes sense between currently hostile factions.
+        com.fs.starfarer.api.campaign.FactionAPI fa = Global.getSector().getFaction(belligerentA);
+        com.fs.starfarer.api.campaign.FactionAPI fb = Global.getSector().getFaction(belligerentB);
+        if (fa == null || fb == null || !fa.isHostileTo(fb)) {
+            log.warn("[Nex4x] Mediation propose: belligerents not at war");
+            return null;
+        }
         InfluenceManager infl = InfluenceManager.getOrCreate();
         if (!infl.getLedger(mediatorId).canAfford(influenceInvested)) {
             log.info("[Nex4x] Mediation proposal failed: " + mediatorId + " insufficient influence");
@@ -71,6 +93,11 @@ public class MediationManager implements Serializable {
                     log.info("[Nex4x] Mediation SUCCESS: " + s.getMediatorId()
                             + " brokers " + s.getBelligerentA() + "<->" + s.getBelligerentB()
                             + " (+" + reward + " influence)");
+                    com.fs.starfarer.api.campaign.FactionAPI fa = Global.getSector().getFaction(s.getBelligerentA());
+                    com.fs.starfarer.api.campaign.FactionAPI fb = Global.getSector().getFaction(s.getBelligerentB());
+                    nex4x.integration.NexDiplomacyBridge.firePeaceTreaty(fa, fb);
+                    log.info("[Nex4x] Mediation " + s.getMediatorId() + " brokered peace: "
+                            + s.getBelligerentA() + " <-> " + s.getBelligerentB());
                 }
             }
             if (s.getStatus() == MediationSession.Status.PROPOSED && t >= s.getExpiryDay()) {

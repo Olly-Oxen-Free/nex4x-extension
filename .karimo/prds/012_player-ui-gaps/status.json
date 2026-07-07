@@ -1,0 +1,13 @@
+{
+  "status": "completed",
+  "created_date": "2026-05-11",
+  "completed_date": "2026-05-11",
+  "source": "post-PRD-011 audit",
+  "severity": "P2",
+  "research_included": true,
+  "tasks_total": 4,
+  "complexity_total": 11,
+  "depends_on_prds": ["011_tribute-condition-wiring"],
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["12a", "12b", "12c", "12d"]
+}

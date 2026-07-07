@@ -20,6 +20,12 @@ public class DiplomatExpulsionCascade {
         int affected = 0;
         for (Nex4xAgentData d : mgr.getAllData()) {
             if (d.getType() != AgentType.DIPLOMAT) continue;
+            // Filter by owner faction; null owner == legacy data, skip rather than mass-cascade.
+            if (!actorFactionId.equals(d.getOwnerFactionId())) {
+                if (d.getOwnerFactionId() == null)
+                    log.warn("[Nex4x] DiplomatExpulsionCascade: skipping null-owner diplomat");
+                continue;
+            }
             d.setCascadeSuspicion(victimFactionId, suspicionDays);
             d.getBuildupTracker().damageByOneLevel();
             affected++;

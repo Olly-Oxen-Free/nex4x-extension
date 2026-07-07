@@ -40,4 +40,13 @@ public enum MemoryVisibility {
     public boolean canSeeMemoryDetails() { return level >= STANDARD.level; }
     public boolean canSeeTendencies() { return level >= STANDARD.level; }
     public boolean canSeeVotes() { return level >= DEEP.level; }
+
+    /** Strategic AI tab: abstracted summary only (no numeric I/U/P). */
+    public boolean canSeeStrategicBasic() { return level >= BASIC.level; }
+
+    /** Strategic AI tab: full goal list with numeric priorities. */
+    public boolean canSeeStrategicDetailed() { return level >= STANDARD.level; }
+
+    /** Commitment ledger / archetype trend lines on Strategic tab. */
+    public boolean canSeeStrategicDeep() { return level >= DEEP.level; }
 }

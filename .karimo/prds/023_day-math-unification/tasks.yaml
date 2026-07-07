@@ -1,0 +1,208 @@
+prd: day-math-unification
+version: 1
+tasks:
+  - id: 23a
+    title: Fix Nex4xClock.currentAbsoluteDay() — 365 → 360
+    description: |
+      File: src/nex4x/util/Nex4xClock.java line 36
+      Change: `c.getCycle() * 365f + (c.getMonth() - 1) * 30f + c.getDay()`
+          →   `c.getCycle() * 360f + (c.getMonth() - 1) * 30f + c.getDay()`
+      Update the Javadoc comment on line 32 to say "cycle*360" (not "cycle*365").
+      Update isLegacyDayValue Javadoc to note cycle-0 epoch; threshold 1e6 unchanged.
+      This is the single canonical change all other tasks depend on.
+    files:
+      - src/nex4x/util/Nex4xClock.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 23b
+    title: Delete Declaration.currentAbsoluteDay() and Declaration.getCurrentDay()
+    description: |
+      File: src/nex4x/declarations/Declaration.java lines 98–108
+      Delete both private/public local helpers entirely (they inline cycle-206 epoch + *365).
+      Replace the two internal usages inside Declaration:
+        - Constructor line 31: `this.creationDay = getCurrentDay()`
+            → `this.creationDay = nex4x.util.Nex4xClock.currentAbsoluteDay()`
+        - getDaysRemaining() line 62: `expiryDay - getCurrentDay()`
+            → `expiryDay - nex4x.util.Nex4xClock.currentAbsoluteDay()`
+        - isExpired() line 67: `getCurrentDay() >= expiryDay`
+            → `nex4x.util.Nex4xClock.currentAbsoluteDay() >= expiryDay`
+      Note: after this change creationDay/expiryDay are stored in cycle-0/360 epoch.
+      Existing save files will have old-epoch values; documented in PRD as accepted P2 risk.
+    files:
+      - src/nex4x/declarations/Declaration.java
+    complexity: 2
+    priority: must
+    depends_on: [23a]
+
+  - id: 23c
+    title: Fix DeclarationManager — migrate off Declaration.currentAbsoluteDay()
+    description: |
+      File: src/nex4x/declarations/DeclarationManager.java line 216
+      Change: `float now = Declaration.currentAbsoluteDay()`
+          →   `float now = nex4x.util.Nex4xClock.currentAbsoluteDay()`
+      Add import if not already present: `import nex4x.util.Nex4xClock;`
+      This is the only external caller of the deleted Declaration helper.
+    files:
+      - src/nex4x/declarations/DeclarationManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23b]
+
+  - id: 23d
+    title: Fix MemoryManager inline formula
+    description: |
+      File: src/nex4x/managers/MemoryManager.java lines 45–47
+      Replace:
+        float gameDays = Global.getSector().getClock().getDay()
+                + (Global.getSector().getClock().getMonth() - 1) * 30f
+                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+      With:
+        float gameDays = nex4x.util.Nex4xClock.currentAbsoluteDay();
+      Add import if needed: `import nex4x.util.Nex4xClock;`
+      The stored `gameDays` baseline in FactionMemory objects in existing saves will carry the
+      old epoch; decay deltas use `daysPassed` (engine-driven), not stored-baseline subtraction,
+      so existing memories will not miscalculate going forward.
+    files:
+      - src/nex4x/managers/MemoryManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23e
+    title: Fix DynamicModifierManager inline formula
+    description: |
+      File: src/nex4x/politics/DynamicModifierManager.java lines 32–33
+      Replace:
+        float day = Global.getSector().getClock().getDay()
+                + Global.getSector().getClock().getCycle() * 365f;
+      With:
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
+      Add import if needed.
+      PoliticalModifier stores this as a creation timestamp; PoliticalModifier.isExpired() and
+      decay() use elapsed-day logic, not stored-baseline subtraction, so existing modifiers
+      loaded from save are unaffected in their decay math.
+    files:
+      - src/nex4x/politics/DynamicModifierManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23f
+    title: Fix VassalManager inline formula
+    description: |
+      File: src/nex4x/vassals/VassalManager.java lines 25–26
+      Replace:
+        float day = Global.getSector().getClock().getDay()
+                + Global.getSector().getClock().getCycle() * 365f;
+      With:
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
+      Add import if needed.
+      VassalRelation stores this as vassalization timestamp for independence-desire scaling;
+      delta math is local to VassalRelation.advanceDay so correctness is preserved.
+    files:
+      - src/nex4x/vassals/VassalManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23g
+    title: Fix PolicyManager inline formula
+    description: |
+      File: src/nex4x/policies/PolicyManager.java lines 46–47
+      Replace:
+        float day = Global.getSector().getClock().getDay()
+                + Global.getSector().getClock().getCycle() * 365f;
+      With:
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
+      Add import if needed.
+      Policy stores this as adoption timestamp; currently unused for expiry math (policies are
+      revoked by tendency check, not by age), so the epoch change has no runtime impact.
+    files:
+      - src/nex4x/policies/PolicyManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23h
+    title: Fix Agreement.getCurrentDay() — remove −206 offset
+    description: |
+      File: src/nex4x/agreements/Agreement.java lines 92–95
+      Change:
+        return nex4x.util.Nex4xClock.currentAbsoluteDay()
+                - 206f * 365f;
+      To:
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
+      (No import change needed; NexClock already referenced.)
+      Fields creationDay/expiryDay in Agreement are compared only internally within Agreement
+      isExpired()/getDaysRemaining(); the epoch cancels, so correctness is preserved for new
+      Agreements. Existing save data will see the one-time jump documented in PRD risks.
+    files:
+      - src/nex4x/agreements/Agreement.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23i
+    title: Fix AIProposalManager — remove −206 offset
+    description: |
+      File: src/nex4x/managers/AIProposalManager.java line 58
+      Change:
+        float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f;
+      To:
+        float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay();
+      The `lastProposalDay` map in existing saves will hold old-epoch values; on first load
+      all stored cooldowns will appear expired (values will be ~74 000 days ago instead of
+      ~0–360 days ago). AI proposals may spike for up to one cycle. Documented P2 risk.
+    files:
+      - src/nex4x/managers/AIProposalManager.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23j
+    title: Fix CasusBelli.getCurrentDay() — remove −206 offset
+    description: |
+      File: src/nex4x/casusbelli/CasusBelli.java line 73
+      Change:
+        return nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f;
+      To:
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
+      CasusBelli stores creation/expiry day internally; delta used only in isExpired() and
+      getDaysRemaining(). Epoch cancels; correctness preserved for new CasusBellis.
+    files:
+      - src/nex4x/casusbelli/CasusBelli.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23k
+    title: Update Nex4xDebugCommand display + add auditDayMath smoke
+    description: |
+      File: src/nex4x/debug/Nex4xDebugCommand.java
+      1. Line 229: update the comment on the `absDay` display line from any mention of "cycle 206"
+         to "cycle 0 epoch, 360 days/cycle".
+      2. Add a new "auditDayMath" runcode subcommand (or append to existing "audit" block):
+         - Prints `Nex4xClock.currentAbsoluteDay()` at current calendar position.
+         - Prints expected value: `getCycle()*360 + (getMonth()-1)*30 + getDay()` computed inline.
+         - Asserts actual == expected; logs PASS or FAIL.
+         - Logs note: "One cycle from cycle 1 = 360 days (not 365)".
+      This is the acceptance smoke described in the PRD.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [23a]
+
+  - id: 23l
+    title: Build verification
+    description: |
+      Run `./build.sh` from the module root.
+      Expected: exits 0 with "BUILD SUCCESSFUL" (or equivalent clean compile + jar creation).
+      If compile errors arise from the Declaration helper deletion (task 23b/23c), resolve before
+      declaring done. No source changes should be needed beyond tasks 23a–23k.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [23a, 23b, 23c, 23d, 23e, 23f, 23g, 23h, 23i, 23j, 23k]

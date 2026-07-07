@@ -1,7 +1,5 @@
 package nex4x.declarations;
 
-import com.fs.starfarer.api.Global;
-
 import java.io.Serializable;
 
 /**
@@ -18,12 +16,17 @@ public class Declaration implements Serializable {
     private float expiryDay;  // -1 = permanent
     private boolean active;
 
+    // Phase 4 side-effect tracking
+    private float daysSinceExpiry = 0f;
+    private float flatRepApplied = 0f;  // signed: + for friendship, − for denouncement
+    private boolean cbUnlocked = false;
+
     public Declaration(String declarerFactionId, String targetFactionId,
                        DeclarationType type) {
         this.declarerFactionId = declarerFactionId;
         this.targetFactionId = targetFactionId;
         this.type = type;
-        this.creationDay = getCurrentDay();
+        this.creationDay = nex4x.util.Nex4xClock.currentAbsoluteDay();
         this.expiryDay = type.defaultDurationDays > 0
                 ? creationDay + type.defaultDurationDays
                 : -1;
@@ -32,30 +35,34 @@ public class Declaration implements Serializable {
 
     /** Does this declaration involve the given faction (either side)? */
     public boolean involves(String factionId) {
-        return declarerFactionId.equals(factionId) || targetFactionId.equals(factionId);
+        if (factionId == null) return false;
+        return factionId.equals(declarerFactionId) || factionId.equals(targetFactionId);
     }
 
     /** Is this between exactly these two factions (in either direction)? */
     public boolean isBetween(String factionA, String factionB) {
-        return (declarerFactionId.equals(factionA) && targetFactionId.equals(factionB))
-                || (declarerFactionId.equals(factionB) && targetFactionId.equals(factionA));
+        if (factionA == null || factionB == null) return false;
+        return (factionA.equals(declarerFactionId) && factionB.equals(targetFactionId))
+                || (factionB.equals(declarerFactionId) && factionA.equals(targetFactionId));
     }
 
     /** Get the other faction in this declaration. */
     public String getOtherFaction(String factionId) {
-        if (declarerFactionId.equals(factionId)) return targetFactionId;
-        if (targetFactionId.equals(factionId)) return declarerFactionId;
+        if (factionId == null) return null;
+        if (factionId.equals(declarerFactionId)) return targetFactionId;
+        if (factionId.equals(targetFactionId)) return declarerFactionId;
         return null;
     }
 
     /** Days remaining. -1 if permanent. */
     public float getDaysRemaining() {
         if (expiryDay < 0) return -1;
-        return expiryDay - getCurrentDay();
+        return expiryDay - nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 
     public boolean isExpired() {
-        return expiryDay > 0 && getCurrentDay() >= expiryDay;
+        // -1 sentinel = permanent; any non-negative expiryDay (including 0) is a real value.
+        return expiryDay >= 0 && nex4x.util.Nex4xClock.currentAbsoluteDay() >= expiryDay;
     }
 
     /** Withdraw / cancel this declaration. */
@@ -69,11 +76,17 @@ public class Declaration implements Serializable {
     public String getTargetFactionId() { return targetFactionId; }
     public DeclarationType getType() { return type; }
     public float getCreationDay() { return creationDay; }
+    public float getExpiryDay() { return expiryDay; }
+    public void setExpiryDay(float d) { this.expiryDay = d; }
     public boolean isActive() { return active && !isExpired(); }
+    public void setActive(boolean b) { this.active = b; }
 
-    private static float getCurrentDay() {
-        return Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
-    }
+    // Phase 4 side-effect tracking getters/setters
+    public float getDaysSinceExpiry() { return daysSinceExpiry; }
+    public void advanceExpiredDays(float d) { daysSinceExpiry += d; }
+    public float getFlatRepApplied() { return flatRepApplied; }
+    public void setFlatRepApplied(float v) { this.flatRepApplied = v; }
+    public boolean isCbUnlocked() { return cbUnlocked; }
+    public void setCbUnlocked(boolean b) { this.cbUnlocked = b; }
+
 }

@@ -10,6 +10,7 @@ public enum Archetype {
     IDEOLOGICAL_CRUSADE("Ideological Crusade", "The sector must conform"),
     MILITARY_SUPREMACY("Military Supremacy", "Unchallengeable strength"),
     DEFENSIVE_CONSOLIDATION("Defensive Consolidation", "Protect what we have"),
+    RAIDER_PREDATOR("Raider/Predator", "Prey on weakness, hoard plunder"),
     OPPORTUNIST("Opportunist", "Whatever's best right now");
 
     public final String displayName;
@@ -68,6 +69,14 @@ public enum Archetype {
                     case MILITARISTS: return 1;
                     default: return 0;
                 }
+            case RAIDER_PREDATOR:
+                switch (tendency) {
+                    case MILITARISTS: return 4;
+                    case CORPORATISTS: return 4;
+                    case FEDERALISTS: return -1;
+                    case ZEALOTS: return 1;
+                    default: return 0;
+                }
             case OPPORTUNIST:
             default:
                 return 0;
@@ -97,6 +106,7 @@ public enum Archetype {
             case IDEOLOGICAL_CRUSADE:
                 return false;
             case MILITARY_SUPREMACY:
+            case RAIDER_PREDATOR:
                 return goalType == GoalType.SEEK_PROTECTION;
             case DEFENSIVE_CONSOLIDATION:
                 return goalType == GoalType.CLAIM_TERRITORY

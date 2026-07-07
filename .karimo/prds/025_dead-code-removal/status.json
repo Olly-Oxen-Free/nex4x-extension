@@ -1,0 +1,18 @@
+{
+  "status": "complete",
+  "created_date": "2026-05-31",
+  "completed_date": "2026-07-07",
+  "source": "2026-05-31 nex4x flaw audit; 2026-07-07 verification audit (section E)",
+  "severity": "P3",
+  "depends_on_prds": [
+    "015_strategic-ai-activation",
+    "016_valuation-engine-wiring",
+    "020_negotiation-catalog-gaps",
+    "022_demand-contract-vote-effects"
+  ],
+  "tasks_total": 14,
+  "complexity_total": 17,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["all"],
+  "notes": "Deleted (zero live refs confirmed via grep): AgentUIStub, ReflectionBridge, nex4x.ui.DiplomacyIntel (exerelin's DiplomacyIntel is a distinct, still-live class), AutoBalanceSolver, BalanceSurface, CounterOfferGenerator, AgentSynergy, AgentAI, VoteProposal+VoteOutcome, TrustSensitivity, BadgeProvocationConcern+DeclareWarFromDesireAction, SeekPeaceFromWillingnessAction, and all of src/nex4x/strategic/ (GoalWrapConcern, BeliefAlignmentConcern, ProposeTieredAgreementAction) plus data/config/exerelin/strategicAIConfig.json and src/nex4x/integration/Nex4xStrategicAIConcerns.java (register() was already a no-op, not called anywhere live). Corresponding stale .class files under jars/classes removed. Skipped: BalanceCalculator (@Deprecated) — still referenced live by src/nex4x/debug/Nex4xDebugCommand.java, so left in place per audit guidance; only BalanceSurface's reference to it was removed. Build verified BUILD SUCCESSFUL after cleanup."
+}

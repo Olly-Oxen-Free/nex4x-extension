@@ -1,0 +1,13 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["The Hegemony recognizes your presence. Proceed.",
+                    "Order is served by brevity. Speak."],
+    "FAVORABLE":   ["A trusted hand. The Hegemony listens."]
+  },
+  "war_declared_by_ai": {
+    "NEUTRAL":     ["The Hegemony declares a state of war. Your actions forced this, {player}."]
+  },
+  "alliance_proposed": {
+    "NEUTRAL":     ["The Domain's legacy cannot be pledged lightly. We consider."]
+  }
+}

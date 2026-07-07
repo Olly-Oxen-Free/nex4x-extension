@@ -60,6 +60,13 @@ public class FactionBadges implements Serializable {
     }
 
     public boolean hasBadge(BadgeType badge) { return activeBadges.containsKey(badge); }
+
+    /** Progress counter toward earning a badge (0 if none). */
+    public int getProgress(BadgeType badge) {
+        Integer v = progress.get(badge);
+        return v != null ? v : 0;
+    }
+
     public EnumMap<BadgeType, Float> getActiveBadges() { return new EnumMap<BadgeType, Float>(activeBadges); }
     public String getFactionId() { return factionId; }
 }

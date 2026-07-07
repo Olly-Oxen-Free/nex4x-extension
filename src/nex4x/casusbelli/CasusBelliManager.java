@@ -7,6 +7,7 @@ import nex4x.agreements.Agreement;
 import nex4x.agreements.AgreementManager;
 import nex4x.agreements.AgreementType;
 import nex4x.data.*;
+import nex4x.declarations.Declaration;
 import nex4x.declarations.DeclarationManager;
 import nex4x.declarations.DeclarationType;
 import nex4x.managers.Nex4xManager;
@@ -139,6 +140,25 @@ public class CasusBelliManager implements Serializable {
     }
 
     /**
+     * Returns the first active CB (stored or conditional) that holderFactionId
+     * holds against targetFactionId, or {@code null} if none exists.
+     * Prefers stored event-based CBs (checked first) then conditionals.
+     */
+    public CasusBelli getActiveCasusBelliFor(String holderFactionId, String targetFactionId) {
+        for (CasusBelli cb : storedCBs) {
+            if (cb.isActive()
+                    && cb.getHolderFactionId().equals(holderFactionId)
+                    && cb.getTargetFactionId().equals(targetFactionId)) {
+                return cb;
+            }
+        }
+        // Fall through to conditionals
+        List<CasusBelli> conditionals = new ArrayList<CasusBelli>();
+        addConditionalCBs(conditionals, holderFactionId, targetFactionId);
+        return conditionals.isEmpty() ? null : conditionals.get(0);
+    }
+
+    /**
      * Get all stored CBs involving a faction (as holder or target).
      */
     public List<CasusBelli> getAllCBsFor(String factionId) {
@@ -235,28 +255,31 @@ public class CasusBelliManager implements Serializable {
         List<FactionBeliefs.BeliefEntry> targetIdeology =
                 targetBeliefs.getByCategory(BeliefDef.Category.IDEOLOGICAL);
 
+        // Conflict only if holder holds a strong belief the target does NOT share.
+        java.util.Set<String> targetIds = new java.util.HashSet<String>();
+        for (FactionBeliefs.BeliefEntry t : targetIdeology) {
+            if (t.strength >= 2) targetIds.add(t.beliefId);
+        }
         for (FactionBeliefs.BeliefEntry h : holderIdeology) {
             if (h.strength < 2) continue;
-            for (FactionBeliefs.BeliefEntry t : targetIdeology) {
-                if (t.strength < 2) continue;
-                // Different ideological beliefs = conflict
-                if (!h.beliefId.equals(t.beliefId)) return true;
-            }
+            if (!targetIds.contains(h.beliefId)) return true;
         }
         return false;
     }
 
     /**
-     * Denouncement CB: holder has an active Denounce against target.
+     * Denouncement CB: holder has an active Denounce against target AND the 90-day
+     * CB-unlock period has elapsed. Only the declarer holds the CB.
      */
     private boolean hasDenouncementCB(String holderId, String targetId) {
         Nex4xManager mgr = Nex4xManager.getManager();
         if (mgr == null) return false;
         DeclarationManager declMgr = mgr.getDeclarationManager();
-        // Only the declarer gets the CB — check directionality
-        return declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE) != null
-                && declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE)
-                        .getDeclarerFactionId().equals(holderId);
+        if (declMgr == null) return false;
+        Declaration d = declMgr.getDeclaration(holderId, targetId, DeclarationType.DENOUNCE);
+        if (d == null) return false;
+        if (!d.getDeclarerFactionId().equals(holderId)) return false;  // only declarer gets CB
+        return d.isCbUnlocked();  // only after 90-day unlock
     }
 
     /**
@@ -301,9 +324,13 @@ public class CasusBelliManager implements Serializable {
     private int countMilitaryMarkets(String factionId) {
         int count = 0;
         for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
-            if (factionId.equals(m.getFactionId())) {
-                count++;
-            }
+            if (!factionId.equals(m.getFactionId())) continue;
+            if (m.isHidden()) continue;
+            boolean isMilitary =
+                    m.hasIndustry(com.fs.starfarer.api.impl.campaign.ids.Industries.MILITARYBASE)
+                 || m.hasIndustry(com.fs.starfarer.api.impl.campaign.ids.Industries.HIGHCOMMAND)
+                 || m.hasIndustry(com.fs.starfarer.api.impl.campaign.ids.Industries.PATROLHQ);
+            if (isMilitary) count++;
         }
         return count;
     }

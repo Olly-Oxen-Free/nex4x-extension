@@ -1,0 +1,8 @@
+prd: ui-correctness-fixes
+waves:
+  - wave: 1
+    tasks: [5a, 5b, 5c, 5d, 5e, 5f, 5g, 5h, 5i, 5j]   # all independent
+  - wave: 2
+    tasks: [5k]
+longest_chain: [5a, 5k]
+total_complexity: 13

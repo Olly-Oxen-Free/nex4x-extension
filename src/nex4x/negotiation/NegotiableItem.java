@@ -20,6 +20,7 @@ public class NegotiableItem implements Serializable {
     private AgreementType agreementType; // for AGREEMENTS items only
     private DeclarationType declarationType; // for DECLARATIONS items only
     private boolean isWithdrawal;            // true = withdraw existing declaration
+    private String id;                   // set by NegotiableItemCatalog.build() — used by DealProposal.removeById
 
     private NegotiableItem(NegotiableItemType type) {
         this.type = type;
@@ -140,6 +141,8 @@ public class NegotiableItem implements Serializable {
     public AgreementType getAgreementType() { return agreementType; }
     public DeclarationType getDeclarationType() { return declarationType; }
     public boolean isWithdrawal() { return isWithdrawal; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public boolean isCeasefire() {
         return type == NegotiableItemType.PEACE_TERMS && "ceasefire".equals(secondaryId);

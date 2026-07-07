@@ -1,0 +1,15 @@
+{
+  "greeting": {
+    "HOSTILE":     ["It pains me that we stand at odds. Speak -- I'll listen."],
+    "NEUTRAL":     ["A pleasure. What can I do for you?"],
+    "FAVORABLE":   ["A welcome visit. Tell me."],
+    "COOPERATIVE": ["My friend. Always glad to see you."]
+  },
+  "negotiation_accept": {
+    "NEUTRAL":     ["Agreed -- warmly."],
+    "FAVORABLE":   ["Gladly. To our partnership."]
+  },
+  "concession_made": {
+    "NEUTRAL":     ["A kind gesture. Thank you."]
+  }
+}

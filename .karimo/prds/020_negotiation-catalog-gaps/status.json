@@ -1,0 +1,25 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 5,
+  "complexity_total": 8,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["20a", "20b", "20c", "20d", "20e"],
+  "notes": {
+    "factory_types_used": {
+      "knowledge": "NegotiableItem.knowledge(String blueprintId) — already existed; called with 'generic' as placeholder targetId since catalog-level build has no specific blueprint context",
+      "prisoner": "NegotiableItem.prisoner(String personId) — already existed; called with 'exchange' matching existing createItemFromKey pattern",
+      "type_enum_names": "NegotiableItemType.KNOWLEDGE and NegotiableItemType.PRISONERS (plural) — confirmed from source"
+    },
+    "request_side_add_path": "Mirrors offer path exactly: deal.addRequest(item) + dealProposal.applyMutation(DealMutation.addRequest(item.getId(), qty), catalog). Both DealPackage.addRequest() and DealMutation.addRequest() exist. No DealProposal.addRequest() — applyMutation() is the correct indirect path.",
+    "divergences_from_pseudocode": [
+      "20a: No new factory methods needed — both knowledge() and prisoner() already existed with parameters; just needed build() branches using sensible defaults",
+      "20c: No collision risk — NEX4X_ADD_PREFIX='nex4x_add_' and NEX4X_REQUEST_PREFIX='nex4x_req_' are distinct prefixes each backed by a separate map (buttonToCatalogId vs buttonToCatalogIdReq)",
+      "20d: addButton in TooltipMakerAPI takes (label, id, color, darkColor, Alignment, CutStyle, width, height, topPad) — existing calls confirmed; two-button layout uses btnHalf=(btnW*3f - pad)/2f with 0f topPad on the second button to keep them on the same logical row"
+    ],
+    "build_result": "BUILD SUCCESSFUL — 207 source files compiled, 4 pre-existing -source 7 warnings only, no new errors",
+    "smoke_steps": "See briefs/20e-smoke.md — 4 in-game checks: knowledge add, prisoner add, territory filter correctness, commodity request button"
+  }
+}

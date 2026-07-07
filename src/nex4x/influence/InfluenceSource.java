@@ -17,7 +17,8 @@ public enum InfluenceSource {
     TREASURY_TRANSFER("Treasury Transfer"),
     AGENT_ACTION("Agent Action"),
     CONTRACT("Contract"),
-    MEDIATION("Mediation");
+    MEDIATION("Mediation"),
+    CONTRACT_PAYOFF("Contract Payoff");
 
     public final String displayName;
 

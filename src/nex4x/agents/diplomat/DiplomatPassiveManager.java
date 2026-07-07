@@ -27,6 +27,12 @@ public class DiplomatPassiveManager {
         for (Nex4xAgentData d : mgr.getAllData()) {
             if (d.getType() != AgentType.DIPLOMAT) continue;
             if (d.isRetraining()) continue;
+            // Filter by owner; legacy null-owner agents skipped rather than miscredited.
+            if (!ownerFactionId.equals(d.getOwnerFactionId())) {
+                if (d.getOwnerFactionId() == null)
+                    log.warn("[Nex4x] DiplomatPassiveManager: skipping agent with null owner — sweep may not have run yet");
+                continue;
+            }
             int level = d.getBuildupTracker().getLevel();
             if (level >= cfg.influenceOwner.length) level = cfg.influenceOwner.length - 1;
             float drip = cfg.influenceOwner[level] * days / 30f;

@@ -34,11 +34,20 @@ public class PoliticalModifier implements Serializable {
     public String getDetails() { return details; }
     public float getCreatedDay() { return createdDay; }
 
-    /** Decay this modifier. Returns true if it should be pruned. */
+    /**
+     * Decay magnitude toward zero, preserving sign. Returns true when the modifier has
+     * decayed to zero (or crossed it) and should be pruned.
+     */
     public boolean decay() {
-        amount -= decayPerDay;
-        return amount <= 0;
+        if (amount > 0f) {
+            amount -= decayPerDay;
+            if (amount < 0f) amount = 0f;
+        } else if (amount < 0f) {
+            amount += decayPerDay;
+            if (amount > 0f) amount = 0f;
+        }
+        return amount == 0f;
     }
 
-    public boolean isExpired() { return amount <= 0; }
+    public boolean isExpired() { return amount == 0f; }
 }

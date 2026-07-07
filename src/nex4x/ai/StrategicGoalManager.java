@@ -1,6 +1,7 @@
 package nex4x.ai;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionAPI;
 import nex4x.ai.archetype.Archetype;
 import nex4x.ai.archetype.CommitmentLedger;
 import nex4x.ai.archetype.GrandStrategyManager;
@@ -10,6 +11,7 @@ import nex4x.ai.goals.GoalGenerator;
 import nex4x.ai.goals.GoalScorer;
 import nex4x.ai.goals.GoalType;
 import nex4x.ai.goals.StrategicGoal;
+import nex4x.ai.posture.DiplomaticPosture;
 import nex4x.ai.posture.PostureMap;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
@@ -39,8 +41,9 @@ public class StrategicGoalManager implements Serializable {
     private final StrategicFocus focus = new StrategicFocus();
     private final PostureMap postureMap = new PostureMap();
 
-    private float lastImportanceCalcDay = 0;
-    private static final float IMPORTANCE_RECALC_INTERVAL = 7f;
+    /** Timestamp (seconds, opaque) of last importance recalc. 0 = never. */
+    private long lastImportanceCalcTs = 0L;
+    private static final float IMPORTANCE_RECALC_INTERVAL_DAYS = 7f;
 
     public static void loadConfig(JSONObject config) {
         MAX_ACTIVE_GOALS = config.optInt("maxActiveGoals", 8);
@@ -55,7 +58,7 @@ public class StrategicGoalManager implements Serializable {
      * Daily update. Called by Nex4xManager.advance().
      */
     public void advanceDay(GrandStrategyManager grandStrategy) {
-        float currentDay = Global.getSector().getClock().getTimestamp();
+        long nowTs = nex4x.util.Nex4xClock.now();
         CommitmentLedger ledger = grandStrategy.getLedger(factionId);
         Archetype archetype = ledger.getCurrentArchetype();
 
@@ -75,8 +78,9 @@ public class StrategicGoalManager implements Serializable {
         }
 
         // 4. Score importance (weekly) and urgency (daily)
-        boolean recalcImportance = (currentDay - lastImportanceCalcDay) >= IMPORTANCE_RECALC_INTERVAL;
-        if (recalcImportance) lastImportanceCalcDay = currentDay;
+        boolean recalcImportance = lastImportanceCalcTs == 0L
+                || nex4x.util.Nex4xClock.daysSince(lastImportanceCalcTs) >= IMPORTANCE_RECALC_INTERVAL_DAYS;
+        if (recalcImportance) lastImportanceCalcTs = nowTs;
 
         Map<String, StrategicGoal> existingByKey = new HashMap<String, StrategicGoal>();
         for (StrategicGoal g : activeGoals) {
@@ -137,7 +141,10 @@ public class StrategicGoalManager implements Serializable {
         }
 
         StrategicGoal highestPriority = activeGoals.isEmpty() ? null : activeGoals.get(0);
-        focus.update(highestImportance, highestPriority, focus.getGreatestThreat(), 1f);
+
+        // PRD-015 (15c): Build a real Threat instead of passing null back into itself.
+        StrategicFocus.Threat newThreat = buildThreat(factionId, activeGoals);
+        focus.update(highestImportance, highestPriority, newThreat, 1f);
 
         // 8. Update posture map
         postureMap.rebuild(activeGoals);
@@ -147,6 +154,100 @@ public class StrategicGoalManager implements Serializable {
         grandStrategy.advanceDay(factionId, activeGoals, highestImportance,
                 threat != null ? threat.severity : 0,
                 threat != null ? threatToArchetype(threat) : null);
+    }
+
+    /**
+     * PRD-015 (15c): Build a StrategicFocus.Threat from active hostile factions and
+     * goals. Caps candidates at 5 for performance; returns null if no threats found.
+     */
+    private StrategicFocus.Threat buildThreat(String factionId,
+                                               List<StrategicGoal> activeGoals) {
+        FactionAPI us = Global.getSector().getFaction(factionId);
+        if (us == null) return null;
+
+        StrategicFocus.Threat best = null;
+        int candidatesChecked = 0;
+
+        for (StrategicGoal goal : activeGoals) {
+            if (candidatesChecked >= 5) break;
+            if (goal.targetFactionId == null) continue;
+
+            StrategicFocus.Threat candidate = null;
+
+            // Military aggression: goals that target factions already hostile to us,
+            // or PRESS_GRIEVANCE / END_WAR goals.
+            if (goal.type == GoalType.PRESS_GRIEVANCE || goal.type == GoalType.END_WAR) {
+                FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                if (them != null && us.isHostileTo(them)) {
+                    float severity = FeasibilityChecker.check(goal, factionId) * 100f;
+                    severity = Math.min(100f, severity);
+                    boolean existential = severity > 70f;
+                    candidate = new StrategicFocus.Threat(
+                            StrategicFocus.Threat.ThreatType.MILITARY_AGGRESSION,
+                            goal.targetFactionId, severity, existential);
+                    candidatesChecked++;
+                }
+            }
+
+            // Pressure dominance: HOSTILE-postured goals against factions already hostile to us.
+            if (candidate == null && goal.getPosture() == DiplomaticPosture.HOSTILE) {
+                FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                if (them != null && us.isHostileTo(them)) {
+                    float severity = goal.getEffectivePriority();
+                    boolean existential = severity > 70f;
+                    candidate = new StrategicFocus.Threat(
+                            StrategicFocus.Threat.ThreatType.PRESSURE_DOMINANCE,
+                            goal.targetFactionId, severity, existential);
+                    candidatesChecked++;
+                }
+            }
+
+            // 2026-07-07 audit: pre-war aggressor. A faction not yet hostile but with
+            // hostile-leaning relations (< -0.5) and a clear military edge (> 1.5x our power)
+            // is a soon-to-attack threat that the hostile-only gates above miss. Register it at
+            // reduced weight (half the effective priority) so it surfaces as a crisis early
+            // without over-dominating genuinely active wars.
+            if (candidate == null) {
+                FactionAPI them = Global.getSector().getFaction(goal.targetFactionId);
+                if (them != null && !us.isHostileTo(them)) {
+                    float rel = us.getRelationship(goal.targetFactionId);
+                    if (rel < -0.5f) {
+                        float ourStr = factionMilitaryStrength(factionId);
+                        float theirStr = factionMilitaryStrength(goal.targetFactionId);
+                        if (ourStr > 0f && theirStr / ourStr > 1.5f) {
+                            float severity = Math.min(100f, goal.getEffectivePriority() * 0.5f);
+                            boolean existential = severity > 70f;
+                            candidate = new StrategicFocus.Threat(
+                                    StrategicFocus.Threat.ThreatType.MILITARY_AGGRESSION,
+                                    goal.targetFactionId, severity, existential);
+                            candidatesChecked++;
+                        }
+                    }
+                }
+            }
+
+            if (candidate != null) {
+                if (best == null || candidate.severity > best.severity) {
+                    best = candidate;
+                }
+                // Early exit on existential threat
+                if (best.existential) break;
+            }
+        }
+
+        return best;
+    }
+
+    /**
+     * 2026-07-07 audit: live military-strength estimate (faction market-size sum), mirroring
+     * FeasibilityChecker. Returns 0 on failure so callers treat it as "unknown / no edge".
+     */
+    private static float factionMilitaryStrength(String factionId) {
+        try {
+            return exerelin.utilities.NexUtilsFaction.getFactionMarketSizeSum(factionId);
+        } catch (Exception e) {
+            return 0f;
+        }
     }
 
     private Archetype threatToArchetype(StrategicFocus.Threat threat) {

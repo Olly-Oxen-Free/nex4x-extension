@@ -10,6 +10,10 @@ import org.json.JSONObject;
 
 public class IntelligenceBureau extends BaseIndustry {
 
+    /**
+     * Effects polled externally: InfluenceManager credits buildingIncome cyclic, DetectionEngine
+     * reads {@code intelBureauBonus} for counter-espionage strength. No per-tick hook needed here.
+     */
     @Override
     public void apply() { super.apply(true); }
 

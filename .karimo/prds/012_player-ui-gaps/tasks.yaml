@@ -1,0 +1,112 @@
+prd: player-ui-gaps
+version: 1
+tasks:
+  - id: 12a
+    title: Add catalog→type mapping helpers
+    description: |
+      In src/nex4x/negotiation/NegotiableItemCatalog.java:
+
+      Add a new static method:
+        public List<String> idsForType(NegotiableItemType type, boolean atWar, String targetFid)
+
+      It returns the catalog IDs that belong to a given category. Mapping:
+        CREDITS         -> [ID_CREDITS]
+        TRIBUTE         -> [ID_TRIBUTE]
+        COMMODITIES     -> for each top-N common commodity (supplies, machinery, fuel, food,
+                           heavy_machinery, organs, drugs, hand_weapons), return commodity:<id>
+        TERRITORY       -> walk Global.getSector().getEconomy().getMarketsCopy() filtered to
+                           targetFid (size limit 5), return territory:<marketId>
+        AGREEMENTS      -> for each AgreementType where isAllianceTrack(), return agreement:<name()>
+        PEACE_TERMS     -> [ID_CEASEFIRE, ID_PEACE_TREATY, ID_WAR_REPARATIONS]
+        KNOWLEDGE       -> [ID_KNOWLEDGE]
+        INTEL           -> [ID_INTEL_BASIC, ID_INTEL_DEEP]
+        PRISONERS       -> [ID_PRISONER]
+        DECLARATIONS    -> for each DeclarationType, return declaration:<name()>
+        WAR_DECLARATION -> []   // requires faction picker; deferred
+        CONTRACTS       -> []   // deferred
+        CONCESSIONS     -> []   // deferred
+
+      All return values are Collections.unmodifiableList. Null-safe.
+    files:
+      - src/nex4x/negotiation/NegotiableItemCatalog.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 12b
+    title: Wire catalog buttons into NegotiationPanel category rows
+    description: |
+      In src/nex4x/ui/NegotiationPanel.java, modify `addCatalogItemsThreeZone(TooltipMakerAPI, NegotiableItemType, ...)`.
+
+      For the given category type, call `catalog.idsForType(type, atWar, targetFactionId)`.
+      For each returned id:
+        - Render an add-button labeled `catalog.getDisplayName(id)` plus an estimated value
+          via `catalog.estimatedUnitValue(id, leader, playerFactionId)` (suppress when value == 0).
+        - Button id: BTN_ADD_<id-safe-string>. On click: `catalog.build(id, defaultQty)` then
+          `dealProposal.applyMutation(DealMutation.addOffer(item.getId(), defaultQty), catalog)`.
+        - Default qty: `catalog.suggestedQty(id, 1)`.
+
+      If `idsForType` returns empty for a category, render existing "no concrete options" placeholder
+      text — leave the category row otherwise unchanged.
+
+      Do NOT change the three-zone grid layout dimensions.
+      Verify singleton/defer behavior remains intact.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 4
+    priority: must
+    depends_on: [12a]
+
+  - id: 12c
+    title: PeaceConferenceDialog (minimal)
+    description: |
+      Create src/nex4x/ui/PeaceConferenceDialog.java extending BasePopUpDialog (mirror
+      NegotiationPanel pattern for popUpDialog/openScaled).
+
+      Constructor: `PeaceConferenceDialog(PeaceConference pc)`.
+      Display: attacker faction display name, defender display name, current PeaceTerms
+      (just dump fields as text rows — basic ToString or per-field labels).
+
+      Buttons (defender side):
+        - "Accept Terms"   → pc.accept(); close
+        - "Reject Terms"   → pc.reject(); close
+        - "Counter Offer"  → pc.counterOffer(simplerTerms()); close. simplerTerms()
+                              returns a copy of pc.getProposed() with war reparations
+                              halved (placeholder logic for v1; full term editing later).
+
+      Use Misc.getBasePlayerColor() / Misc.getNegativeHighlightColor() for visual hierarchy.
+      Singleton guard via static activeInstance like NegotiationPanel.
+
+      Add a runcode entrypoint in src/nex4x/debug/Nex4xDebugCommand.java:
+        `public static String openPeaceConference(String attacker, String defender)`
+        That instantiates a PeaceConference, opens the dialog.
+    files:
+      - src/nex4x/ui/PeaceConferenceDialog.java
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 4
+    priority: must
+    depends_on: []
+
+  - id: 12d
+    title: proposeMediation runcode + smoke + build verify
+    description: |
+      Add to src/nex4x/debug/Nex4xDebugCommand.java:
+        public static String proposeMediation(String mediator, String a, String b, int influence) {
+            nex4x.mediation.MediationSession s = nex4x.mediation.MediationManager.getOrCreate()
+                    .propose(mediator, a, b, (float) influence);
+            return s != null ? "Mediation session opened: " + s.getMediatorId() : "Mediation failed";
+        }
+
+      Then `./build.sh` and verify:
+        - Build SUCCESSFUL
+        - All audit smoke methods still present
+        - PeaceConferenceDialog compiles + has openScaled-like entrypoint
+        - Negotiation category rows show concrete add-buttons for CREDITS/INTEL/PEACE_TERMS/etc.
+
+      Optional: add `auditUI()` runcode that prints UI feature flags (catalog id count per category,
+      PeaceConferenceDialog presence, etc).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 1
+    priority: must
+    depends_on: [12a, 12b, 12c]

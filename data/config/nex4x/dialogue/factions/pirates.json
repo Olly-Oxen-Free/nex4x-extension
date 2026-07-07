@@ -1,0 +1,11 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Look at you, walking in here. That's either brave or stupid."],
+    "NEUTRAL":     ["Talk fast or get out. I'm busy."],
+    "FAVORABLE":   ["Ha! Didn't think you'd show. Drinks are on you. Talk."],
+    "COOPERATIVE": ["My kind of trouble. What's the plan?"]
+  },
+  "tribute_demanded": {
+    "NEUTRAL":     ["Pay up. This is how it works, and you know it."]
+  }
+}

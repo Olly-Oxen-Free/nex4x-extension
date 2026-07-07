@@ -70,8 +70,6 @@ public class CasusBelli implements Serializable {
     }
 
     private static float getCurrentDay() {
-        return Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+        return nex4x.util.Nex4xClock.currentAbsoluteDay();
     }
 }

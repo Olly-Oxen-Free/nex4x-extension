@@ -1,0 +1,134 @@
+prd: diplomacy-bridge-fallback
+version: 1
+tasks:
+  - id: 14a
+    title: "Add respect/insult stage defs to nex4x diplomacyConfig.json"
+    description: |
+      Create new file: data/config/exerelin/diplomacyConfig.json (merged into Nex via
+      Global.getSettings().getMergedJSONForMod — confirmed in DiplomacyManager.class strings).
+      Add two stage entries under "events":
+        - stage "respect": name "Friendship Declaration", positive rep event, minRepChange 0.04,
+          maxRepChange 0.10, random false, no faction restrictions. Represents a formal public
+          declaration of friendship between two factions.
+        - stage "insult": name "Public Denouncement", negative rep event, minRepChange -0.10,
+          maxRepChange -0.04, random false, no faction restrictions. Represents a formal public
+          denouncement/condemnation.
+      Use the same JSON field schema as existing stages in the base config (name, stage,
+      random, minRepChange, maxRepChange, desc fields required; allowPiratesToPirates etc. as
+      needed).
+      VERIFICATION BASIS: Stage ids "respect" and "insult" absent from Nex base
+      diplomacyConfig.json (confirmed 2026-05-31 grep). getMergedJSONForMod confirmed in
+      DiplomacyManager.class bytecode strings. Merge path: fix (a) — intel-log visibility
+      preserved; chosen over direct-adjustRelationship fallback because getMergedJSONForMod
+      merge IS supported.
+    files:
+      - data/config/exerelin/diplomacyConfig.json
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 14b
+    title: "Fix fireRespectEvent — detect null return, run adjustRelationship fallback"
+    description: |
+      In src/nex4x/integration/NexDiplomacyBridge.java, method fireRespectEvent (currently
+      line 39–54):
+        1. Capture return value of createDiplomacyEventV2 into a local variable.
+        2. If return is null: run the adjustRelationship fallback (declarer.adjustRelationship(
+           target.getId(), repPercent / 100f)) and log a WARN including "null return — fallback".
+        3. If return is non-null: log the success (current INFO log).
+        4. Keep the existing catch(Throwable) for genuine exceptions; fallback there too.
+      Guard: exactly one of {null-branch fallback, catch fallback, success log} executes per
+      call — no double-application.
+      REGRESSION SOURCE: PRD-009 task 9a introduced the try/catch-only pattern that misses
+      null returns. Line numbers from verified read: createDiplomacyEventV2 call at line 45,
+      catch block lines 48–53, fallback adjustRelationship at line 52.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 1
+    priority: must
+    depends_on: [14a]
+
+  - id: 14c
+    title: "Fix fireInsultEvent — detect null return, run adjustRelationship fallback"
+    description: |
+      In src/nex4x/integration/NexDiplomacyBridge.java, method fireInsultEvent (currently
+      line 64–79):
+        1. Capture return value of createDiplomacyEventV2 into a local variable.
+        2. If return is null: run fallback (declarer.adjustRelationship(target.getId(),
+           -Math.abs(repPercent) / 100f)) and log WARN "null return — fallback".
+        3. If return is non-null: log success.
+        4. Keep catch(Throwable) fallback.
+      Same guard as 14b: exactly one path per call.
+      REGRESSION SOURCE: PRD-009 task 9a, same as 14b. Line numbers: createDiplomacyEventV2
+      at line 70, catch block lines 73–78, fallback at line 77.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 1
+    priority: must
+    depends_on: [14a]
+
+  - id: 14d
+    title: "Fix firePeaceTreaty — detect null return from createDiplomacyEvent"
+    description: |
+      In src/nex4x/integration/NexDiplomacyBridge.java, method firePeaceTreaty (currently
+      line 88–108). Note: this method uses createDiplomacyEvent (not V2), which returns
+      ExerelinReputationAdjustmentResult, also nullable on no-market or invalid-stage.
+        1. Capture return value of createDiplomacyEvent.
+        2. If return is null: run existing fallback body (setRelationship(0) if hostile) and
+           log WARN "null return — fallback (no markets or blocked)".
+        3. If return is non-null: log success.
+        4. Keep catch(Throwable).
+      Guard: no double-application.
+      REGRESSION SOURCE: PRD-009 task 9a. Line numbers: createDiplomacyEvent at line 94,
+      catch lines 97–107, fallback setRelationship lines 101–106.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 14e
+    title: "Fix fireJustifiedWar — detect null return from createDiplomacyEvent"
+    description: |
+      In src/nex4x/integration/NexDiplomacyBridge.java, method fireJustifiedWar (currently
+      line 137–165). Uses createDiplomacyEvent (returns ExerelinReputationAdjustmentResult).
+        1. Capture return value.
+        2. If return is null: run fallback (setRelationship(target, -1f)) and log WARN
+           "null return — fallback (no markets or blocked)". Skip the badboy-reversal logic
+           (no event = no badboy was applied).
+        3. If return is non-null: run existing badboy-delta check and undo logic.
+        4. Keep catch(Throwable).
+      Guard: badboy reversal only runs on non-null return — no spurious badboy manipulation
+      on fallback path.
+      REGRESSION SOURCE: PRD-009 task 9a. Line numbers: createDiplomacyEvent at line 146,
+      catch lines 159–164, fallback setRelationship at line 163. Badboy pre-snapshot at
+      line 144, post-snapshot at line 148, delta undo at line 152.
+    files:
+      - src/nex4x/integration/NexDiplomacyBridge.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 14f
+    title: "Extend auditDiplomacy smoke test with null-path and market-less coverage"
+    description: |
+      In src/nex4x/debug/Nex4xDebugCommand.java, extend the existing auditDiplomacy() method
+      (added by PRD-009 task 9h) with:
+        1. fireRespectEvent(factionWithMarkets, target, 5f) — assert rel delta >= 0.04 AND
+           DiplomacyIntel count increased >= 1. Log PASS/FAIL.
+        2. fireInsultEvent(factionWithMarkets, target, 5f) — assert rel delta <= -0.04 AND
+           DiplomacyIntel count increased >= 1. Log PASS/FAIL.
+        3. fireRespectEvent(marketlessFaction, target, 5f) — assert rel delta >= 0.04 (fallback
+           path). Log PASS/FAIL.
+        4. firePeaceTreaty(marketlessFaction, hostileFaction) — set hostile first via
+           setRelationship(-1), call firePeaceTreaty, assert no longer hostile. Log PASS/FAIL.
+        5. Log overall PASS or any AUDIT FAIL: lines.
+      Use Global.getSector().getFaction("hegemony") as factionWithMarkets and a known
+      market-less faction (e.g., "luddic_path" or create a synthetic test faction if needed;
+      document choice).
+      BUILD COMMAND: ./build.sh (compilation only; acceptance = build green + runcode smoke).
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [14b, 14c, 14d, 14e]

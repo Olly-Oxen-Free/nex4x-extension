@@ -1,0 +1,42 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 7,
+  "complexity_total": 7,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["18a", "18b", "18c", "18d", "18e", "18f", "18g"],
+  "notes": {
+    "industry_ids_confirmed": {
+      "diplomatic_embassy": "nex4x_diplomatic_embassy",
+      "intelligence_bureau": "nex4x_intelligence_bureau",
+      "cyber_security_suite": "nex4x_cyber_security_suite",
+      "source": "data/campaign/industries.csv line 2-4; also confirmed by BUILDING_* constants in Nex4xConstants.java"
+    },
+    "buildIndustry_signature": {
+      "class": "exerelin.campaign.ColonyManager",
+      "signatures": [
+        "public static void buildIndustry(MarketAPI, String)",
+        "public static void buildIndustry(MarketAPI, String, boolean)"
+      ],
+      "used": "buildIndustry(market, id, true) — instant=true so industry starts functional",
+      "verified_via": "javap against ExerelinCore.jar"
+    },
+    "market_api_confirmed": {
+      "getSize": "returns int",
+      "hasIndustry": "boolean hasIndustry(String)",
+      "getIndustry": "Industry getIndustry(String)",
+      "isFunctional": "boolean isFunctional() on Industry",
+      "isDisrupted": "boolean isDisrupted() on Industry",
+      "setDisrupted": "void setDisrupted(float, boolean) on Industry"
+    },
+    "adaptations": [
+      "No adaptations needed — all assumed APIs existed with expected signatures.",
+      "ColonyManager.buildIndustry(market, id, boolean) confirmed; used 3-arg form with instant=true."
+    ],
+    "smoke_runcode": "See briefs/18g-smoke.md for step-by-step runcode instructions.",
+    "build_result": "BUILD SUCCESSFUL — 206 source files compiled, 0 errors, 4 pre-existing -source 7 warnings (expected).",
+    "json_validation": "industry_seeding.json validated via python3 lenient parse — parses correctly."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "diplomaticVoiceRank": "commander",
+  "viceroyTitle": "Chamberlain",
+  "leaderTitle": "Leader",
+  "canSellAiCores": false,
+  "canSellWetwork": true,
+  "noteOnLuddicDenial": false
+}

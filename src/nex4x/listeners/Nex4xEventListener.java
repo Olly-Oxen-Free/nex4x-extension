@@ -2,6 +2,8 @@ package nex4x.listeners;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.*;
+import com.fs.starfarer.api.characters.PersonAPI;
+import com.fs.starfarer.api.combat.EngagementResultAPI;
 import nex4x.managers.Nex4xManager;
 import org.apache.log4j.Logger;
 
@@ -56,6 +58,56 @@ public class Nex4xEventListener extends BaseCampaignEventListener {
 
     @Override
     public void reportPlayerMarketTransaction(PlayerMarketTransaction transaction) {
-        // Trade-related memory events — placeholder for v1
+        // Large trade transactions register a "commercial_partner" memory weighted by value.
+        if (transaction == null) return;
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null) return;
+        try {
+            com.fs.starfarer.api.campaign.econ.MarketAPI mkt = transaction.getMarket();
+            if (mkt == null || mkt.getFactionId() == null) return;
+            String marketFid = mkt.getFactionId();
+            String playerFid = Global.getSector().getPlayerFaction().getId();
+            if (marketFid.equals(playerFid)) return; // own market — skip
+            float total = Math.abs(transaction.getCreditValue());
+            // Threshold tuned to avoid spam: only material transactions register.
+            if (total < 50000f) return;
+            String desc = "Commercial transaction at " + mkt.getName()
+                    + " (" + (int) total + " credits)";
+            mgr.getMemoryManager().createMemory("commercial_partner", marketFid, playerFid, desc);
+        } catch (Throwable t) {
+            log.warn("[Nex4x] reportPlayerMarketTransaction: " + t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void reportPlayerReputationChange(String factionId, float delta) {
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null || factionId == null) return;
+        try {
+            mgr.getReactiveHandler().onPlayerReputationChange(mgr, factionId, delta);
+        } catch (Exception e) {
+            log.warn("[Nex4x] reportPlayerReputationChange: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void reportPlayerReputationChange(PersonAPI person, float delta) {
+        if (person == null || person.getFaction() == null) return;
+        reportPlayerReputationChange(person.getFaction().getId(), delta);
+    }
+
+    @Override
+    public void reportPlayerEngagement(EngagementResultAPI result) {
+        Nex4xManager mgr = Nex4xManager.getManager();
+        if (mgr == null || result == null || !result.didPlayerWin()) return;
+        try {
+            com.fs.starfarer.api.campaign.EngagementResultForFleetAPI lost = result.getLoserResult();
+            if (lost == null || lost.getFleet() == null || lost.getFleet().getFaction() == null) return;
+            if (lost.getFleet().getFaction().isPlayerFaction()) return;
+            // Light memory hook — distinguish bounties vs generic combat in a future pass.
+            mgr.getReactiveHandler().onPlayerBountyEngagement(mgr, lost.getFleet().getFaction().getId());
+        } catch (Exception e) {
+            log.warn("[Nex4x] reportPlayerEngagement: " + e.getMessage());
+        }
     }
 }

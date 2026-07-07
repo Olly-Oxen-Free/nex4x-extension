@@ -15,7 +15,7 @@ import org.apache.log4j.Logger;
  *  - Fleet pool depletion: 15 or 30
  *  - Multi-front wars: 10 per additional front
  *  - Economy in deficit: 10 (LTV integration)
- *  - Losing war score: 5 per -10 war score (not yet implemented)
+ *  - Losing war score: 5 per -10 war score (sums across all live wars)
  */
 public class DesperationCalculator {
 
@@ -39,10 +39,36 @@ public class DesperationCalculator {
         score += getWarWearinessContribution(factionId);
         score += getFleetPoolContribution(factionId);
         score += getMultiFrontContribution(factionId);
+        score += getWarScoreContribution(factionId);
         // Market losses and economy deficit require tracking infrastructure
         // that will be wired in v1a-5 / later versions
 
         return Math.min(score, MAX_DESPERATION);
+    }
+
+    /**
+     * War score contribution: +5 per -10 war score (per active war), capped at +25.
+     * Pulls from nex4x WarScoreTracker.
+     */
+    private static float getWarScoreContribution(String factionId) {
+        try {
+            nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getManager();
+            if (mgr == null) return 0f;
+            nex4x.wargoals.WarScoreTracker tracker = mgr.getWarScoreTracker();
+            if (tracker == null) return 0f;
+            FactionAPI us = Global.getSector().getFaction(factionId);
+            if (us == null) return 0f;
+            float total = 0f;
+            for (FactionAPI other : Global.getSector().getAllFactions()) {
+                if (other == us || other.isNeutralFaction()) continue;
+                if (!us.isHostileTo(other)) continue;
+                float score = tracker.getWarScore(factionId, other.getId());
+                if (score < 0) total += (-score / 10f) * 5f;
+            }
+            return Math.min(25f, total);
+        } catch (Throwable t) {
+            return 0f;
+        }
     }
 
     /**

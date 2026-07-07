@@ -40,6 +40,16 @@ public class PolicyEffect {
                 if ("import_pressure".equals(stat)) return -0.50f;
                 if ("trade_income".equals(stat)) return -0.30f;
                 break;
+            case MISSIONARY_CAMPAIGN:
+                if ("ideology_spread_rate".equals(stat)) return 0.40f;
+                if ("ideological_enemy_relations".equals(stat)) return -15f;
+                if ("belief_cb_threshold".equals(stat)) return -0.20f;
+                break;
+            case CONSERVATION_MANDATE:
+                if ("market_stability".equals(stat)) return 1f;
+                if ("trade_income".equals(stat)) return -0.10f;
+                if ("ecological_pressure_threshold".equals(stat)) return 0.30f;
+                break;
             default: break;
         }
         return 0f;

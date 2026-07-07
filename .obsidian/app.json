@@ -1,0 +1,9 @@
+{
+  "baseFontSize": 16,
+  "showFrontmatter": true,
+  "showLineNumber": true,
+  "spellcheck": true,
+  "useTab": false,
+  "tabSize": 2,
+  "lineWrap": true
+}

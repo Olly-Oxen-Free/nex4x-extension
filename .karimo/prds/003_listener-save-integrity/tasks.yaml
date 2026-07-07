@@ -1,0 +1,51 @@
+prd: listener-save-integrity
+version: 1
+tasks:
+  - id: 3a
+    title: Switch bridge registrations to transient
+    description: |
+      In Nex4xModPlugin.registerNexCampaignBridges() (around lines 163, 166, 169):
+      replace addListener(new Nex4xInvasionBridge()) with addListener(new Nex4xInvasionBridge(), true).
+      Same for Nex4xRaidBridge and Nex4xAgentActionReportListener.
+      Remove the hasListenerOfClass guard since transient listeners reset every session.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 3b
+    title: Purge stale persistent listener entries on first load
+    description: |
+      In onGameLoad, BEFORE registering transient listeners, call
+      sector.getListenerManager().removeListenerOfClass(Nex4xInvasionBridge.class) etc.
+      Log "Purged stale {Class} listener" if any was removed.
+      Idempotent: subsequent loads remove nothing.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: [3a]
+
+  - id: 3c
+    title: Add post-register sanity assert
+    description: |
+      After registering, log.warn (do not throw) if hasListenerOfClass(...) is false for
+      any of the three bridge classes. Catches future refactors that drop registration.
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: should
+    depends_on: [3a]
+
+  - id: 3d
+    title: Smoke + verify
+    description: |
+      ./build.sh clean. Manual: load existing save, search starsector.log for
+      "NotSerializableException" — should be zero. Trigger an invasion via Console
+      Commands; verify Nex4xInvasionBridge handler fires (add temporary debug log if needed).
+      Save, quit, reload — confirm purge log line on second load is absent.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [3a, 3b, 3c]

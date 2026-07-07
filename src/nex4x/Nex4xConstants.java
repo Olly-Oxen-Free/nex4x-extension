@@ -16,6 +16,7 @@ public class Nex4xConstants {
 
     // v1 data file paths
     public static final String PATH_GRAND_STRATEGY = "data/config/nex4x/grand_strategy.json";
+    public static final String PATH_ARCHETYPE_OVERRIDES = "data/config/nex4x/archetype_overrides.json";
     public static final String PATH_GOAL_WEIGHTS = "data/config/nex4x/goal_weights.json";
     public static final String PATH_DIPLOMATIC_EXECUTOR = "data/config/nex4x/diplomatic_executor.json";
     public static final String PATH_NEGOTIATION = "data/config/nex4x/negotiation.json";
@@ -29,6 +30,7 @@ public class Nex4xConstants {
     public static final String PATH_AGENT_ACTIONS = "data/config/nex4x/agent_actions.json";
     public static final String PATH_AGENT_SYNERGY = "data/config/nex4x/agent_synergy.json";
     public static final String PATH_MARKET_SECURITY = "data/config/nex4x/market_security.json";
+    public static final String PATH_INDUSTRY_SEEDING = "data/config/nex4x/industry_seeding.json";
 
     // v2 persist keys
     public static final String PERSIST_KEY_INFLUENCE_MANAGER = "nex4x_influenceManager";

@@ -1,0 +1,75 @@
+prd: covert-action-registration
+version: 1
+tasks:
+  - id: 13a
+    title: Move register() call from onApplicationLoad to onGameLoad
+    description: |
+      In Nex4xModPlugin.java, remove the try/catch block at lines 80-85 that calls
+      nex4x.agents.actions.Nex4xCovertActionRegistry.register() from onApplicationLoad.
+      Add an equivalent try/catch block in onGameLoad, positioned after the
+      Nex4xManager.getOrCreateManager() call at line 142 and before the
+      FactionBeliefsLoader.loadForLiveFactions() block. Guard the call with a check that
+      CovertOpsManager is accessible (class-exists guard or rely on the existing
+      NoClassDefFoundError catch in register() itself — the existing catch is sufficient
+      since Global.getSector() is non-null at onGameLoad). Log message:
+      "[Nex4x] Covert action registration (onGameLoad)".
+    files:
+      - src/nex4x/Nex4xModPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 13b
+    title: Add Collections.sort after all defs are appended in register()
+    description: |
+      In Nex4xCovertActionRegistry.java, after the last registerOne() call (line 82,
+      registerOne for GUERRILLA_INCITE_RAID) and before the log statement at line 84,
+      add a sort: java.util.Collections.sort(CovertOpsManager.actionDefs).
+      CovertActionDef implements Comparable<CovertActionDef> (confirmed via javap), so the
+      zero-arg overload is safe. This sort is reached only when at least one def was
+      actually added (the idempotency guard at registerOne line 100 returns early for
+      already-registered ids, so on reload the sort is still called but is a no-op on an
+      already-sorted list — acceptable). Also add the import java.util.Collections if
+      not already present.
+    files:
+      - src/nex4x/agents/actions/Nex4xCovertActionRegistry.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 13c
+    title: Add auditCovertDefs() to Nex4xDebugCommand
+    description: |
+      In Nex4xDebugCommand.java, add a new public static method auditCovertDefs() after the
+      existing auditAgents() method (around line 163). The method should:
+        1. Iterate CovertOpsManager.actionDefs in order, printing each def's id, name, and
+           sortOrder value.
+        2. For each of the 7 ActionDefIds constants, assert the def is present in
+           actionDefsById and print PASS/FAIL per id.
+        3. Print a summary line "nex4x defs registered: N/7" where N is the count present.
+        4. Post the result via getCampaignUI().addMessage(...).
+      Javadoc: /** runcode nex4x.debug.Nex4xDebugCommand.auditCovertDefs() — lists all
+      CovertOpsManager actionDefs with sortOrder; asserts nex4x 7 defs present. */
+      Also update the existing auditAgents() count line (line 146) to call the same
+      7-def assertion loop it already has — no change needed there; just ensure the new
+      method is additive, not a replacement.
+    files:
+      - src/nex4x/debug/Nex4xDebugCommand.java
+    complexity: 2
+    priority: must
+    depends_on: [13a, 13b]
+
+  - id: 13d
+    title: Build verification and in-game smoke
+    description: |
+      Run ./build.sh from the module root and confirm exit code 0 with no new compilation
+      errors. Then load a save in-game and run both runcodes:
+        runcode nex4x.debug.Nex4xDebugCommand.auditAgents()   -- expect "7/7"
+        runcode nex4x.debug.Nex4xDebugCommand.auditCovertDefs() -- expect all 7 PASS
+      Also: save, reload, run both again to confirm idempotency (still 7/7, no duplicates
+      in actionDefs list). Log output from onGameLoad should show
+      "[Nex4x] Registered 7 covert action defs with Nex CovertOpsManager".
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [13a, 13b, 13c]

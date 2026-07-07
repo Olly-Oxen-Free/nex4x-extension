@@ -24,7 +24,7 @@ public class InfluenceManager implements Serializable {
     private static final Logger log = Global.getLogger(InfluenceManager.class);
 
     private final Map<String, InfluenceLedger> ledgers = new HashMap<String, InfluenceLedger>();
-    private int daysAccumulated = 0;
+    private float daysAccumulated = 0f;
 
     // Config (transient — reloaded on demand)
     private transient Config config;
@@ -57,11 +57,19 @@ public class InfluenceManager implements Serializable {
         return getLedger(factionId).getExpenseBreakdown();
     }
 
-    /** Call once per day. Every CYCLE_DAYS triggers cycle income. */
+    /** Backwards-compat: advance by 1 day. */
     public void advanceDay() {
-        daysAccumulated++;
+        advanceDay(1f);
+    }
+
+    /** Advance by elapsed game-days; runs cycle when accumulated >= CYCLE_DAYS. */
+    public void advanceDay(float elapsedDays) {
+        if (elapsedDays <= 0f) return;
+        daysAccumulated += elapsedDays;
         if (daysAccumulated >= CYCLE_DAYS) {
-            daysAccumulated = 0;
+            // Modulo to absorb multi-day catch-up without skipping cycles.
+            daysAccumulated -= CYCLE_DAYS;
+            if (daysAccumulated < 0f) daysAccumulated = 0f;
             runCycle();
         }
     }
@@ -93,7 +101,10 @@ public class InfluenceManager implements Serializable {
             total += Math.max(0, m.getStability().getModifiedValue()) * cfg.stabilityRate;
             // Building-sourced income
             for (Map.Entry<String, Float> b : cfg.buildingIncome.entrySet()) {
-                if (m.hasIndustry(b.getKey())) total += b.getValue();
+                if (m.hasIndustry(b.getKey())
+                        && m.getIndustry(b.getKey()).isFunctional()) {
+                    total += b.getValue();
+                }
             }
             // AI core bonuses (via admin officer)
             if (m.getAdmin() != null) {
@@ -145,6 +156,35 @@ public class InfluenceManager implements Serializable {
         public float stabilityRate = 0.1f;
         public final Map<String, Float> buildingIncome = new HashMap<String, Float>();
         public final Map<String, Float> aiCoreBonuses = new HashMap<String, Float>();
+    }
+
+    /**
+     * Returns a discount factor [0, 0.75] derived from active Friendship or Denouncement
+     * declarations between the player and the given faction.
+     *
+     * @param otherFactionId  the other faction in the declaration
+     * @param isFriendlyAction true for actions benefiting the other faction (Friendship applies),
+     *                         false for actions against them (Denounce applies)
+     * @return discount fraction to subtract from 1.0 when computing cost
+     */
+    public float getDeclarationDiscountFactor(String otherFactionId, boolean isFriendlyAction) {
+        float discount = 0f;
+        nex4x.managers.Nex4xManager mgr = nex4x.managers.Nex4xManager.getManager();
+        if (mgr == null) return 0f;
+        for (nex4x.declarations.Declaration d : mgr.getDeclarationManager()
+                .getDeclarationsBetween(
+                        com.fs.starfarer.api.Global.getSector().getPlayerFaction().getId(),
+                        otherFactionId)) {
+            if (!d.isActive()) continue;
+            nex4x.declarations.DeclarationConfig cfg =
+                    nex4x.declarations.DeclarationConfig.get(d.getType());
+            if (cfg.influenceDiscountPct <= 0) continue;
+            boolean applicable = isFriendlyAction
+                    ? (d.getType() == nex4x.declarations.DeclarationType.FRIENDSHIP)
+                    : (d.getType() == nex4x.declarations.DeclarationType.DENOUNCE);
+            if (applicable) discount += cfg.influenceDiscountPct / 100f;
+        }
+        return Math.min(discount, 0.75f); // cap at 75% discount
     }
 
     public static InfluenceManager get() {

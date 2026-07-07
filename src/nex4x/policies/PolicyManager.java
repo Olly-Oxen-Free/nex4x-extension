@@ -43,10 +43,10 @@ public class PolicyManager implements Serializable {
         }
         if (hasPolicy(factionId, type)) return false;
 
-        float day = Global.getSector().getClock().getDay()
-                + Global.getSector().getClock().getCycle() * 365f;
+        float day = nex4x.util.Nex4xClock.currentAbsoluteDay();
         getPolicies(factionId).add(new Policy(type, day));
         log.info("[Nex4x] Policy adopted: " + factionId + " " + type.displayName);
+        PolicyEffectApplicator.refreshFactionMarkets(factionId);
         return true;
     }
 
@@ -55,6 +55,7 @@ public class PolicyManager implements Serializable {
             if (p.getType() == type && p.isActive()) {
                 p.revoke();
                 log.info("[Nex4x] Policy revoked: " + factionId + " " + type.displayName);
+                PolicyEffectApplicator.refreshFactionMarkets(factionId);
                 return;
             }
         }
@@ -105,6 +106,7 @@ public class PolicyManager implements Serializable {
                     p.revoke();
                     log.info("[Nex4x] Policy auto-revoked (tendency dropped): " + factionId
                             + " " + p.getType().displayName);
+                    PolicyEffectApplicator.refreshFactionMarkets(factionId);
                 }
             }
         }

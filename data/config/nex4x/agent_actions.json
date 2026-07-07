@@ -1,22 +1,4 @@
 {
-    "INTEL_GATHER": {
-        "requiredType": "COVERT",
-        "minLevel": 0,
-        "creditCost": 10000,
-        "influenceCost": 2,
-        "durationDays": 14,
-        "cooldownDays": 20,
-        "relationshipPenaltyOnDetection": -5
-    },
-    "EMBED": {
-        "requiredType": "COVERT",
-        "minLevel": 0,
-        "creditCost": 5000,
-        "influenceCost": 1,
-        "durationDays": 10,
-        "cooldownDays": 14,
-        "relationshipPenaltyOnDetection": -5
-    },
     "SABOTAGE_INDUSTRY": {
         "requiredType": "COVERT",
         "minLevel": 2,

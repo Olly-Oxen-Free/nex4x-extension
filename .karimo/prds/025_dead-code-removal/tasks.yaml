@@ -1,0 +1,258 @@
+prd: dead-code-removal
+version: 1
+tasks:
+
+  # ── Wave 1: dead classes (no dependents to worry about) ───────────────────
+
+  - id: 25a
+    title: Delete AgentUIStub and ReflectionBridge (UI stubs)
+    description: |
+      Delete:
+        - src/nex4x/ui/AgentUIStub.java        (ref count: 0)
+        - src/nex4x/ui/ReflectionBridge.java   (ref count: 0)
+      Verify: grep -rn "AgentUIStub\|ReflectionBridge" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/AgentUIStub.java
+      - src/nex4x/ui/ReflectionBridge.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25b
+    title: Delete nex4x.ui.DiplomacyIntel (superseded by overlay)
+    description: |
+      Delete:
+        - src/nex4x/ui/DiplomacyIntel.java   (ref count: 0 external; class never instantiated)
+      Note: DiplomacyTabOverlayModel uses only exerelin.campaign.intel.diplomacy.DiplomacyIntel
+      via FQN — no name collision after deletion.
+      Verify: grep -rn "nex4x\.ui\.DiplomacyIntel\b" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/DiplomacyIntel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25c
+    title: Delete AutoBalanceSolver and BalanceSurface (unused negotiation prototypes)
+    description: |
+      Delete:
+        - src/nex4x/negotiation/AutoBalanceSolver.java   (ref count: 0 external)
+        - src/nex4x/negotiation/BalanceSurface.java      (ref count: 0 external)
+      Both call BalanceCalculator but nothing calls them.
+      Verify: grep -rn "AutoBalanceSolver\|BalanceSurface" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/negotiation/AutoBalanceSolver.java
+      - src/nex4x/negotiation/BalanceSurface.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25d
+    title: Delete CounterOfferGenerator (unused negotiation prototype)
+    description: |
+      Delete:
+        - src/nex4x/negotiation/CounterOfferGenerator.java   (ref count: 0)
+      Verify: grep -rn "CounterOfferGenerator" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/negotiation/CounterOfferGenerator.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25e
+    title: Delete AgentSynergy and AgentAI (agent prototype classes)
+    description: |
+      Delete:
+        - src/nex4x/agents/synergy/AgentSynergy.java   (ref count: 0)
+        - src/nex4x/agents/ai/AgentAI.java             (ref count: 0)
+      Verify: grep -rn "AgentSynergy\|AgentAI\b" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/agents/synergy/AgentSynergy.java
+      - src/nex4x/agents/ai/AgentAI.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25f
+    title: Delete votes package (VoteProposal + VoteOutcome; deferred from PRD-022)
+    description: |
+      Delete:
+        - src/nex4x/votes/VoteProposal.java   (ref count: 0 external; Serializable but never persisted)
+        - src/nex4x/votes/VoteOutcome.java    (ref count: 0 external; Serializable but never persisted)
+      PRD-022 explicitly defers this deletion here. No savegame risk — neither class was
+      ever instantiated (grep for "new VoteProposal" / "new VoteOutcome" = 0).
+      Verify: grep -rn "nex4x\.votes\." src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/votes/VoteProposal.java
+      - src/nex4x/votes/VoteOutcome.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25g
+    title: Delete TrustSensitivity (unused badge enum)
+    description: |
+      Delete:
+        - src/nex4x/badges/TrustSensitivity.java   (ref count: 0)
+      Verify: grep -rn "TrustSensitivity" src/ data/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/badges/TrustSensitivity.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  # ── Wave 2: dead methods in live classes ──────────────────────────────────
+
+  - id: 25h
+    title: Remove dead faction-card helper methods from CoreUITabInjectorListener
+    description: |
+      In src/nex4x/ui/CoreUITabInjectorListener.java, remove the following private methods
+      and the comment block "── Faction card list ─..." and "── Helpers ─..." that precede them
+      (lines ~135-210):
+        - buildFactionCardList(TooltipMakerAPI, float)  — defined but never called (ref: 0)
+        - getBrowsableFactions(String)                  — called only by the above (ref: 0 external)
+        - hasMarkets(String)                            — called only by the above (ref: 0 external)
+        - relColor(float)                               — called only by the above (ref: 0 external)
+        - repLabel(float)                               — called only by the above (ref: 0 external)
+      Also remove the now-unused imports:
+        FactionAPI, MarketAPI, Alignment, CutStyle, TooltipMakerAPI, UIComponentAPI,
+        ArrayList, Collections, Comparator
+      (keep any imports still used by the live injection code).
+      Verify: grep -rn "buildFactionCardList\|getBrowsableFactions\|relColor\|repLabel" src/ | grep
+              CoreUITabInjectorListener → zero.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/CoreUITabInjectorListener.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 25i
+    title: Remove setTabButtons + unreachable tab-hit-test fields from DiplomacyOverlayPlugin
+    description: |
+      In src/nex4x/ui/DiplomacyOverlayPlugin.java:
+        1. Delete the method setTabButtons(UIComponentAPI, List<UIComponentAPI>, Runnable, Runnable)
+           (lines ~39-47 — never called externally; ref count: 0).
+        2. Delete the four instance fields it exclusively populates:
+             - diplomacyBtnComp (UIComponentAPI)
+             - otherBtnComps    (List<UIComponentAPI>)
+             - showCallback     (Runnable)
+             - hideCallback     (Runnable)
+        3. In processInput, because diplomacyBtnComp is now removed, simplify or remove the
+           dead branches that checked `diplomacyBtnComp == null` (the whole block can be removed
+           if no remaining logic is needed; verify whether the processInput body has any live path
+           after this change — if the entire body is now dead, replace the method with an empty
+           override body).
+        4. Remove the now-unused imports: UIComponentAPI (if not used elsewhere), Collections.
+      Verify: grep -rn "setTabButtons" src/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/DiplomacyOverlayPlugin.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 25j
+    title: Remove getAvailableAgreementTypes, hasMarkets, and dead imports from NegotiationPanel
+    description: |
+      In src/nex4x/ui/NegotiationPanel.java:
+        1. Delete private method getAvailableAgreementTypes()  (ref count: 0; not referenced by PRD-020).
+        2. Delete private method hasMarkets(String factionId) (ref count: 0).
+        3. Remove unused import lines:
+             import nex4x.data.Nex4xSettings;
+             import nex4x.pressure.PressureManager;
+             import nex4x.pressure.PressureSource;
+      NOTE: addThreeZoneRow (line 551) is KEPT — PRD-020 repurposes it.
+      Verify: grep -rn "getAvailableAgreementTypes\|nex4x\.pressure\.PressureManager\|nex4x\.pressure\.PressureSource\|import nex4x\.data\.Nex4xSettings" src/nex4x/ui/NegotiationPanel.java → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/NegotiationPanel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 25k-note
+    title: "[NOTE] NegotiationPanel.hasMarkets already covered by 25j — no separate task needed"
+    description: |
+      hasMarkets(String) in NegotiationPanel is included in task 25j. This placeholder documents
+      the audit finding for traceability only. No file changes.
+    files: []
+    complexity: 0
+    priority: note
+    depends_on: [25j]
+
+  - id: 25l
+    title: Remove DiploEventTooltip inner class from DiplomacyTabOverlayModel
+    description: |
+      In src/nex4x/ui/DiplomacyTabOverlayModel.java, delete the private inner class
+      DiploEventTooltip (lines ~642-667) — constructed nowhere (ref count: 0).
+      The comment block "── Hover tooltip for recent diplo events ─..." above it should
+      also be removed.
+      Check whether getDiploEvents() (which DiploEventTooltip called) is still reachable
+      from any other caller; if getDiploEvents is ALSO unused after removing DiploEventTooltip,
+      remove it as well (leave a note if uncertain).
+      Verify: grep -rn "DiploEventTooltip" src/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+    complexity: 2
+    priority: must
+    depends_on: []
+
+  - id: 25m
+    title: Remove dead roll-path methods from DetectionEngine
+    description: |
+      In src/nex4x/agents/security/DetectionEngine.java, delete:
+        - getAttackerStrength(AgentType, BuildupTracker)  (ref count: 0)
+        - detectionChance(float, float)                   (ref count: 0 external)
+        - rollDetection(float, float)                     (ref count: 0; calls detectionChance)
+      The live method getMarketDetection is not affected.
+      Note: MarketSecurityData is NOT removed — it is used by getMarketDetection.
+      Verify: grep -rn "getAttackerStrength\|detectionChance\|rollDetection" src/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/agents/security/DetectionEngine.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 25n
+    title: Remove applyCycleExpense from InfluenceLedger
+    description: |
+      In src/nex4x/influence/InfluenceLedger.java, delete:
+        - applyCycleExpense(float amount, InfluenceSource src)  (ref count: 0)
+      Verify: grep -rn "applyCycleExpense" src/ → zero hits.
+      Build: ./build.sh → green.
+    files:
+      - src/nex4x/influence/InfluenceLedger.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  # ── Wave 3: blocked on other PRDs (document only — no removal yet) ────────
+
+  - id: 25o
+    title: "[DEFERRED] Remove BalanceCalculator after PRD-016 folds its logic"
+    description: |
+      src/nex4x/negotiation/BalanceCalculator.java is currently LIVE — called by
+      Nex4xDebugCommand (src/nex4x/debug/Nex4xDebugCommand.java lines 115-116).
+      PRD-016 (valuation-engine-wiring) will fold BalanceCalculator's evaluation logic
+      into the new valuation engine and update DebugCommand accordingly.
+      Once PRD-016 is complete and DebugCommand no longer references BalanceCalculator,
+      implement this task:
+        - Delete src/nex4x/negotiation/BalanceCalculator.java
+        - grep -rn "BalanceCalculator" src/ data/ → zero hits
+        - Build green
+    files:
+      - src/nex4x/negotiation/BalanceCalculator.java
+    complexity: 1
+    priority: should
+    depends_on:
+      - description: "016_valuation-engine-wiring must be completed first"

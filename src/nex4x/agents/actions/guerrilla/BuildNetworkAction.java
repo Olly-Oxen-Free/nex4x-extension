@@ -2,25 +2,23 @@ package nex4x.agents.actions.guerrilla;
 
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import nex4x.agents.Nex4xAgentData;
-import nex4x.agents.actions.ActionConfig;
-import nex4x.agents.actions.BaseAgentAction;
+import nex4x.agents.actions.ActionDefIds;
+import nex4x.agents.actions.Nex4xCovertAction;
 
-/** Network-tier: builds guerrilla standing; detection resets buildup by 1 level. */
-public class BuildNetworkAction extends BaseAgentAction {
-    private static final long serialVersionUID = 1L;
+/** Guerrilla builds local network — heavy buildup boost. Detection: lose a level. */
+public class BuildNetworkAction extends Nex4xCovertAction {
 
-    public BuildNetworkAction(String agentId, String actorFactionId, String marketId,
-                              ActionConfig config, int agentLevel) {
-        super(agentId, actorFactionId, marketId, config, agentLevel);
+    public BuildNetworkAction() {}
+
+    @Override public String getDefId() { return ActionDefIds.GUERRILLA_BUILD_NETWORK; }
+
+    @Override
+    protected void applyNex4xEffect(Nex4xAgentData data, MarketAPI market) {
+        if (data != null) data.getBuildupTracker().addBoost(25f);
     }
 
     @Override
-    protected void applyEffect(Nex4xAgentData data, MarketAPI market) {
-        data.getBuildupTracker().addBoost(25f);
-    }
-
-    @Override
-    protected void applyDetectionFallout(Nex4xAgentData data, MarketAPI market) {
-        data.getBuildupTracker().damageByOneLevel();
+    protected void applyNex4xFallout(Nex4xAgentData data, MarketAPI market) {
+        if (data != null) data.getBuildupTracker().damageByOneLevel();
     }
 }

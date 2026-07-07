@@ -1,0 +1,10 @@
+prd: negotiation-catalog-gaps
+waves:
+  - wave: 1
+    tasks: [20a, 20b, 20c]   # all independent; no mutual deps
+  - wave: 2
+    tasks: [20d]              # depends on 20c (NEX4X_REQUEST_PREFIX + map)
+  - wave: 3
+    tasks: [20e]              # depends on 20a, 20b, 20d
+longest_chain: [20c, 20d, 20e]
+total_complexity: 8

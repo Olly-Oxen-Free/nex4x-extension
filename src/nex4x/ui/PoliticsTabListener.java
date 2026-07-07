@@ -6,10 +6,14 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.ui.ButtonAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
 import com.fs.starfarer.api.ui.UIComponentAPI;
+import nex4x.data.Nex4xSettings;
 
 /**
- * Registers the "Politics" tab in the core UI via Ashlib's listener system.
- * Discovered by CommandTabTracker via ListenerManagerAPI.getListeners(CommandTabListener.class).
+ * Legacy class kept so older saves that serialized this listener type can load.
+ * {@link Nex4xModPlugin} removes it on {@code onGameLoad}; use {@link FactionsTabListener} instead.
+ * <p>
+ * {@link #getButtonToBePlacedNear()} must match an Ashlib Outposts-map key (e.g. {@code income});
+ * see {@code Nex4xSettings#commandTabPlaceNearButton}.
  */
 public class PoliticsTabListener implements CommandTabListener {
 
@@ -20,12 +24,12 @@ public class PoliticsTabListener implements CommandTabListener {
 
     @Override
     public String getButtonToReplace() {
-        return null;  // don't replace an existing button
+        return null;
     }
 
     @Override
     public String getButtonToBePlacedNear() {
-        return "Fleet";  // place near the Fleet tab
+        return Nex4xSettings.commandTabPlaceNearButton;
     }
 
     @Override
@@ -35,9 +39,9 @@ public class PoliticsTabListener implements CommandTabListener {
 
     @Override
     public CommandUIPlugin createPlugin() {
-        return new PoliticsTabPlugin(
-                Global.getSettings().getScreenWidth() - 80,
-                Global.getSettings().getScreenHeight() - 160);
+        return new FactionsTabPlugin(
+                Global.getSettings().getScreenWidth() - 80f,
+                Global.getSettings().getScreenHeight() - 160f);
     }
 
     @Override
@@ -47,17 +51,16 @@ public class PoliticsTabListener implements CommandTabListener {
 
     @Override
     public int getKeyBind() {
-        return 0;  // no keybind
+        return 0;
     }
 
     @Override
     public void performRecalculations(UIComponentAPI component) {
-        // no-op for v0
     }
 
     @Override
     public int getOrder() {
-        return 100;  // after other tabs
+        return 100;
     }
 
     @Override
@@ -67,6 +70,5 @@ public class PoliticsTabListener implements CommandTabListener {
 
     @Override
     public void performRefresh(ButtonAPI button) {
-        // no-op for v0
     }
 }

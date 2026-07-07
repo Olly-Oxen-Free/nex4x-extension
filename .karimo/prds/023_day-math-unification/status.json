@@ -1,0 +1,101 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P2",
+  "tasks_total": 12,
+  "complexity_total": 13,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["23a","23b","23c","23d","23e","23f","23g","23h","23i","23j","23k","23l"],
+  "build_status": "BUILD SUCCESSFUL",
+  "notes": {
+    "sites_changed": [
+      {
+        "file": "src/nex4x/util/Nex4xClock.java",
+        "task": "23a",
+        "before": "c.getCycle() * 365f + (c.getMonth() - 1) * 30f + c.getDay()",
+        "after": "c.getCycle() * 360f + (c.getMonth() - 1) * 30f + c.getDay()",
+        "note": "Canonical helper fix. Javadoc updated: cycle*360; isLegacyDayValue Javadoc notes cycle-0 epoch."
+      },
+      {
+        "file": "src/nex4x/declarations/Declaration.java",
+        "task": "23b",
+        "before": "creationDay = getCurrentDay()  [getCurrentDay = (cycle-206)*365 + (month-1)*30 + day]; getDaysRemaining / isExpired likewise; two static helpers deleted",
+        "after": "creationDay = nex4x.util.Nex4xClock.currentAbsoluteDay(); getDaysRemaining/isExpired migrated; both helper methods removed; unused Global import removed",
+        "note": "PRD line numbers matched exactly."
+      },
+      {
+        "file": "src/nex4x/declarations/DeclarationManager.java",
+        "task": "23c",
+        "before": "float now = Declaration.currentAbsoluteDay()",
+        "after": "float now = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "No new import needed (fully qualified). PRD line 216 confirmed."
+      },
+      {
+        "file": "src/nex4x/managers/MemoryManager.java",
+        "task": "23d",
+        "before": "float gameDays = day + (month-1)*30f + (cycle-206)*365f",
+        "after": "float gameDays = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD lines 45-47 confirmed."
+      },
+      {
+        "file": "src/nex4x/politics/DynamicModifierManager.java",
+        "task": "23e",
+        "before": "float day = day + cycle*365f  [missing month term]",
+        "after": "float day = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD lines 32-33 confirmed. Month term now included."
+      },
+      {
+        "file": "src/nex4x/vassals/VassalManager.java",
+        "task": "23f",
+        "before": "float day = day + cycle*365f  [missing month term]",
+        "after": "float day = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD lines 25-26 confirmed."
+      },
+      {
+        "file": "src/nex4x/policies/PolicyManager.java",
+        "task": "23g",
+        "before": "float day = day + cycle*365f  [missing month term]",
+        "after": "float day = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD lines 46-47 confirmed."
+      },
+      {
+        "file": "src/nex4x/agreements/Agreement.java",
+        "task": "23h",
+        "before": "return nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f",
+        "after": "return nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD lines 92-95 confirmed. Javadoc updated."
+      },
+      {
+        "file": "src/nex4x/managers/AIProposalManager.java",
+        "task": "23i",
+        "before": "float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f",
+        "after": "float dayNum = nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD line 58 confirmed. Inline comment updated."
+      },
+      {
+        "file": "src/nex4x/casusbelli/CasusBelli.java",
+        "task": "23j",
+        "before": "return nex4x.util.Nex4xClock.currentAbsoluteDay() - 206f * 365f",
+        "after": "return nex4x.util.Nex4xClock.currentAbsoluteDay()",
+        "note": "PRD line 73 confirmed."
+      },
+      {
+        "file": "src/nex4x/debug/Nex4xDebugCommand.java",
+        "task": "23k",
+        "changes": [
+          "auditClock(): updated absDay display to note 'cycle-0 epoch, 360 days/cycle'",
+          "auditDayMath() added: asserts currentAbsoluteDay()==cycle*360+(month-1)*30+day; one-cycle advance=360; two-cycle=720"
+        ],
+        "note": "PRD said line 229 for display line but file grew to ~530 lines with PRD-022 additions. No legacy 'cycle 206' text existed in auditClock; annotation added."
+      }
+    ],
+    "divergences_from_prd": [
+      "Nex4xDebugCommand line 229: PRD expected auditClock absDay line at 229; actual line ~529 due to file growth from PRD-022. No 'cycle 206' text present to remove; added 'cycle-0 epoch, 360 days/cycle' annotation.",
+      "All other file/line references in tasks.yaml matched actual source exactly."
+    ],
+    "save_migration_decision": "No automated migration implemented. Stored day baselines in Declaration/Agreement/CasusBelli from existing saves carry the old (cycle-206 epoch + 365-based) values. After the patch, on first load of an old save: Declaration/Agreement/CasusBelli fields shift by up to 206*5=1030 days one-time (main P2 risk — short-duration records may briefly appear expired or have wrong time-remaining, self-heals next load). AIProposalManager.lastProposalDay values will appear ~74000 days in the past so all AI proposal cooldowns expire on first load (AI proposals may spike for ~1 cycle). FactionMemory/Policy/VassalRelation gameDays/day baselines: decay uses elapsed-days (not baseline subtraction) so old records are unaffected in behavior. isLegacyDayValue(>1e6) threshold remains valid. Full per-record migration deferred per PRD scope.",
+    "smoke_runcode": "runcode nex4x.debug.Nex4xDebugCommand.auditDayMath()\n\nPRINTS:\n  PASS  currentAbsoluteDay() == cycle*360+(month-1)*30+day  actual=<N> expected=<N>\n  PASS  one cycle advance = 360.0 days (expected 360, not 365)\n  PASS  two cycle advance = 720.0 days (expected 720)\n  current: cycle=<C> month=<M> day=<D> => absDay=<N>\n  note: one cycle from cycle 1 = 360 days (not 365)\n  overall: PASS",
+    "build_result": "BUILD SUCCESSFUL — 208 source files compiled, 4 pre-existing -source 7 warnings only, 0 new errors."
+  }
+}

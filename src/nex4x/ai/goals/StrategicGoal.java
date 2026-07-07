@@ -16,15 +16,16 @@ public class StrategicGoal implements Serializable {
     private float progress;              // 0-1
     private DiplomaticPosture posture;
     private Obstacle obstacle;
-    private final float createdDay;
+    /** Game-time timestamp (seconds, opaque) at creation. Use Nex4xClock.daysSince() for age. */
+    private final long createdTimestamp;
     private String parentGoalId;         // nullable
 
     public StrategicGoal(GoalType type, String targetFactionId, String targetMarketId,
-                         float createdDay) {
+                         long createdTimestamp) {
         this.type = type;
         this.targetFactionId = targetFactionId;
         this.targetMarketId = targetMarketId;
-        this.createdDay = createdDay;
+        this.createdTimestamp = createdTimestamp;
         this.importance = 0;
         this.urgency = 0;
         this.effectivePriority = 0;
@@ -48,7 +49,9 @@ public class StrategicGoal implements Serializable {
     public float getProgress() { return progress; }
     public DiplomaticPosture getPosture() { return posture; }
     public Obstacle getObstacle() { return obstacle; }
-    public float getCreatedDay() { return createdDay; }
+    public long getCreatedTimestamp() { return createdTimestamp; }
+    /** Age in days. */
+    public float getAgeDays() { return nex4x.util.Nex4xClock.daysSince(createdTimestamp); }
     public String getParentGoalId() { return parentGoalId; }
 
     /** Unique key for deduplication. */

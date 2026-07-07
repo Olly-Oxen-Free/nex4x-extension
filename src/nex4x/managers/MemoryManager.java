@@ -17,7 +17,6 @@ public class MemoryManager implements Serializable {
     private static final Logger log = Global.getLogger(MemoryManager.class);
 
     private final Map<String, FactionMemoryStore> stores = new HashMap<String, FactionMemoryStore>();
-    private float lastAdvanceDay = 0;
 
     private String storeKey(String holder, String about) {
         return holder + "::" + about;
@@ -43,9 +42,7 @@ public class MemoryManager implements Serializable {
         float beliefMult = calculateBeliefMultiplier(targetFaction, typeDef);
         float traitDecayMult = calculateTraitDecayModifier(targetFaction, typeId);
 
-        float gameDays = Global.getSector().getClock().getDay()
-                + (Global.getSector().getClock().getMonth() - 1) * 30f
-                + (Global.getSector().getClock().getCycle() - 206) * 365f;
+        float gameDays = nex4x.util.Nex4xClock.currentAbsoluteDay();
 
         FactionMemory memory = new FactionMemory(typeId, sourceFaction, targetFaction,
                 beliefMult, traitDecayMult, gameDays, details);
@@ -80,8 +77,9 @@ public class MemoryManager implements Serializable {
         float mult = 1f;
 
         for (String trait : traits) {
+            // IRREDENTIST: territorial memories essentially never decay.
             if (trait.equals(TraitIds.IRREDENTIST) && memoryTypeId.startsWith("territorial")) {
-                return 0.001f;
+                return 1000f;
             }
             if (trait.equals(TraitIds.STALWART)) {
                 mult *= 0.67f;
@@ -89,8 +87,9 @@ public class MemoryManager implements Serializable {
             if (trait.equals(TraitIds.TEMPERAMENTAL)) {
                 mult *= 1.5f;
             }
+            // FOREVERWAR: military memories essentially never decay.
             if (trait.equals(TraitIds.FOREVERWAR) && memoryTypeId.startsWith("military")) {
-                return 0.001f;
+                return 1000f;
             }
             if (trait.equals(TraitIds.HELPS_ALLIES)
                     && (memoryTypeId.equals("honored_pact") || memoryTypeId.equals("aid_given"))) {

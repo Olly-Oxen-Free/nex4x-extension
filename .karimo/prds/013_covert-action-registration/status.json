@@ -1,0 +1,12 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P0",
+  "tasks_total": 4,
+  "complexity_total": 5,
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["13a", "13b", "13c"],
+  "tasks_pending": ["13d"],
+  "notes": "Code complete + build green (2026-05-31). 13d = in-game runcode smoke (auditCovertDefs/auditAgents expect 7/7, idempotent on reload) requires the running game; pending user verification."
+}

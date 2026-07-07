@@ -1,0 +1,13 @@
+{
+  "status": "in_progress",
+  "created_date": "2026-05-31",
+  "source": "2026-05-31 nex4x flaw audit",
+  "severity": "P1",
+  "tasks_total": 6,
+  "complexity_total": 7,
+  "depends_on_prds": ["013_covert-action-registration"],
+  "execution_mode": "karimo-implementer-per-task",
+  "tasks_completed": ["19a", "19b", "19c", "19d", "19e", "19f"],
+  "tasks_pending": [],
+  "notes": "Code complete + build green (2026-05-31). IMPORTANT ADAPTATION: the planned AgentIntel.getAgentsStatic() does NOT exist in ExerelinCore.jar (javap confirmed) — AgentOwnershipSweep + auditAgentOwnership enumerate live agents via Global.getSector().getIntelManager().getIntel(AgentIntel.class) instead. Sweep wired into Nex4xManager v3 daily tick BEFORE advanceAll. Owner set from ai.updateAgentDisplayedFaction() when null; dead agents pruned via mgr.remove. Null-owner warn logs added to DiplomatPassive/ExpulsionCascade. 19f method named auditAgentOwnership() (existing auditAgents() left intact). Smoke: runcode nex4x.debug.Nex4xDebugCommand.auditAgentOwnership() — expect agents listed with non-null owner, 0 null after a daily tick. Full covert buildup still depends on PRD-013."
+}

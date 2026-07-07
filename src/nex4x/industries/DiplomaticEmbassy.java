@@ -10,6 +10,12 @@ import org.json.JSONObject;
 
 public class DiplomaticEmbassy extends BaseIndustry {
 
+    /**
+     * Effects are applied externally by polling — InfluenceManager.advanceMonth iterates
+     * markets and credits per-cycle income from {@code influence_sources.json/buildingIncome}
+     * for any market with this industry. Counter-espionage bonus is read by DetectionEngine.
+     * apply() therefore only needs base BaseIndustry behaviour.
+     */
     @Override
     public void apply() { super.apply(true); }
 

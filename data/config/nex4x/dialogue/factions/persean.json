@@ -1,0 +1,10 @@
+{
+  "greeting": {
+    "NEUTRAL":     ["The League convenes on your matter. Proceed.",
+                    "Member states debate; we speak. Your business."],
+    "FAVORABLE":   ["A friend of the League. The chamber is open."]
+  },
+  "alliance_proposed": {
+    "NEUTRAL":     ["The League values alliances. We'll review."]
+  }
+}

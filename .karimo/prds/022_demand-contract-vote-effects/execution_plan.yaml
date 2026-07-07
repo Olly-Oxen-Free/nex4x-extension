@@ -1,0 +1,46 @@
+prd: demand-contract-vote-effects
+waves:
+  - wave: 1
+    label: Foundation (no dependencies)
+    tasks: [22a, 22b, 22g, 22i]
+    # 22a: add DemandType.FORCE_NEUTRALITY
+    # 22b: add demand cooldown tracking to DiplomaticExecutor
+    # 22g: add InfluenceSource.CONTRACT_PAYOFF
+    # 22i: retire CoalitionVote.resolve(String) back-compat overload
+
+  - wave: 2
+    label: Core effect implementations
+    tasks: [22c, 22e, 22f, 22j]
+    # 22c: wire PRESS_GRIEVANCE/EXPLOIT_WEAKNESS → DemandManager.issue()   (needs 22a, 22b)
+    # 22e: FORCE_NEUTRALITY effect in applyDemandEffect                     (needs 22a)
+    # 22f: ContractAuctionManager.complete() influence+covert dispatch       (needs 22g)
+    # 22j: CoalitionGovernance vote resolution loop                          (needs 22i)
+
+  - wave: 3
+    label: AI response wiring
+    tasks: [22d, 22k]
+    # 22d: AI accept/reject incoming demands                                 (needs 22c)
+    # 22k: proposeVote() call site in AgreementManager                       (needs 22j)
+
+  - wave: 4
+    label: AI vote-casting + contract posting
+    tasks: [22h, 22l]
+    # 22h: AI contract posting/bidding in DiplomaticExecutor (should)        (needs 22f, 22g)
+    # 22l: AI vote-casting in DiplomaticExecutor                             (needs 22j, 22k)
+
+  - wave: 5
+    label: Debug instrumentation
+    tasks: [22m]
+    # 22m: auditDemands/auditContracts/auditVotes runcodes                   (needs 22c, 22f, 22j)
+
+  - wave: 6
+    label: Build + smoke
+    tasks: [22n]
+    # 22n: build green + in-game smoke                                       (needs all)
+
+longest_chain: [22a, 22c, 22d, 22m, 22n]
+# Chain: 22a (type) → 22c (issue wiring) → 22d (AI accept/reject) → 22m (audit) → 22n (smoke)
+# Length: 5 tasks, complexity 1+3+2+2+1 = 9
+
+total_complexity: 23
+# 22a=1, 22b=1, 22c=3, 22d=2, 22e=1, 22f=3, 22g=1, 22h=2, 22i=1, 22j=3, 22k=2, 22l=2, 22m=2, 22n=1

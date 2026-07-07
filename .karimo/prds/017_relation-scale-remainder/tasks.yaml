@@ -1,0 +1,144 @@
+prd: relation-scale-remainder
+version: 1
+tasks:
+
+  - id: 17a
+    title: Fix repBarAscii to accept percent scale
+    description: |
+      src/nex4x/ui/FactionBrowserPanelModel.java, line 544-553.
+      Current signature: static String repBarAscii(float relationship)
+      Current body: float t = (relationship + 100f) / 200f;   // expects -100..100
+      Change: the method already expects percent scale internally — the body is
+      correct. The bug is that all callers pass raw -1..1. Two options; pick
+      option A (update callers, keep body) to be explicit:
+        Option A — keep body as-is, document the contract, update all callers
+                   to pass toPercent(rawRel) (tasks 17b, 17d, 17e, 17f do this).
+      Add a one-line Javadoc: "@param relationshipPct relation in [-100..100]".
+      No logic change to repBarAscii body needed — the formula is already correct
+      for percent input. This task is documentation + Javadoc only, verifying
+      the body, so callers know what to pass.
+    files:
+      - src/nex4x/ui/FactionBrowserPanelModel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 17b
+    title: FactionBrowserPanelModel — fix addFactionRow (line ~121) and addRelationsTab (lines ~528,535)
+    description: |
+      src/nex4x/ui/FactionBrowserPanelModel.java
+      addFactionRow (~line 119-145):
+        Line 121: String relStr = String.format("%+.0f", rel);
+        Fix: String relStr = String.format("%+d", Nex4xRelations.toPercentInt(rel));
+        (No other change in this method — row text uses relStr for display only.)
+      addRelationsTab (~lines 527-541):
+        Line 528: float r = f.getRelationship(o.getId());
+        Line 529: String rStr = String.format("%+.0f", r);   // raw
+        Fix line 529: String rStr = String.format("%+d", Nex4xRelations.toPercentInt(r));
+        Line 535: card.addPara(repBarAscii(r), relCol, 2f);  // raw
+        Fix line 535: card.addPara(repBarAscii(Nex4xRelations.toPercent(r)), relCol, 2f);
+      Add import nex4x.util.Nex4xRelations if not present (it is already imported
+      in some other methods — check before adding).
+    files:
+      - src/nex4x/ui/FactionBrowserPanelModel.java
+    complexity: 1
+    priority: must
+    depends_on: [17a]
+
+  - id: 17c
+    title: FactionBrowserPanelModel — fix addOverviewTab (line ~259)
+    description: |
+      src/nex4x/ui/FactionBrowserPanelModel.java, addOverviewTab (~lines 250-289).
+      Line 258: float rel = f.getRelationship(playerId);
+      Line 259: String relStr = String.format("%+.0f", rel);   // raw
+      Fix: String relStr = String.format("%+d", Nex4xRelations.toPercentInt(rel));
+    files:
+      - src/nex4x/ui/FactionBrowserPanelModel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 17d
+    title: DiplomacyIntel — fix buildFactionCard relStr and repBarAscii (lines ~114, ~123)
+    description: |
+      src/nex4x/ui/DiplomacyIntel.java, buildFactionCard (~lines 112-135).
+      Line 113: float rel = f.getRelationship(playerId);
+      Line 114: String relStr = String.format("%+.0f", rel);   // raw → "+1"
+      Fix: String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));
+      Line 123: card.addPara(FactionBrowserPanelModel.repBarAscii(rel), relColor, 1f);  // raw
+      Fix: card.addPara(FactionBrowserPanelModel.repBarAscii(nex4x.util.Nex4xRelations.toPercent(rel)), relColor, 1f);
+      Note: relColor() and repLabel() helpers in this file already call toPercent() internally — do not change them.
+    files:
+      - src/nex4x/ui/DiplomacyIntel.java
+    complexity: 1
+    priority: must
+    depends_on: [17a]
+
+  - id: 17e
+    title: DiplomacyTabPlugin — fix buildFactionCard relStr and repBarAscii (lines ~65, ~73)
+    description: |
+      src/nex4x/ui/DiplomacyTabPlugin.java, buildFactionCard (~lines 63-84).
+      Line 64: float rel = f.getRelationship(playerId);
+      Line 65: String relStr = String.format("%+.0f", rel);   // raw → "+1"
+      Fix: String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));
+      Line 73: card.addPara(FactionBrowserPanelModel.repBarAscii(rel), relColor, 1f);  // raw
+      Fix: card.addPara(FactionBrowserPanelModel.repBarAscii(nex4x.util.Nex4xRelations.toPercent(rel)), relColor, 1f);
+      Note: relColor() and repLabel() helpers already call toPercent() — do not change.
+    files:
+      - src/nex4x/ui/DiplomacyTabPlugin.java
+    complexity: 1
+    priority: must
+    depends_on: [17a]
+
+  - id: 17f
+    title: CoreUITabInjectorListener — fix repBarAscii call (line ~159)
+    description: |
+      src/nex4x/ui/CoreUITabInjectorListener.java, buildFactionCardList (~lines 137-170).
+      Line 151: String relStr = String.format("%+d", nex4x.util.Nex4xRelations.toPercentInt(rel));  // already correct
+      Line 159: card.addPara(FactionBrowserPanelModel.repBarAscii(rel), relColor, 1f);   // raw — WRONG
+      Fix: card.addPara(FactionBrowserPanelModel.repBarAscii(nex4x.util.Nex4xRelations.toPercent(rel)), relColor, 1f);
+      This is the only change needed in this file.
+    files:
+      - src/nex4x/ui/CoreUITabInjectorListener.java
+    complexity: 1
+    priority: must
+    depends_on: [17a]
+
+  - id: 17g
+    title: DiplomacyTabOverlayModel — fix delta display in addDiplomacyHistory and DiploEventTooltip
+    description: |
+      src/nex4x/ui/DiplomacyTabOverlayModel.java
+      DiploEventEntry.delta stores ExerelinReputationAdjustmentResult.delta, which
+      inherits ReputationAdjustmentResult(float delta). Nexerelin passes raw -1..1
+      floats to adjustRelations/adjustRelationship, so delta is e.g. 0.05 for a +5%
+      event. Display must multiply by 100.
+
+      addDiplomacyHistory (~line 400):
+        String deltaStr = String.format("%+.0f", e.delta);   // "+0" for 0.05
+        Fix: String deltaStr = String.format("%+.0f", e.delta * 100f);
+
+      DiploEventTooltip.createTooltip (~line 659):
+        String ds = String.format("%+.0f", e.delta);   // same bug
+        Fix: String ds = String.format("%+.0f", e.delta * 100f);
+
+      Do NOT change DiploEventEntry.delta field itself — it stores the raw API
+      value and may be used elsewhere for comparisons.
+      Do NOT use Nex4xRelations.toPercent here — inline multiply is fine for a
+      local display-only conversion in an anonymous inner class context.
+    files:
+      - src/nex4x/ui/DiplomacyTabOverlayModel.java
+    complexity: 1
+    priority: must
+    depends_on: []
+
+  - id: 17h
+    title: Build verification
+    description: |
+      Run ./build.sh from the mod root. Build must exit 0.
+      Confirm no new compiler warnings about the changed lines.
+      No runtime smoke test is automated; visual confirmation is done in-game
+      per the Acceptance criteria in the PRD.
+    files: []
+    complexity: 1
+    priority: must
+    depends_on: [17b, 17c, 17d, 17e, 17f, 17g]

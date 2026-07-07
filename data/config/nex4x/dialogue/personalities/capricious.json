@@ -1,0 +1,14 @@
+{
+  "greeting": {
+    "HOSTILE":     ["Or maybe I'll hear you out. We'll see."],
+    "NEUTRAL":     ["Oh! You came. I wasn't sure. Go on."],
+    "FAVORABLE":   ["Today's a day for terms. Possibly."],
+    "COOPERATIVE": ["Still my friend? Still my friend. Speak."]
+  },
+  "negotiation_reject": {
+    "NEUTRAL":     ["Not in the mood. Come back in a week."]
+  },
+  "negotiation_accept": {
+    "FAVORABLE":   ["Fine! Why not. Done."]
+  }
+}
